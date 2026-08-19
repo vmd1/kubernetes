@@ -18,7 +18,7 @@ This folder contains standalone helper scripts used when operating the cluster o
 
 ## apply-secrets.sh
 
-Helper script for working with the repository's [SOPS-encrypted secrets](../.sops.yaml).
+Helper script for working with the repository's [SOPS-encrypted secrets](../../.sops.yaml).
 
 ```bash
 _scripts/apply-secrets.sh --dry-run   # validate all secrets client-side (no cluster changes)
@@ -42,6 +42,6 @@ Thresholds assert that p(95) latency stays under 500ms and the error rate below 
 
 ## Related
 
-- [../.sops.yaml](../.sops.yaml) — SOPS/Age encryption configuration (referenced by `apply-secrets.sh`).
-- [../cluster-info.md](../cluster-info.md) — lists this script as the secrets helper.
-- [../README.md](../README.md) — repository overview and maintenance policy.
+- [../../.sops.yaml](../../.sops.yaml) — SOPS/Age encryption configuration (referenced by `apply-secrets.sh`).
+- [../../cluster-info.md](../../cluster-info.md) — lists this script as the secrets helper.
+- [../../README.md](../../README.md) — repository overview and maintenance policy.

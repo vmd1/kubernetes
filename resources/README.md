@@ -24,14 +24,14 @@ This directory contains all the Kubernetes manifests that Flux reconciles into t
 crds-and-operators ──► nodes ──► infrastructure ──► applications
 ```
 
-Each layer's Flux Kustomization declares `dependsOn` the previous layer (see [clusters/vmd1/](../clusters/vmd1/README.md)), so operators and CRDs exist before the custom resources that rely on them, and infrastructure primitives exist before the applications that consume them.
+Each layer's Flux Kustomization declares `dependsOn` the previous layer (see [../clusters/vmd1/README.md](../clusters/vmd1/README.md)), so operators and CRDs exist before the custom resources that rely on them, and infrastructure primitives exist before the applications that consume them.
 
 ## Secrets
 
-All secrets live next to their workloads as SOPS-encrypted `secrets.sops.yaml` files (Age encryption) and are decrypted in-cluster by Flux using the `sops-age` secret. See [../.sops.yaml](../.sops.yaml) for the encryption configuration and [../_scripts/apply-secrets.sh](../_scripts/apply-secrets.sh) for a helper to apply them manually.
+All secrets live next to their workloads as SOPS-encrypted `secrets.sops.yaml` files (Age encryption) and are decrypted in-cluster by Flux using the `sops-age` secret. See [../../.sops.yaml](../../.sops.yaml) for the encryption configuration and [../_scripts/apply-secrets.sh](../_scripts/apply-secrets.sh) for a helper to apply them manually.
 
 ## Related
 
 - [../clusters/vmd1/README.md](../clusters/vmd1/README.md) — the Flux Kustomizations that drive these layers.
-- [../cluster-info.md](../cluster-info.md) — detailed inventory of every resource in these layers.
-- [../README.md](../README.md) — repository overview and maintenance policy.
+- [../../cluster-info.md](../../cluster-info.md) — detailed inventory of every resource in these layers.
+- [../../README.md](../../README.md) — repository overview and maintenance policy.

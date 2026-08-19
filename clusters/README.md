@@ -11,7 +11,7 @@ This directory holds the **FluxCD GitOps cluster definitions** for this reposito
 ## How It Fits Together
 
 ```
-clusters/vmd1/            <- Flux entrypoint for the vmd1 cluster (see vmd1/README.md)
+clusters/vmd1/  <- Flux entrypoint for the vmd1 cluster (see vmd1/README.md)
 └── flux-system/          <- Bootstrap manifests (Flux components + GitRepository sync)
 ```
 
@@ -21,5 +21,5 @@ Flux watches this repository via the `flux-system` GitRepository (defined in [vm
 
 - [vmd1/README.md](vmd1/README.md) — cluster-level configuration and the four reconciliation layers.
 - [../resources/README.md](../resources/README.md) — the manifest layers Flux reconciles (CRDs & operators, nodes, infrastructure, applications).
-- [../README.md](../README.md) — repository overview, secrets management, and maintenance policy.
-- [../cluster-info.md](../cluster-info.md) — machine-readable cluster inventory (nodes, helm charts, namespaces).
+- [../../README.md](../../README.md) — repository overview, secrets management, and maintenance policy.
+- [../../cluster-info.md](../../cluster-info.md) — machine-readable cluster inventory (nodes, helm charts, namespaces).
