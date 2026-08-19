@@ -1,0 +1,10 @@
+apiVersion: network.vmd1.homelab/v1alpha1
+kind: OCIPortRule
+metadata:
+  name: dns-port-udp
+spec:
+  nodeSelector:
+    node-role.kubernetes.io/ingress: "true"
+  protocol: udp
+  ports:
+    - 53

@@ -1,0 +1,576 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: tailscale-region-controller
+  namespace: tailscale
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: tailscale-region-controller-role
+rules:
+  - apiGroups: [""]
+    resources: ["nodes"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["pods/exec"]
+    verbs: ["create", "get"]
+  - apiGroups: ["tailscale.com"]
+    resources: ["connectors", "proxyclasses"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: tailscale-region-controller-binding
+subjects:
+  - kind: ServiceAccount
+    name: tailscale-region-controller
+    namespace: tailscale
+roleRef:
+  kind: ClusterRole
+  name: tailscale-region-controller-role
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: tailscale-region-controller-code
+  namespace: tailscale
+data:
+  watcher.py: |
+    import os
+    import sys
+    import time
+    import logging
+    from kubernetes import client, config
+    from kubernetes.client.rest import ApiException
+    from kubernetes.stream import stream
+
+    # Configure logging
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s [%(levelname)s] %(message)s",
+        handlers=[logging.StreamHandler(sys.stdout)]
+    )
+    logger = logging.getLogger("tailscale-region-watcher")
+
+    RECONCILE_INTERVAL = int(os.environ.get("RECONCILE_INTERVAL", "30"))
+    MTU_VALUE = os.environ.get("TAILSCALE_MTU", "1130")
+
+    # How long a pod may sit on a NotReady/Unreachable node before it's evicted
+    # and rescheduled onto a healthy sibling node in the same region. This
+    # overrides the cluster-default 300s (injected automatically by the
+    # DefaultTolerationSeconds admission controller for any pod that doesn't
+    # already tolerate these taints).
+    FAILOVER_GRACE_SECONDS = int(os.environ.get("FAILOVER_GRACE_SECONDS", "60"))
+
+    # How long a region may be missing from the active set before we tear down
+    # its Connector/ProxyClass. This must be long enough to comfortably outlast
+    # a node reboot/upgrade/extended maintenance window, since deleting a
+    # Connector destroys its Tailscale device identity and state (e.g. any
+    # serve/funnel config) - the operator will register a brand new device
+    # when it is recreated. Defaults to 1 week.
+    REGION_GRACE_PERIOD = int(os.environ.get("REGION_GRACE_PERIOD", str(7 * 24 * 60 * 60)))
+
+    # In-memory record of when each managed region was last seen active.
+    # Seeded lazily so that a controller restart doesn't immediately treat
+    # every currently-inactive region as "gone" - see reconcile().
+    _region_last_seen = {}
+
+    # Initialize Kubernetes API clients
+    try:
+        config.load_incluster_config()
+    except Exception:
+        logger.warning("Could not load in-cluster config, falling back to local kubeconfig.")
+        config.load_kube_config()
+
+    v1_core = client.CoreV1Api()
+    custom_api = client.CustomObjectsApi()
+
+    GROUP = "tailscale.com"
+    VERSION = "v1alpha1"
+    PLURAL_CONNECTORS = "connectors"
+    PLURAL_PROXYCLASSES = "proxyclasses"
+    MANAGED_LABEL = {"managed-by": "tailscale-region-controller"}
+
+    def get_active_regions():
+        try:
+            nodes = v1_core.list_node()
+            active_regions = set()
+            for node in nodes.items:
+                # Check node readiness
+                node_ready = False
+                for cond in node.status.conditions or []:
+                    if cond.type == "Ready" and cond.status == "True":
+                        node_ready = True
+                        break
+            
+                if node_ready:
+                    region = node.metadata.labels.get("topology.kubernetes.io/zone")
+                    if region:
+                        active_regions.add(region)
+            return active_regions
+        except Exception as e:
+            logger.error(f"Error listing nodes: {e}")
+            return set()
+
+    def reconcile_proxyclass(region):
+        name = f"ts-proxyclass-{region}"
+        expected_body = {
+            "apiVersion": f"{GROUP}/{VERSION}",
+            "kind": "ProxyClass",
+            "metadata": {
+                "name": name,
+                "labels": MANAGED_LABEL
+            },
+            "spec": {
+                "statefulSet": {
+                    "pod": {
+                        "tailscaleContainer": {
+                            "env": [
+                                {
+                                    "name": "TS_PORT",
+                                    "value": "41642"
+                                }
+                            ]
+                        },
+                        "nodeSelector": {
+                            "topology.kubernetes.io/zone": region
+                        },
+                        "tolerations": [
+                            {
+                                "key": "node-role",
+                                "operator": "Equal",
+                                "value": "ingress",
+                                "effect": "NoSchedule"
+                            },
+                            {
+                                "key": "node.kubernetes.io/not-ready",
+                                "operator": "Exists",
+                                "effect": "NoExecute",
+                                "tolerationSeconds": FAILOVER_GRACE_SECONDS
+                            },
+                            {
+                                "key": "node.kubernetes.io/unreachable",
+                                "operator": "Exists",
+                                "effect": "NoExecute",
+                                "tolerationSeconds": FAILOVER_GRACE_SECONDS
+                            }
+                        ]
+                    }
+                }
+            }
+        }
+
+        try:
+            existing = custom_api.get_cluster_custom_object(
+                group=GROUP,
+                version=VERSION,
+                plural=PLURAL_PROXYCLASSES,
+                name=name
+            )
+            existing_spec = existing.get("spec", {})
+            expected_spec = expected_body["spec"]
+        
+            # Verify statefulSet matches exactly
+            existing_ss = existing_spec.get("statefulSet", {})
+            expected_ss = expected_spec["statefulSet"]
+        
+            # We drop empty values or compare directly
+            existing_tolerations = existing_ss.get("pod", {}).get("tolerations", [])
+            expected_tolerations = expected_ss["pod"]["tolerations"]
+            existing_ts_container = existing_ss.get("pod", {}).get("tailscaleContainer", {})
+            expected_ts_container = expected_ss["pod"]["tailscaleContainer"]
+            if (
+                existing_ss.get("pod", {}).get("nodeSelector", {}).get("topology.kubernetes.io/zone") == region
+                and existing_ts_container == expected_ts_container
+                and existing_tolerations == expected_tolerations
+            ):
+                logger.debug(f"ProxyClass '{name}' is up to date.")
+                return
+            
+            logger.info(f"Updating ProxyClass '{name}'...")
+            expected_body["metadata"]["resourceVersion"] = existing["metadata"]["resourceVersion"]
+            custom_api.replace_cluster_custom_object(
+                group=GROUP,
+                version=VERSION,
+                plural=PLURAL_PROXYCLASSES,
+                name=name,
+                body=expected_body
+            )
+        except ApiException as e:
+            if e.status == 404:
+                logger.info(f"Creating ProxyClass '{name}'...")
+                custom_api.create_cluster_custom_object(
+                    group=GROUP,
+                    version=VERSION,
+                    plural=PLURAL_PROXYCLASSES,
+                    body=expected_body
+                )
+            else:
+                logger.error(f"Error reconciling ProxyClass '{name}': {e}")
+
+    def reconcile_connector(region):
+        proxyclass_name = f"ts-proxyclass-{region}"
+        name = region
+        expected_body = {
+            "apiVersion": f"{GROUP}/{VERSION}",
+            "kind": "Connector",
+            "metadata": {
+                "name": name,
+                "labels": MANAGED_LABEL
+            },
+            "spec": {
+                "exitNode": True,
+                "hostname": region,
+                "proxyClass": proxyclass_name,
+                "tags": ["tag:k8s-operator"]
+            }
+        }
+
+        try:
+            existing = custom_api.get_cluster_custom_object(
+                group=GROUP,
+                version=VERSION,
+                plural=PLURAL_CONNECTORS,
+                name=name
+            )
+            existing_spec = existing.get("spec", {})
+            expected_spec = expected_body["spec"]
+        
+            spec_ok = (
+                existing_spec.get("exitNode") == expected_spec["exitNode"] and
+                existing_spec.get("hostname") == expected_spec["hostname"] and
+                existing_spec.get("proxyClass") == expected_spec["proxyClass"] and
+                existing_spec.get("tags") == expected_spec["tags"]
+            )
+
+            if spec_ok:
+                logger.debug(f"Connector '{name}' is up to date.")
+                return
+        
+            logger.info(f"Updating Connector '{name}'...")
+            expected_body["metadata"]["resourceVersion"] = existing["metadata"]["resourceVersion"]
+            custom_api.replace_cluster_custom_object(
+                group=GROUP,
+                version=VERSION,
+                plural=PLURAL_CONNECTORS,
+                name=name,
+                body=expected_body
+            )
+        except ApiException as e:
+            if e.status == 404:
+                logger.info(f"Creating Connector '{name}'...")
+                custom_api.create_cluster_custom_object(
+                    group=GROUP,
+                    version=VERSION,
+                    plural=PLURAL_CONNECTORS,
+                    body=expected_body
+                )
+            else:
+                logger.error(f"Error reconciling Connector '{name}': {e}")
+
+    def delete_connector(name):
+        try:
+            logger.info(f"Deleting inactive Connector '{name}'...")
+            custom_api.delete_cluster_custom_object(
+                group=GROUP,
+                version=VERSION,
+                plural=PLURAL_CONNECTORS,
+                name=name,
+                body=client.V1DeleteOptions()
+            )
+        except ApiException as e:
+            if e.status != 404:
+                logger.error(f"Error deleting Connector '{name}': {e}")
+
+    def delete_proxyclass(name):
+        try:
+            logger.info(f"Deleting inactive ProxyClass '{name}'...")
+            custom_api.delete_cluster_custom_object(
+                group=GROUP,
+                version=VERSION,
+                plural=PLURAL_PROXYCLASSES,
+                name=name,
+                body=client.V1DeleteOptions()
+            )
+        except ApiException as e:
+            if e.status != 404:
+                logger.error(f"Error deleting ProxyClass '{name}': {e}")
+
+    def optimize_pod_networking():
+        try:
+            # List all exit node pods managed by the operator
+            pods = v1_core.list_namespaced_pod(
+                namespace="tailscale",
+                label_selector="tailscale.com/parent-resource-type=connector"
+            )
+            for pod in pods.items:
+                pod_name = pod.metadata.name
+                if pod.status.phase != "Running":
+                    continue
+            
+                try:
+                    # 1. Optimize MTU
+                    check_mtu = ["ip", "link", "show", "tailscale0"]
+                    res_mtu = stream(
+                        v1_core.connect_get_namespaced_pod_exec,
+                        name=pod_name,
+                        namespace="tailscale",
+                        container="tailscale",
+                        command=check_mtu,
+                        stderr=True,
+                        stdin=False,
+                        stdout=True,
+                        tty=False
+                    )
+                    if "tailscale0" in res_mtu and f"mtu {MTU_VALUE}" not in res_mtu:
+                        logger.info(f"Optimizing MTU to {MTU_VALUE} on pod '{pod_name}'...")
+                        set_mtu = ["ip", "link", "set", "dev", "tailscale0", "mtu", MTU_VALUE]
+                        stream(
+                            v1_core.connect_get_namespaced_pod_exec,
+                            name=pod_name,
+                            namespace="tailscale",
+                            container="tailscale",
+                            command=set_mtu,
+                            stderr=True,
+                            stdin=False,
+                            stdout=True,
+                            tty=False
+                        )
+                
+                    # 2. Add Masquerading
+                    check_nat = ["iptables", "-t", "nat", "-S"]
+                    res_nat = stream(
+                        v1_core.connect_get_namespaced_pod_exec,
+                        name=pod_name,
+                        namespace="tailscale",
+                        container="tailscale",
+                        command=check_nat,
+                        stderr=True,
+                        stdin=False,
+                        stdout=True,
+                        tty=False
+                    )
+                    if "-A POSTROUTING -o eth0 -j MASQUERADE" not in res_nat:
+                        logger.info(f"Adding NAT masquerading on pod '{pod_name}'...")
+                        set_nat = ["iptables", "-t", "nat", "-A", "POSTROUTING", "-o", "eth0", "-j", "MASQUERADE"]
+                        stream(
+                            v1_core.connect_get_namespaced_pod_exec,
+                            name=pod_name,
+                            namespace="tailscale",
+                            container="tailscale",
+                            command=set_nat,
+                            stderr=True,
+                            stdin=False,
+                            stdout=True,
+                            tty=False
+                        )
+                
+                    # 3. Add TCPMSS clamping
+                    check_mangle = ["iptables", "-t", "mangle", "-S"]
+                    res_mangle = stream(
+                        v1_core.connect_get_namespaced_pod_exec,
+                        name=pod_name,
+                        namespace="tailscale",
+                        container="tailscale",
+                        command=check_mangle,
+                        stderr=True,
+                        stdin=False,
+                        stdout=True,
+                        tty=False
+                    )
+                    if "--clamp-mss-to-pmtu" not in res_mangle:
+                        logger.info(f"Adding TCPMSS clamp-to-pmtu on pod '{pod_name}'...")
+                        set_clamp = ["iptables", "-t", "mangle", "-A", "FORWARD", "-p", "tcp", "--tcp-flags", "SYN,RST", "SYN", "-j", "TCPMSS", "--clamp-mss-to-pmtu"]
+                        stream(
+                            v1_core.connect_get_namespaced_pod_exec,
+                            name=pod_name,
+                            namespace="tailscale",
+                            container="tailscale",
+                            command=set_clamp,
+                            stderr=True,
+                            stdin=False,
+                            stdout=True,
+                            tty=False
+                        )
+                
+                    if "--set-mss 1200" not in res_mangle:
+                        logger.info(f"Adding TCPMSS set-mss 1200 on pod '{pod_name}'...")
+                        set_mss = ["iptables", "-t", "mangle", "-A", "FORWARD", "-p", "tcp", "--tcp-flags", "SYN,RST", "SYN", "-j", "TCPMSS", "--set-mss", "1200"]
+                        stream(
+                            v1_core.connect_get_namespaced_pod_exec,
+                            name=pod_name,
+                            namespace="tailscale",
+                            container="tailscale",
+                            command=set_mss,
+                            stderr=True,
+                            stdin=False,
+                            stdout=True,
+                            tty=False
+                        )
+                except Exception as ex:
+                    logger.error(f"Failed to optimize network settings on pod '{pod_name}': {ex}")
+        except Exception as e:
+            logger.error(f"Error listing pods for network optimization: {e}")
+
+    def reconcile(active_regions):
+        logger.info(f"Starting reconciliation. Active regions: {list(active_regions)}")
+        now = time.time()
+
+        # Reconcile active regions and record that we saw them just now.
+        for region in active_regions:
+            _region_last_seen[region] = now
+            reconcile_proxyclass(region)
+            reconcile_connector(region)
+
+        def _past_grace_period(region_name):
+            # Lazily seed unknown regions with "now" rather than treating them
+            # as already-expired. This matters on controller restart: without
+            # it, every region that happens to be inactive at that exact moment
+            # (e.g. mid-reboot) would be deleted on the very next tick instead
+            # of getting the benefit of the grace period.
+            last_seen = _region_last_seen.setdefault(region_name, now)
+            return (now - last_seen) > REGION_GRACE_PERIOD
+
+        # Clean up connectors managed by this controller whose region has been
+        # missing for longer than the grace period (i.e. genuinely decommissioned,
+        # not just a node that's mid-reboot).
+        try:
+            connectors = custom_api.list_cluster_custom_object(
+                group=GROUP,
+                version=VERSION,
+                plural=PLURAL_CONNECTORS
+            )
+            for item in connectors.get("items", []):
+                name = item.get("metadata", {}).get("name", "")
+                labels = item.get("metadata", {}).get("labels", {})
+                if labels.get("managed-by") != "tailscale-region-controller":
+                    continue
+                if name in active_regions:
+                    continue
+                if _past_grace_period(name):
+                    logger.info(
+                        f"Region '{name}' has been inactive for over "
+                        f"{REGION_GRACE_PERIOD}s, deleting Connector."
+                    )
+                    delete_connector(name)
+                else:
+                    logger.debug(
+                        f"Region '{name}' is inactive but still within its "
+                        f"{REGION_GRACE_PERIOD}s grace period; leaving Connector in place."
+                    )
+        except Exception as e:
+            logger.error(f"Error listing Connectors: {e}")
+
+        # Same grace-period treatment for ProxyClasses.
+        try:
+            proxyclasses = custom_api.list_cluster_custom_object(
+                group=GROUP,
+                version=VERSION,
+                plural=PLURAL_PROXYCLASSES
+            )
+            for item in proxyclasses.get("items", []):
+                name = item.get("metadata", {}).get("name", "")
+                labels = item.get("metadata", {}).get("labels", {})
+                if labels.get("managed-by") != "tailscale-region-controller":
+                    continue
+                if not name.startswith("ts-proxyclass-"):
+                    continue
+                region = name[len("ts-proxyclass-"):]
+                if region in active_regions:
+                    continue
+                if _past_grace_period(region):
+                    logger.info(
+                        f"Region '{region}' has been inactive for over "
+                        f"{REGION_GRACE_PERIOD}s, deleting ProxyClass."
+                    )
+                    delete_proxyclass(name)
+                else:
+                    logger.debug(
+                        f"Region '{region}' is inactive but still within its "
+                        f"{REGION_GRACE_PERIOD}s grace period; leaving ProxyClass in place."
+                    )
+        except Exception as e:
+            logger.error(f"Error listing ProxyClasses: {e}")
+
+        # Now that both cleanup passes have used a consistent verdict for each
+        # region, drop any expired-and-deleted regions from the tracker so it
+        # doesn't grow unbounded across genuinely decommissioned regions.
+        for region_name in list(_region_last_seen.keys()):
+            if region_name not in active_regions and _past_grace_period(region_name):
+                _region_last_seen.pop(region_name, None)
+
+        # Optimize network settings (MTU, NAT, and TCPMSS) for all running connector pods
+        optimize_pod_networking()
+
+    def main():
+        logger.info("Tailscale Region Exit Node Controller started.")
+        while True:
+            try:
+                active_regions = get_active_regions()
+                reconcile(active_regions)
+            except Exception as e:
+                logger.exception(f"Unhandled exception in reconciliation loop: {e}")
+            time.sleep(RECONCILE_INTERVAL)
+
+    if __name__ == "__main__":
+        main()
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tailscale-region-controller
+  namespace: tailscale
+  labels:
+    app: tailscale-region-controller
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: tailscale-region-controller
+  template:
+    metadata:
+      labels:
+        app: tailscale-region-controller
+    spec:
+      serviceAccountName: tailscale-region-controller
+      containers:
+        - name: controller
+          image: ghcr.io/vmd1/k8s-operator:edge
+          command:
+            - python
+            - /app/watcher.py
+          env:
+            - name: MALLOC_TRIM_THRESHOLD_
+              value: "100000"
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: RECONCILE_INTERVAL
+              value: "30"
+            - name: TAILSCALE_MTU
+              value: "1130"
+            - name: REGION_GRACE_PERIOD
+              value: "604800"  # 1 week
+            - name: FAILOVER_GRACE_SECONDS
+              value: "60"
+          volumeMounts:
+            - name: code-volume
+              mountPath: /app
+          resources:
+            requests:
+              cpu: 50m
+              memory: 256Mi
+            limits:
+              cpu: 200m
+              memory: 512Mi
+      volumes:
+        - name: code-volume
+          configMap:
+            name: tailscale-region-controller-code

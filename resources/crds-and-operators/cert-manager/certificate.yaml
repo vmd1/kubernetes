@@ -1,0 +1,22 @@
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: cluster-wildcard-tls
+  namespace: traefik
+spec:
+  secretName: cluster-wildcard-tls
+  issuerRef:
+    name: letsencrypt-cloudflare
+    kind: ClusterIssuer
+  commonName: vmd1.homelab
+  dnsNames:
+    - vmd1.homelab
+    - "*.vmd1.homelab"
+    - vmd1.homelab
+    - "*.vmd1.homelab"
+    - vmd1.homelab
+    - "*.vmd1.homelab"
+    - vmd1.homelab
+    - "*.vmd1.homelab"
+    - flix4all.cc
+    - "*.flix4all.cc"

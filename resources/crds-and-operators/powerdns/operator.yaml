@@ -1,0 +1,253 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: powerdns-operator
+  namespace: powerdns
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: powerdns-operator-node-watcher
+rules:
+  - apiGroups: [""]
+    resources: ["nodes"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: powerdns-operator-node-watcher-binding
+subjects:
+  - kind: ServiceAccount
+    name: powerdns-operator
+    namespace: powerdns
+roleRef:
+  kind: ClusterRole
+  name: powerdns-operator-node-watcher
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: powerdns-operator-config-manager
+  namespace: powerdns
+rules:
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["get", "list", "watch", "create", "update", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: powerdns-operator-config-binding
+  namespace: powerdns
+subjects:
+  - kind: ServiceAccount
+    name: powerdns-operator
+    namespace: powerdns
+roleRef:
+  kind: Role
+  name: powerdns-operator-config-manager
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: powerdns-operator-code
+  namespace: powerdns
+data:
+  pdns_operator.py: |
+    import os
+    import sys
+    import time
+    import logging
+    from kubernetes import client, config
+    from kubernetes.client.rest import ApiException
+
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s [%(levelname)s] %(message)s",
+        handlers=[logging.StreamHandler(sys.stdout)]
+    )
+    logger = logging.getLogger("powerdns-operator")
+
+    POLL_INTERVAL = int(os.environ.get("POLL_INTERVAL", "15"))
+    NAMESPACE = os.environ.get("POD_NAMESPACE", "powerdns")
+    TARGET_CONFIGMAP = "powerdns-config"
+
+    try:
+        config.load_incluster_config()
+    except Exception:
+        logger.warning("Could not load in-cluster config, falling back to local kubeconfig.")
+        config.load_kube_config()
+
+    v1 = client.CoreV1Api()
+
+    def generate_zones_yaml(nodes_list):
+        cloud_ips = []
+        home_ips = []
+        zone_nodes = {}
+
+        for n in nodes_list:
+            name = n["name"]
+            zone = n["zone"]
+            ip = n["ip"]
+
+            if zone == "uk-home":
+                home_ips.append(ip)
+            else:
+                cloud_ips.append(ip)
+
+            zone_nodes.setdefault(zone, []).append((name, ip))
+
+        lines = []
+        lines.append("domains:")
+        lines.append("- domain: ingress.vmd1.homelab")
+        lines.append("  ttl: 60")
+        lines.append("  records:")
+
+        def yaml_dq(s):
+            return '"' + s.replace('"', '\\"') + '"'
+
+        def format_ip_list(ips):
+            return "{" + ", ".join(f"'{ip}'" for ip in ips) + "}"
+
+        primary_group = format_ip_list(cloud_ips) if cloud_ips else "{}"
+        backup_group = format_ip_list(home_ips) if home_ips else "{}"
+        
+        if cloud_ips and home_ips:
+            lua_val = f"A \"ifurlup('https://vmd1.homelab/health', {{ {primary_group}, {backup_group} }}, {{timeout=3, selector='pickclosest'}})\""
+        elif cloud_ips:
+            lua_val = f"A \"ifurlup('https://vmd1.homelab/health', {{ {primary_group} }}, {{timeout=3, selector='pickclosest'}})\""
+        else:
+            lua_val = f"A \"ifurlup('https://vmd1.homelab/health', {{ {backup_group} }}, {{timeout=3, selector='pickclosest'}})\""
+
+        lines.append("    ingress.vmd1.homelab:")
+        lines.append("      - soa: ns1.vmd1.homelab admin.vmd1.homelab 2024031701 1800 600 1209600 60")
+        lines.append("      - ns: ns1.cloudflare.com")
+        lines.append("      - ns: ns2.cloudflare.com")
+        lines.append(f"      - lua: {yaml_dq(lua_val)}")
+
+        for zone, nodes in zone_nodes.items():
+            ips = [ip for _, ip in nodes]
+            zone_ips = format_ip_list(ips)
+            zone_lua = f"A \"ifurlup('https://vmd1.homelab/health', {zone_ips}, {{timeout=3, selector='pickclosest'}})\""
+            
+            lines.append(f"    {zone}.ingress.vmd1.homelab:")
+            lines.append(f"      - lua: {yaml_dq(zone_lua)}")
+            
+            for name, ip in nodes:
+                lines.append(f"    {name}.{zone}.ingress.vmd1.homelab:")
+                lines.append(f"      - a: {ip}")
+
+        return "\n".join(lines) + "\n"
+
+    def reconcile():
+        try:
+            nodes = v1.list_node().items
+        except Exception as e:
+            logger.error(f"Failed to list nodes: {e}")
+            return
+
+        nodes_list = []
+        for node in nodes:
+            ip = node.metadata.labels.get("node.vmd1.homelab/public-ip")
+            zone = node.metadata.labels.get("topology.kubernetes.io/zone")
+            if ip and zone:
+                nodes_list.append({
+                    "name": node.metadata.name,
+                    "zone": zone,
+                    "ip": ip
+                })
+
+        if not nodes_list:
+            logger.warning("No nodes found with public IP and zone labels.")
+            return
+
+        new_yaml = generate_zones_yaml(nodes_list)
+
+        try:
+            cm = v1.read_namespaced_config_map(TARGET_CONFIGMAP, NAMESPACE)
+            existing_yaml = cm.data.get("geoip-zones.yaml", "") if cm.data else ""
+
+            if existing_yaml != new_yaml:
+                logger.info("Configuration changed. Updating ConfigMap...")
+                if not cm.data:
+                    cm.data = {}
+                cm.data["geoip-zones.yaml"] = new_yaml
+                v1.replace_namespaced_config_map(TARGET_CONFIGMAP, NAMESPACE, cm)
+                logger.info("ConfigMap updated successfully.")
+            else:
+                logger.debug("Configuration is up to date.")
+        except ApiException as e:
+            if e.status == 404:
+                logger.info(f"ConfigMap '{TARGET_CONFIGMAP}' not found. Creating a new one...")
+                new_cm = client.V1ConfigMap(
+                    metadata=client.V1ObjectMeta(name=TARGET_CONFIGMAP, namespace=NAMESPACE),
+                    data={"geoip-zones.yaml": new_yaml}
+                )
+                v1.create_namespaced_config_map(NAMESPACE, new_cm)
+                logger.info("ConfigMap created successfully.")
+            else:
+                logger.error(f"Error reading/writing ConfigMap: {e}")
+
+    def main():
+        logger.info("PowerDNS Operator started.")
+        while True:
+            try:
+                reconcile()
+            except Exception as e:
+                logger.exception(f"Exception in reconciliation loop: {e}")
+            time.sleep(POLL_INTERVAL)
+
+    if __name__ == "__main__":
+        main()
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: powerdns-operator
+  namespace: powerdns
+  labels:
+    app: powerdns-operator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: powerdns-operator
+  template:
+    metadata:
+      labels:
+        app: powerdns-operator
+    spec:
+      serviceAccountName: powerdns-operator
+      nodeSelector:
+        node-role.kubernetes.io/control-plane: "true"
+      containers:
+        - name: operator
+          image: ghcr.io/vmd1/k8s-operator:edge
+          command:
+            - python
+            - -u
+            - /app/pdns_operator.py
+          env:
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: POLL_INTERVAL
+              value: "15"
+          volumeMounts:
+            - name: code-volume
+              mountPath: /app
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 100m
+              memory: 256Mi
+      volumes:
+        - name: code-volume
+          configMap:
+            name: powerdns-operator-code

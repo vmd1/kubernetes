@@ -1,0 +1,18 @@
+apiVersion: helm.cattle.io/v1
+kind: HelmChart
+metadata:
+  name: redis-operator
+  namespace: kube-system
+spec:
+  repo: https://ot-container-kit.github.io/helm-charts
+  chart: redis-operator
+  version: 0.25.0
+  targetNamespace: redis-operator
+  valuesContent: |-
+    resources:
+      requests:
+        cpu: 20m
+        memory: 64Mi
+      limits:
+        cpu: 100m
+        memory: 128Mi

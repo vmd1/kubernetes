@@ -1,0 +1,115 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ntfy
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ntfy-cache
+  namespace: ntfy
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 2Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ntfy-auth
+  namespace: ntfy
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 256Mi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ntfy
+  namespace: ntfy
+  labels:
+    app: ntfy
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: ntfy
+  template:
+    metadata:
+      labels:
+        app: ntfy
+    spec:
+      automountServiceAccountToken: false
+      containers:
+        - name: ntfy
+          image: binwiederhier/ntfy:latest
+          args: ["serve", "--config", "/etc/ntfy/server.yml"]
+          ports:
+            - name: http
+              containerPort: 2586
+              protocol: TCP
+            - name: smtp
+              containerPort: 25
+              protocol: TCP
+          volumeMounts:
+            - name: config
+              mountPath: /etc/ntfy
+            - name: cache
+              mountPath: /var/cache/ntfy
+            - name: auth
+              mountPath: /var/lib/ntfy
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          livenessProbe:
+            httpGet:
+              path: /v1/health
+              port: 2586
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /v1/health
+              port: 2586
+            initialDelaySeconds: 5
+            periodSeconds: 10
+      volumes:
+        - name: config
+          configMap:
+            name: ntfy-server-config
+        - name: cache
+          persistentVolumeClaim:
+            claimName: ntfy-cache
+        - name: auth
+          persistentVolumeClaim:
+            claimName: ntfy-auth
+      restartPolicy: Always
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ntfy
+  namespace: ntfy
+  labels:
+    app: ntfy
+spec:
+  selector:
+    app: ntfy
+  ports:
+    - name: http
+      port: 2586
+      targetPort: 2586
+      protocol: TCP

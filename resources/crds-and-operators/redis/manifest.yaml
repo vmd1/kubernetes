@@ -1,0 +1,164 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: redis
+
+---
+apiVersion: redis.redis.opstreelabs.in/v1beta2
+kind: RedisReplication
+metadata:
+  name: redis
+  namespace: redis
+spec:
+  clusterSize: 3
+  nodeSelector:
+    storage.vmd1.homelab/redis-server: "true"
+  redisExporter:
+    enabled: true
+    image: oliver006/redis_exporter:v1.67.0
+  kubernetesConfig:
+    image: quay.io/opstree/redis:v7.0.12
+    imagePullPolicy: IfNotPresent
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 300m
+        memory: 256Mi
+
+---
+apiVersion: redis.redis.opstreelabs.in/v1beta2
+kind: RedisSentinel
+metadata:
+  name: redis-sentinel
+  namespace: redis
+spec:
+  clusterSize: 3
+  nodeSelector:
+    storage.vmd1.homelab/redis-sentinel: "true"
+  redisExporter:
+    enabled: true
+    image: oliver006/redis_exporter:v1.67.0
+  redisSentinelConfig:
+    redisReplicationName: redis
+  kubernetesConfig:
+    image: quay.io/opstree/redis-sentinel:v7.0.12
+    imagePullPolicy: IfNotPresent
+    resources:
+      requests:
+        cpu: 10m
+        memory: 16Mi
+      limits:
+        cpu: 100m
+        memory: 64Mi
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: redis-haproxy-config
+  namespace: redis
+data:
+  haproxy.cfg: |
+    global
+        log stdout format raw local0
+
+    defaults
+        log     global
+        mode    tcp
+        timeout connect 4s
+        timeout client  30m
+        timeout server  30m
+        timeout check   2s
+
+    resolvers k8s
+        nameserver dns1 10.43.0.10:53
+        accepted_payload_size 8192
+        hold valid 5s
+
+    frontend redis_front
+        bind *:6379
+        default_backend redis_back
+
+    backend redis_back
+        mode tcp
+        option tcp-check
+        tcp-check send info\ replication\r\n
+        tcp-check expect string role:master
+        server-template redis 10 redis-headless.redis.svc.cluster.local:6379 resolvers k8s resolve-prefer ipv4 check inter 2s fall 3 rise 2
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis-master-lb
+  namespace: redis
+  labels:
+    app: redis-haproxy
+  annotations:
+    kube-vip.io/loadbalancerIPs: "192.168.12.221"
+spec:
+  type: LoadBalancer
+  loadBalancerClass: kube-vip.io/kube-vip-class
+  ports:
+    - port: 6379
+      targetPort: 6379
+      name: redis
+  selector:
+    app: redis-haproxy
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis-haproxy
+  namespace: redis
+  labels:
+    app: redis-haproxy
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: redis-haproxy
+  template:
+    metadata:
+      labels:
+        app: redis-haproxy
+    spec:
+      automountServiceAccountToken: false
+      nodeSelector:
+        storage.vmd1.homelab/redis-server: "true"
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app: redis-haproxy
+          matchLabelKeys:
+            - pod-template-hash
+      tolerations:
+        - operator: Exists
+      containers:
+        - name: haproxy
+          image: haproxy:2.8-alpine
+          ports:
+            - containerPort: 6379
+              name: redis
+          volumeMounts:
+            - name: config
+              mountPath: /usr/local/etc/haproxy
+          resources:
+            requests:
+              cpu: 20m
+              memory: 96Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+      volumes:
+        - name: config
+          configMap:
+            name: redis-haproxy-config
+
+

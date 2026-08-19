@@ -1,0 +1,61 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: download-agent
+  namespace: media
+  labels:
+    app: download-agent
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: download-agent
+  template:
+    metadata:
+      labels:
+        app: download-agent
+    spec:
+      automountServiceAccountToken: false
+      # Pinned to the same node as jellyfin since this mounts a hostPath
+      # directory on hades-01 (/mnt/huge/media).
+      nodeSelector:
+        kubernetes.io/hostname: hades-01
+      imagePullSecrets:
+        - name: registry-kmnet-creds
+      containers:
+        - name: download-agent
+          image: registry.vmd1.homelab/download-agent/ui:latest
+          ports:
+            - name: http
+              containerPort: 5000
+          resources:
+            requests:
+              # Explicit request lower than the limit — without this, k8s
+              # defaults request = limit, which is what was reserving
+              # 1500m (37% of hades-01) at rest even though real usage
+              # sits around idle. Bump this if steady-state usage is
+              # regularly higher than ~150m.
+              cpu: "30m"
+            limits:
+              cpu: "1500m"
+          volumeMounts:
+            - name: shared-media
+              mountPath: /downloads
+      volumes:
+        - name: shared-media
+          hostPath:
+            path: /mnt/huge/media
+            type: DirectoryOrCreate
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: download-agent
+  namespace: media
+spec:
+  selector:
+    app: download-agent
+  ports:
+    - name: http
+      port: 5000
+      targetPort: http

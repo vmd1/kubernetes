@@ -1,0 +1,255 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: nextcloud
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: nextcloud-pvc
+  namespace: nextcloud
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: longhorn-single-replica
+  resources:
+    requests:
+      storage: 10Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nextcloud
+  namespace: nextcloud
+  labels:
+    app: nextcloud
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: nextcloud
+  template:
+    metadata:
+      labels:
+        app: nextcloud
+    spec:
+      automountServiceAccountToken: false
+      nodeSelector:
+        topology.kubernetes.io/zone: uk-home
+      tolerations:
+        - key: "node.kubernetes.io/not-ready"
+          operator: "Exists"
+          effect: "NoExecute"
+          tolerationSeconds: 60
+        - key: "node.kubernetes.io/unreachable"
+          operator: "Exists"
+          effect: "NoExecute"
+          tolerationSeconds: 60
+      containers:
+        - name: nextcloud
+          image: nextcloud:30-apache
+          ports:
+            - name: http
+              containerPort: 80
+              protocol: TCP
+          env:
+            - name: NEXTCLOUD_TRUSTED_DOMAINS
+              value: "cloud.vmd1.homelab"
+            - name: OVERWRITEPROTOCOL
+              value: "https"
+            - name: OVERWRITEHOST
+              value: "cloud.vmd1.homelab"
+            - name: OVERWRITECLIURL
+              value: "https://cloud.vmd1.homelab"
+            - name: PHP_MEMORY_LIMIT
+              value: "1024M"
+            - name: PHP_UPLOAD_LIMIT
+              value: "10G"
+          envFrom:
+            - secretRef:
+                name: nextcloud-secrets
+          resources:
+            requests:
+              cpu: 100m
+              memory: 512Mi
+            limits:
+              cpu: 2000m
+              memory: 2Gi
+          startupProbe:
+            httpGet:
+              path: /status.php
+              port: 80
+              httpHeaders:
+                - name: Host
+                  value: cloud.vmd1.homelab
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 30
+            timeoutSeconds: 5
+          readinessProbe:
+            httpGet:
+              path: /status.php
+              port: 80
+              httpHeaders:
+                - name: Host
+                  value: cloud.vmd1.homelab
+            periodSeconds: 10
+            timeoutSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /status.php
+              port: 80
+              httpHeaders:
+                - name: Host
+                  value: cloud.vmd1.homelab
+            periodSeconds: 20
+            timeoutSeconds: 5
+          volumeMounts:
+            - name: nextcloud-data
+              mountPath: /var/www/html
+        - name: nextcloud-cron
+          image: nextcloud:30-apache
+          command: ["/cron.sh"]
+          envFrom:
+            - secretRef:
+                name: nextcloud-secrets
+          resources:
+            requests:
+              cpu: 20m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          volumeMounts:
+            - name: nextcloud-data
+              mountPath: /var/www/html
+      volumes:
+        - name: nextcloud-data
+          persistentVolumeClaim:
+            claimName: nextcloud-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nextcloud
+  namespace: nextcloud
+  labels:
+    app: nextcloud
+spec:
+  selector:
+    app: nextcloud
+  ports:
+    - name: http
+      port: 80
+      targetPort: 80
+      protocol: TCP
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: nextcloud-caldav-redirect
+  namespace: nextcloud
+spec:
+  redirectRegex:
+    permanent: true
+    regex: "https://(.*)/.well-known/(card|cal)dav"
+    replacement: "https://${1}/remote.php/dav/"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: collabora
+  namespace: nextcloud
+  labels:
+    app: collabora
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: collabora
+  template:
+    metadata:
+      labels:
+        app: collabora
+    spec:
+      automountServiceAccountToken: false
+      nodeSelector:
+        topology.kubernetes.io/zone: uk-home
+      tolerations:
+        - key: "node.kubernetes.io/not-ready"
+          operator: "Exists"
+          effect: "NoExecute"
+          tolerationSeconds: 60
+        - key: "node.kubernetes.io/unreachable"
+          operator: "Exists"
+          effect: "NoExecute"
+          tolerationSeconds: 60
+      containers:
+        - name: collabora
+          image: collabora/code:latest
+          ports:
+            - name: http
+              containerPort: 9980
+              protocol: TCP
+          env:
+            - name: aliasgroup1
+              value: "https://cloud\\.vmd1\\.dev:443"
+            - name: server_name
+              value: "office.vmd1.homelab"
+            - name: extra_params
+              value: "--o:ssl.enable=false --o:ssl.termination=true --o:welcome.enable=false --o:net.proto=IPv4 --o:mount_jail_tree=false"
+            - name: dictionaries
+              value: "en_GB en_US"
+          securityContext:
+            capabilities:
+              add:
+                - MKNOD
+                - SYS_CHROOT
+                - SYS_ADMIN
+          resources:
+            requests:
+              cpu: 100m
+              memory: 512Mi
+            limits:
+              cpu: 2000m
+              memory: 2Gi
+          startupProbe:
+            httpGet:
+              path: /hosting/discovery
+              port: 9980
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            failureThreshold: 30
+            timeoutSeconds: 5
+          readinessProbe:
+            httpGet:
+              path: /hosting/discovery
+              port: 9980
+            periodSeconds: 10
+            timeoutSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /hosting/discovery
+              port: 9980
+            periodSeconds: 20
+            timeoutSeconds: 5
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: collabora
+  namespace: nextcloud
+  labels:
+    app: collabora
+spec:
+  selector:
+    app: collabora
+  ports:
+    - name: http
+      port: 9980
+      targetPort: 9980
+      protocol: TCP

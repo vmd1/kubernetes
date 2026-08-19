@@ -1,0 +1,53 @@
+apiVersion: helm.cattle.io/v1
+kind: HelmChart
+metadata:
+  name: jellyfin
+  namespace: kube-system
+spec:
+  repo: https://jellyfin.github.io/jellyfin-helm
+  chart: jellyfin
+  version: 3.2.0
+  targetNamespace: media
+  valuesContent: |-
+    extraEnvVars:
+      - name: MALLOC_TRIM_THRESHOLD_
+        value: "100000"
+      - name: DOTNET_GCDynamicAdaptationMode
+        value: "1"
+
+    replicaCount: 1
+
+    image:
+      repository: docker.io/jellyfin/jellyfin
+      tag: ""
+    
+    service:
+      type: ClusterIP
+      port: 8096
+    
+    ingress:
+      enabled: false
+    
+    persistence:
+      config:
+        enabled: true
+        accessMode: ReadWriteOnce
+        size: 5Gi
+        storageClass: local-path
+      media:
+        enabled: true
+        type: hostPath
+        hostPath: /mnt/huge/media
+      cache:
+        enabled: false
+    
+    nodeSelector:
+      kubernetes.io/hostname: hades-01
+    
+    resources:
+      requests:
+        cpu: 50m
+        memory: 256Mi
+      limits:
+        cpu: "2"
+        memory: 4Gi

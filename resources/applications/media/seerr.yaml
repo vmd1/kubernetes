@@ -1,0 +1,35 @@
+apiVersion: helm.cattle.io/v1
+kind: HelmChart
+metadata:
+  name: seerr
+  namespace: kube-system
+spec:
+  chart: oci://ghcr.io/seerr-team/seerr/seerr-chart
+  version: 3.7.0
+  targetNamespace: media
+  valuesContent: |-
+    env:
+      - name: MALLOC_TRIM_THRESHOLD_
+        value: "100000"
+
+    config:
+      persistence:
+        size: 2Gi
+        storageClass: longhorn-single-replica
+    image:
+      registry: ghcr.io
+      repository: seerr-team/seerr
+      tag: ""
+    ingress:
+      enabled: false
+    nodeSelector:
+      kubernetes.io/hostname: hades-01
+    resources:
+      limits:
+        memory: 512Mi
+      requests:
+        cpu: 100m
+        memory: 256Mi
+    service:
+      port: 80
+      type: ClusterIP

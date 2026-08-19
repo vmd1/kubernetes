@@ -1,0 +1,97 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cinepro
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cinepro-core
+  namespace: cinepro
+  labels:
+    app: cinepro-core
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: cinepro-core
+  template:
+    metadata:
+      labels:
+        app: cinepro-core
+    spec:
+      automountServiceAccountToken: false
+      nodeSelector:
+        topology.kubernetes.io/zone: uk-home
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app: cinepro-core
+          matchLabelKeys:
+            - pod-template-hash
+      tolerations:
+        - key: "node.kubernetes.io/not-ready"
+          operator: "Exists"
+          effect: "NoExecute"
+          tolerationSeconds: 60
+        - key: "node.kubernetes.io/unreachable"
+          operator: "Exists"
+          effect: "NoExecute"
+          tolerationSeconds: 60
+      containers:
+        - name: cinepro-core
+          image: ghcr.io/cinepro-org/core:latest
+          ports:
+            - containerPort: 3000
+              protocol: TCP
+          env:
+            - name: MALLOC_TRIM_THRESHOLD_
+              value: "100000"
+            - name: HOST
+              value: "0.0.0.0"
+            - name: PORT
+              value: "3000"
+            - name: NODE_ENV
+              value: "production"
+            - name: PUBLIC_URL
+              value: "https://api.vmd1.homelab"
+            - name: TMDB_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: cinepro-secrets
+                  key: TMDB_API_KEY
+            - name: TMDB_CACHE_TTL
+              value: "86400"
+            - name: CACHE_TYPE
+              value: "redis"
+            - name: REDIS_HOST
+              value: "redis-master.redis.svc.cluster.local"
+            - name: REDIS_PORT
+              value: "6379"
+          resources:
+            requests:
+              cpu: 20m
+              memory: 80Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+      restartPolicy: Always
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cinepro-core
+  namespace: cinepro
+  labels:
+    app: cinepro-core
+spec:
+  selector:
+    app: cinepro-core
+  ports:
+    - name: http
+      port: 3000
+      targetPort: 3000
+      protocol: TCP

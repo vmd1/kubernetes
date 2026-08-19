@@ -1,0 +1,11 @@
+apiVersion: network.vmd1.homelab/v1alpha1
+kind: OCIPortRule
+metadata:
+  name: web-ports
+spec:
+  nodeSelector:
+    node-role.kubernetes.io/ingress: "true"
+  protocol: tcp
+  ports:
+    - 80
+    - 443

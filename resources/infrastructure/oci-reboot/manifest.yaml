@@ -1,0 +1,348 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: oci-controller
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: oci-reboot-controller
+  namespace: oci-controller
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: oci-reboot-controller-role
+rules:
+  - apiGroups: [""]
+    resources: ["nodes"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: oci-reboot-controller-binding
+subjects:
+  - kind: ServiceAccount
+    name: oci-reboot-controller
+    namespace: oci-controller
+roleRef:
+  kind: ClusterRole
+  name: oci-reboot-controller-role
+  apiGroup: rbac.authorization.k8s.io
+---
+# Grant the controller read access to secrets in its own namespace (for per-account credentials)
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: oci-reboot-secret-reader
+  namespace: oci-controller
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: oci-reboot-secret-reader-binding
+  namespace: oci-controller
+subjects:
+  - kind: ServiceAccount
+    name: oci-reboot-controller
+    namespace: oci-controller
+roleRef:
+  kind: Role
+  name: oci-reboot-secret-reader
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: oci-reboot-controller-code
+  namespace: oci-controller
+data:
+  controller.py: |
+    import os
+    import sys
+    import time
+    import base64
+    import logging
+    from datetime import datetime, timezone
+
+    import oci
+    from kubernetes import client, config
+    from kubernetes.client.rest import ApiException
+
+    # ── Logging ──────────────────────────────────────────────────────────
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s [%(levelname)s] %(message)s",
+        handlers=[logging.StreamHandler(sys.stdout)]
+    )
+    logger = logging.getLogger("oci-reboot-controller")
+
+    # ── Configuration ────────────────────────────────────────────────────
+    POLL_INTERVAL        = int(os.environ.get("POLL_INTERVAL", "15"))
+    NOT_READY_THRESHOLD  = int(os.environ.get("NOT_READY_THRESHOLD", "120"))
+    COOLDOWN_SECONDS     = int(os.environ.get("COOLDOWN_SECONDS", "300"))
+    NAMESPACE            = os.environ.get("POD_NAMESPACE", "oci-controller")
+    # Nodes must have BOTH labels to be managed:
+    #   node.vmd1.homelab/oci-reboot=true       → opt-in to auto-reboot
+    #   node.vmd1.homelab/oci-account=<name>    → which OCI account secret to use
+    REBOOT_LABEL_SELECTOR = "node.vmd1.homelab/oci-reboot=true"
+
+    # ── Kubernetes client ────────────────────────────────────────────────
+    try:
+        config.load_incluster_config()
+    except Exception:
+        logger.warning("Could not load in-cluster config, falling back to local kubeconfig.")
+        config.load_kube_config()
+
+    v1 = client.CoreV1Api()
+
+    # ── Per-account OCI client cache ─────────────────────────────────────
+    # Maps account_name → oci.core.ComputeClient
+    _oci_client_cache: dict = {}
+
+    def _decode_secret_key(secret, key: str) -> str:
+        """Read a key from a k8s Secret (handles both data and stringData)."""
+        if secret.data and key in secret.data:
+            return base64.b64decode(secret.data[key]).decode("utf-8").strip()
+        raise KeyError(f"Key '{key}' not found in secret")
+
+    def get_oci_client(account_name: str):
+        """
+        Load OCI credentials from secret 'oci-credentials-<region><account_name>'
+        and return a cached ComputeClient for that account.
+        """
+        if account_name in _oci_client_cache:
+            return _oci_client_cache[account_name]
+
+        secret_name = f"oci-credentials-<region>{account_name}"
+        logger.info(f"Loading OCI credentials from secret '{secret_name}'")
+        try:
+            secret = v1.read_namespaced_secret(secret_name, NAMESPACE)
+        except ApiException as e:
+            if e.status == 404:
+                logger.error(f"Secret '{secret_name}' not found in namespace '{NAMESPACE}'. "
+                             f"Create it with the OCI credentials for account '{account_name}'.")
+            else:
+                logger.error(f"Error reading secret '{secret_name}': {e}")
+            return None
+
+        try:
+            oci_config = {
+                "user":        _decode_secret_key(secret, "OCI_USER_OCID"),
+                "key_content": _decode_secret_key(secret, "OCI_KEY_CONTENT"),
+                "fingerprint": _decode_secret_key(secret, "OCI_FINGERPRINT"),
+                "tenancy":     _decode_secret_key(secret, "OCI_TENANCY_OCID"),
+                "region":      _decode_secret_key(secret, "OCI_REGION"),
+            }
+            compartment_id = _decode_secret_key(secret, "OCI_COMPARTMENT_OCID")
+        except KeyError as e:
+            logger.error(f"Secret '{secret_name}' is missing field: {e}")
+            return None
+
+        try:
+            oci.config.validate_config(oci_config)
+        except Exception as e:
+            logger.error(f"OCI config for account '{account_name}' is invalid: {e}")
+            return None
+
+        compute_client = oci.core.ComputeClient(oci_config)
+        _oci_client_cache[account_name] = (compute_client, compartment_id)
+        logger.info(f"✓ OCI client ready for account '{account_name}' (region: {oci_config['region']})")
+        return compute_client, compartment_id
+
+    # ── OCI helpers ──────────────────────────────────────────────────────
+    def build_instance_map(compute_client, compartment_id: str) -> dict[str, str]:
+        """Return display_name → instance OCID for all RUNNING instances."""
+        try:
+            instances = compute_client.list_instances(
+                compartment_id=compartment_id,
+                lifecycle_state="RUNNING"
+            ).data
+            return {inst.display_name: inst.id for inst in instances}
+        except oci.exceptions.ServiceError as e:
+            logger.error(f"OCI API error listing instances: {e.status} {e.code} — {e.message}")
+            return {}
+
+    def force_reboot(compute_client, instance_id: str, node_name: str) -> bool:
+        """Send a RESET (force reboot) action to an OCI instance."""
+        try:
+            logger.warning(f"⚡ Force rebooting node '{node_name}' (instance: {instance_id})")
+            compute_client.instance_action(instance_id=instance_id, action="RESET")
+            logger.info(f"✓ RESET action sent successfully for '{node_name}'")
+            return True
+        except oci.exceptions.ServiceError as e:
+            logger.error(f"✗ Failed to reboot '{node_name}': {e.status} {e.code} — {e.message}")
+            return False
+
+    # ── Node helpers ─────────────────────────────────────────────────────
+    def is_node_ready(node) -> bool:
+        if not node.status or not node.status.conditions:
+            return False
+        for cond in node.status.conditions:
+            if cond.type == "Ready":
+                return cond.status == "True"
+        return False
+
+    def utc_now() -> float:
+        return datetime.now(timezone.utc).timestamp()
+
+    # ── State tracking ───────────────────────────────────────────────────
+    not_ready_since: dict[str, float] = {}
+    last_rebooted:   dict[str, float] = {}
+
+    # ── Main reconciliation loop ─────────────────────────────────────────
+    def reconcile():
+        now = utc_now()
+
+        try:
+            nodes = v1.list_node(label_selector=REBOOT_LABEL_SELECTOR).items
+        except Exception as e:
+            logger.error(f"Failed to list nodes: {e}")
+            return
+
+        if not nodes:
+            logger.debug(f"No nodes with label {REBOOT_LABEL_SELECTOR} found.")
+            return
+
+        # Group nodes by oci-account so we only build one instance map per account
+        account_nodes: dict[str, list] = {}
+        for node in nodes:
+            account = node.metadata.labels.get("node.vmd1.homelab/oci-account")
+            if not account:
+                logger.warning(f"Node '{node.metadata.name}' has node.vmd1.homelab/oci-reboot=true but no "
+                               f"node.vmd1.homelab/oci-account label — skipping.")
+                continue
+            account_nodes.setdefault(account, []).append(node)
+
+        for account_name, account_node_list in account_nodes.items():
+            result = get_oci_client(account_name)
+            if result is None:
+                continue
+            compute_client, compartment_id = result
+
+            instance_map = build_instance_map(compute_client, compartment_id)
+            if not instance_map:
+                logger.warning(f"No OCI instances found for account '{account_name}' — skipping.")
+                continue
+
+            for node in account_node_list:
+                name = node.metadata.name
+
+                if is_node_ready(node):
+                    if name in not_ready_since:
+                        logger.info(f"Node '{name}' is Ready again. Clearing NotReady tracking.")
+                        del not_ready_since[name]
+                    continue
+
+                # ── Node is NotReady ─────────────────────────────────────
+                if name not in not_ready_since:
+                    not_ready_since[name] = now
+                    logger.warning(f"Node '{name}' is NotReady. Starting {NOT_READY_THRESHOLD}s countdown.")
+                    continue
+
+                elapsed = now - not_ready_since[name]
+                if elapsed < NOT_READY_THRESHOLD:
+                    remaining = NOT_READY_THRESHOLD - elapsed
+                    logger.info(f"Node '{name}' NotReady for {elapsed:.0f}s ({remaining:.0f}s until reboot).")
+                    continue
+
+                # ── Threshold exceeded — check cooldown ──────────────────
+                last = last_rebooted.get(name, 0)
+                if now - last < COOLDOWN_SECONDS:
+                    cooldown_remaining = COOLDOWN_SECONDS - (now - last)
+                    logger.info(f"Node '{name}' in cooldown ({cooldown_remaining:.0f}s remaining). Skipping.")
+                    continue
+
+                # ── Lookup OCI instance and reboot ───────────────────────
+                instance_id = instance_map.get(name)
+                if not instance_id:
+                    logger.error(f"Node '{name}' has no matching OCI instance in account "
+                                 f"'{account_name}' (display_name not found). Skipping.")
+                    continue
+
+                if force_reboot(compute_client, instance_id, name):
+                    last_rebooted[name] = now
+                    not_ready_since.pop(name, None)
+
+        # Clean up tracking for nodes no longer eligible
+        active_names = {n.metadata.name for n in nodes}
+        for tracked in list(not_ready_since.keys()):
+            if tracked not in active_names:
+                del not_ready_since[tracked]
+
+    def main():
+        logger.info("OCI Node Reboot Controller started (multi-account mode).")
+        logger.info(f"  Poll interval:       {POLL_INTERVAL}s")
+        logger.info(f"  NotReady threshold:  {NOT_READY_THRESHOLD}s")
+        logger.info(f"  Reboot cooldown:     {COOLDOWN_SECONDS}s")
+        logger.info(f"  Node label selector: {REBOOT_LABEL_SELECTOR}")
+        logger.info(f"  Namespace:           {NAMESPACE}")
+        logger.info(f"  Credentials secret:  oci-credentials-<region><oci-account label>")
+
+        while True:
+            try:
+                reconcile()
+            except Exception as e:
+                logger.exception(f"Unhandled exception in reconciliation loop: {e}")
+            time.sleep(POLL_INTERVAL)
+
+    if __name__ == "__main__":
+        main()
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: oci-reboot-controller
+  namespace: oci-controller
+  labels:
+    app: oci-reboot-controller
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: oci-reboot-controller
+  template:
+    metadata:
+      labels:
+        app: oci-reboot-controller
+    spec:
+      serviceAccountName: oci-reboot-controller
+      containers:
+        - name: controller
+          image: python:3.11-alpine
+          command:
+            - sh
+            - -c
+            - "pip install --no-cache-dir oci kubernetes && python /app/controller.py"
+          env:
+            - name: MALLOC_TRIM_THRESHOLD_
+              value: "100000"
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: POLL_INTERVAL
+              value: "15"
+            - name: NOT_READY_THRESHOLD
+              value: "180"
+            - name: COOLDOWN_SECONDS
+              value: "300"
+          volumeMounts:
+            - name: code-volume
+              mountPath: /app
+          resources:
+            limits:
+              cpu: 200m
+              memory: 512Mi
+            requests:
+              cpu: 50m
+              memory: 256Mi
+      volumes:
+        - name: code-volume
+          configMap:
+            name: oci-reboot-controller-code

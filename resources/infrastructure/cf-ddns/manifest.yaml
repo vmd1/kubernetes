@@ -1,0 +1,117 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cf-ddns
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: cf-ddns-updater
+  namespace: cf-ddns
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: cf-ddns-node-patcher
+rules:
+  - apiGroups: [""]
+    resources: ["nodes"]
+    verbs: ["get", "patch"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: cf-ddns-node-patcher-binding
+subjects:
+  - kind: ServiceAccount
+    name: cf-ddns-updater
+    namespace: cf-ddns
+roleRef:
+  kind: ClusterRole
+  name: cf-ddns-node-patcher
+  apiGroup: rbac.authorization.k8s.io
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cf-ddns-script
+  namespace: cf-ddns
+data:
+  update.sh: |
+    #!/bin/sh
+    set -eu
+
+    echo "[cf-ddns] Checking public IP for node: ${NODE_NAME}"
+
+    CURRENT_IP="$(curl -fsS https://api.ipify.org)"
+    if [ -z "${CURRENT_IP}" ]; then
+      echo "[cf-ddns] Failed to resolve public IP" >&2
+      exit 1
+    fi
+    echo "[cf-ddns] Public IP: ${CURRENT_IP}"
+
+    TOKEN="$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)"
+    CACERT="/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
+    API_URL="https://kubernetes.default.svc"
+
+    # Get current node labels
+    NODE_INFO="$(curl -fsS --cacert "${CACERT}" -H "Authorization: Bearer ${TOKEN}" "${API_URL}/api/v1/nodes/${NODE_NAME}")"
+    RECORD_IP="$(echo "${NODE_INFO}" | jq -r '.metadata.labels["node.vmd1.homelab/public-ip"] // empty')"
+
+    if [ "${RECORD_IP}" = "${CURRENT_IP}" ]; then
+      echo "[cf-ddns] Node label IP unchanged (${CURRENT_IP}), nothing to do"
+      exit 0
+    fi
+
+    echo "[cf-ddns] IP changed: ${RECORD_IP} -> ${CURRENT_IP}, patching node label"
+    curl -fsS --cacert "${CACERT}" \
+      -H "Authorization: Bearer ${TOKEN}" \
+      -H "Content-Type: application/merge-patch+json" \
+      -X PATCH \
+      -d "{\"metadata\":{\"labels\":{\"node.vmd1.homelab/public-ip\":\"${CURRENT_IP}\"}}}" \
+      "${API_URL}/api/v1/nodes/${NODE_NAME}" > /dev/null
+    echo "[cf-ddns] Node label updated successfully"
+
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: cf-ddns-updater
+  namespace: cf-ddns
+spec:
+  schedule: "*/5 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      template:
+        spec:
+          serviceAccountName: cf-ddns-updater
+          restartPolicy: OnFailure
+          nodeSelector:
+            topology.kubernetes.io/zone: uk-home
+          containers:
+            - name: cf-ddns
+              image: alpine:3.20
+              command: ["/bin/sh", "-c", "apk add --no-cache curl jq >/dev/null && sh /scripts/update.sh"]
+              env:
+                - name: NODE_NAME
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: spec.nodeName
+              volumeMounts:
+                - name: script
+                  mountPath: /scripts
+
+          volumes:
+            - name: script
+              configMap:
+                name: cf-ddns-script
+                defaultMode: 0755

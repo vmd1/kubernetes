@@ -1,0 +1,664 @@
+# =============================================================================
+# Matrix Stack - K3s Manifest
+# Migrated from compose/ultimate/matrix + compose/ultimate/matrix-pub
+# =============================================================================
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: matrix
+---
+# =============================================================================
+# CONFIGMAP: continuwuity (main, vmd1.homelab)
+# =============================================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: continuwuity-config
+  namespace: matrix
+data:
+  CONTINUWUITY_SERVER_NAME: "vmd1.homelab"
+  CONTINUWUITY_DATABASE_PATH: "/var/lib/continuwuity"
+  CONTINUWUITY_PORT: "8008"
+  CONTINUWUITY_ADDRESS: "0.0.0.0"
+  CONTINUWUITY_ALLOW_REGISTRATION: "false"
+  CONTINUWUITY_MAX_REQUEST_SIZE: "104857600"
+  CONTINUWUITY_TRUSTED_SERVERS: '["matrix.org"]'
+  CONTINUWUITY_ALLOW_LOCAL_PRESENCE: "false"
+  CONTINUWUITY_ALLOW_INCOMING_PRESENCE: "false"
+  CONTINUWUITY_ALLOW_OUTGOING_PRESENCE: "false"
+---
+# =============================================================================
+# PVCs - LongHorn storage
+# =============================================================================
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: continuwuity-data
+  namespace: matrix
+spec:
+  storageClassName: longhorn-single-replica
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 20Gi
+---
+# =============================================================================
+# DEPLOYMENTS
+# =============================================================================
+
+# --- continuwuity (main, vmd1.homelab) ---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: continuwuity
+  namespace: matrix
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: continuwuity
+  template:
+    metadata:
+      labels:
+        app: continuwuity
+    spec:
+      automountServiceAccountToken: false
+      containers:
+        - name: continuwuity
+          image: forgejo.ellis.link/continuwuation/continuwuity:latest-maxperf
+          command: ["/sbin/conduwuit"]
+          envFrom:
+            - configMapRef:
+                name: continuwuity-config
+          ports:
+            - containerPort: 8008
+          resources:
+            limits:
+              cpu: "1000m"
+              memory: 1024Mi
+            requests:
+              cpu: "50m"
+              memory: 600Mi
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/continuwuity
+      nodeSelector:
+        kubernetes.io/hostname: hades-01
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: continuwuity-data
+---
+# --- mautrix-whatsapp ---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mautrix-whatsapp
+  namespace: matrix
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mautrix-whatsapp
+  template:
+    metadata:
+      labels:
+        app: mautrix-whatsapp
+    spec:
+      automountServiceAccountToken: false
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app: mautrix-whatsapp
+      containers:
+        - name: bridge
+          image: dock.mau.dev/mautrix/whatsapp:latest
+          ports:
+            - containerPort: 29318
+          resources:
+            limits:
+              cpu: "100m"
+              memory: 128Mi
+            requests:
+              cpu: "10m"
+              memory: 64Mi
+          volumeMounts:
+            - name: data
+              mountPath: /data
+            - name: config
+              mountPath: /data/config.yaml
+              subPath: config.yaml
+              readOnly: true
+            - name: config
+              mountPath: /data/registration.yaml
+              subPath: registration.yaml
+              readOnly: true
+      volumes:
+        - name: data
+          emptyDir: {}
+        - name: config
+          configMap:
+            name: mautrix-whatsapp-config
+---
+# --- mautrix-discord ---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mautrix-discord
+  namespace: matrix
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mautrix-discord
+  template:
+    metadata:
+      labels:
+        app: mautrix-discord
+    spec:
+      automountServiceAccountToken: false
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app: mautrix-discord
+      containers:
+        - name: bridge
+          image: dock.mau.dev/mautrix/discord:v0.7.6
+          ports:
+            - containerPort: 29334
+          resources:
+            limits:
+              cpu: "100m"
+              memory: 128Mi
+            requests:
+              cpu: "10m"
+              memory: 64Mi
+          volumeMounts:
+            - name: data
+              mountPath: /data
+            - name: config
+              mountPath: /data/config.yaml
+              subPath: config.yaml
+              readOnly: true
+            - name: config
+              mountPath: /data/registration.yaml
+              subPath: registration.yaml
+              readOnly: true
+      volumes:
+        - name: data
+          emptyDir: {}
+        - name: config
+          configMap:
+            name: mautrix-discord-config
+---
+# --- mautrix-googlechat ---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mautrix-googlechat
+  namespace: matrix
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mautrix-googlechat
+  template:
+    metadata:
+      labels:
+        app: mautrix-googlechat
+    spec:
+      automountServiceAccountToken: false
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app: mautrix-googlechat
+      containers:
+        - name: bridge
+          image: dock.mau.dev/mautrix/googlechat:latest
+          ports:
+            - containerPort: 29320
+          resources:
+            limits:
+              cpu: "100m"
+              memory: 128Mi
+            requests:
+              cpu: "10m"
+              memory: 64Mi
+          volumeMounts:
+            - name: data
+              mountPath: /data
+            - name: config
+              mountPath: /data/config.yaml
+              subPath: config.yaml
+              readOnly: true
+            - name: config
+              mountPath: /data/registration.yaml
+              subPath: registration.yaml
+              readOnly: true
+      volumes:
+        - name: data
+          emptyDir: {}
+        - name: config
+          configMap:
+            name: mautrix-googlechat-config
+---
+# --- mautrix-gmessages ---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mautrix-gmessages
+  namespace: matrix
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mautrix-gmessages
+  template:
+    metadata:
+      labels:
+        app: mautrix-gmessages
+    spec:
+      automountServiceAccountToken: false
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app: mautrix-gmessages
+      containers:
+        - name: bridge
+          image: dock.mau.dev/mautrix/gmessages:latest
+          ports:
+            - containerPort: 29336
+          resources:
+            limits:
+              cpu: "100m"
+              memory: 128Mi
+            requests:
+              cpu: "10m"
+              memory: 64Mi
+          volumeMounts:
+            - name: data
+              mountPath: /data
+            - name: config
+              mountPath: /data/config.yaml
+              subPath: config.yaml
+              readOnly: true
+            - name: config
+              mountPath: /data/registration.yaml
+              subPath: registration.yaml
+              readOnly: true
+      volumes:
+        - name: data
+          emptyDir: {}
+        - name: config
+          configMap:
+            name: mautrix-gmessages-config
+---
+# --- mautrix-linkedin ---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mautrix-linkedin
+  namespace: matrix
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mautrix-linkedin
+  template:
+    metadata:
+      labels:
+        app: mautrix-linkedin
+    spec:
+      automountServiceAccountToken: false
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app: mautrix-linkedin
+      containers:
+        - name: bridge
+          image: dock.mau.dev/mautrix/linkedin:latest
+          ports:
+            - containerPort: 29341
+          resources:
+            limits:
+              cpu: "100m"
+              memory: 128Mi
+            requests:
+              cpu: "10m"
+              memory: 64Mi
+          volumeMounts:
+            - name: data
+              mountPath: /data
+            - name: config
+              mountPath: /data/config.yaml
+              subPath: config.yaml
+              readOnly: true
+            - name: config
+              mountPath: /data/registration.yaml
+              subPath: registration.yaml
+              readOnly: true
+      volumes:
+        - name: data
+          emptyDir: {}
+        - name: config
+          configMap:
+            name: mautrix-linkedin-config
+---
+# --- mautrix-meta ---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mautrix-meta
+  namespace: matrix
+spec:
+  replicas: 0
+  selector:
+    matchLabels:
+      app: mautrix-meta
+  template:
+    metadata:
+      labels:
+        app: mautrix-meta
+    spec:
+      automountServiceAccountToken: false
+      containers:
+        - name: bridge
+          image: dock.mau.dev/mautrix/meta:v0.3.4
+          ports:
+            - containerPort: 29319
+          resources:
+            limits:
+              cpu: "100m"
+              memory: 128Mi
+            requests:
+              cpu: "10m"
+              memory: 64Mi
+          volumeMounts:
+            - name: data
+              mountPath: /data
+            - name: config
+              mountPath: /data/config.yaml
+              subPath: config.yaml
+              readOnly: true
+            - name: config
+              mountPath: /data/registration.yaml
+              subPath: registration.yaml
+              readOnly: true
+      volumes:
+        - name: data
+          emptyDir: {}
+        - name: config
+          configMap:
+            name: mautrix-meta-config
+---
+# =============================================================================
+# SERVICES
+# =============================================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: continuwuity
+  namespace: matrix
+spec:
+  selector:
+    app: continuwuity
+  ports:
+    - port: 8008
+      targetPort: 8008
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mautrix-whatsapp
+  namespace: matrix
+spec:
+  selector:
+    app: mautrix-whatsapp
+  ports:
+    - port: 29318
+      targetPort: 29318
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mautrix-discord
+  namespace: matrix
+spec:
+  selector:
+    app: mautrix-discord
+  ports:
+    - port: 29334
+      targetPort: 29334
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mautrix-googlechat
+  namespace: matrix
+spec:
+  selector:
+    app: mautrix-googlechat
+  ports:
+    - port: 29320
+      targetPort: 29320
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mautrix-gmessages
+  namespace: matrix
+spec:
+  selector:
+    app: mautrix-gmessages
+  ports:
+    - port: 29336
+      targetPort: 29336
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mautrix-linkedin
+  namespace: matrix
+spec:
+  selector:
+    app: mautrix-linkedin
+  ports:
+    - port: 29341
+      targetPort: 29341
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mautrix-meta
+  namespace: matrix
+spec:
+  selector:
+    app: mautrix-meta
+  ports:
+    - port: 29319
+      targetPort: 29319
+---
+# =============================================================================
+# TRAEFIK MIDDLEWARES - StripPrefix per bridge (copied from compose labels)
+# =============================================================================
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: wa-strip
+  namespace: matrix
+spec:
+  stripPrefix:
+    prefixes:
+      - /v1/bridges/whatsapp
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: discord-strip
+  namespace: matrix
+spec:
+  stripPrefix:
+    prefixes:
+      - /v1/bridges/discord
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: gchat-strip
+  namespace: matrix
+spec:
+  stripPrefix:
+    prefixes:
+      - /v1/bridges/googlechat
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: gmsg-strip
+  namespace: matrix
+spec:
+  stripPrefix:
+    prefixes:
+      - /v1/bridges/gmessages
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: li-strip
+  namespace: matrix
+spec:
+  stripPrefix:
+    prefixes:
+      - /v1/bridges/linkedin
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: meta-strip
+  namespace: matrix
+spec:
+  stripPrefix:
+    prefixes:
+      - /v1/bridges/meta
+---
+# =============================================================================
+# CONFIGMAP: fluffychat (vmd1.homelab)
+# =============================================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fluffychat-config
+  namespace: matrix
+data:
+  config.json: |
+    {
+      "default_homeserver": "vmd1.homelab",
+      "homeserver_list": [
+        "vmd1.homelab",
+        "matrix.vmd1.homelab",
+        "beeper.com",
+        "vmd1.homelab"
+      ],
+      "disable_custom_homeservers": true,
+      "app_name": "vmd1"
+    }
+---
+# =============================================================================
+# DEPLOYMENT: fluffychat
+# =============================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fluffychat
+  namespace: matrix
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: fluffychat
+  template:
+    metadata:
+      labels:
+        app: fluffychat
+    spec:
+      automountServiceAccountToken: false
+      nodeSelector:
+        topology.kubernetes.io/zone: uk-home
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app: fluffychat
+          matchLabelKeys:
+            - pod-template-hash
+      tolerations:
+        - key: "node.kubernetes.io/not-ready"
+          operator: "Exists"
+          effect: "NoExecute"
+          tolerationSeconds: 60
+        - key: "node.kubernetes.io/unreachable"
+          operator: "Exists"
+          effect: "NoExecute"
+          tolerationSeconds: 60
+        - key: "node-role"
+          operator: "Equal"
+          value: "ingress"
+          effect: "NoSchedule"
+      containers:
+        - name: fluffychat
+          image: ghcr.io/krille-chan/fluffychat:latest
+          ports:
+            - containerPort: 80
+          resources:
+            limits:
+              cpu: "100m"
+              memory: 64Mi
+            requests:
+              cpu: "10m"
+              memory: 32Mi
+          volumeMounts:
+            - name: config-volume
+              mountPath: /usr/share/nginx/html/assets/config.json
+              subPath: config.json
+            - name: config-volume
+              mountPath: /usr/share/nginx/html/config.json
+              subPath: config.json
+      volumes:
+        - name: config-volume
+          configMap:
+            name: fluffychat-config
+---
+# =============================================================================
+# SERVICE: fluffychat
+# =============================================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: fluffychat
+  namespace: matrix
+spec:
+  selector:
+    app: fluffychat
+  ports:
+    - port: 80
+      targetPort: 80

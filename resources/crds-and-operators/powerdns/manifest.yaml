@@ -1,0 +1,185 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: powerdns-config
+  namespace: powerdns
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: powerdns
+  namespace: powerdns
+  labels:
+    app: powerdns
+spec:
+  selector:
+    matchLabels:
+      app: powerdns
+  template:
+    metadata:
+      labels:
+        app: powerdns
+    spec:
+      hostNetwork: true
+      terminationGracePeriodSeconds: 5
+      nodeSelector:
+        node-role.kubernetes.io/ingress: "true"
+      tolerations:
+        - operator: Exists
+      initContainers:
+        # Downloads GeoLite2-City.mmdb required for pickclosest geo distance.
+        - name: fetch-geoip-db
+          image: curlimages/curl:latest
+          securityContext:
+            runAsUser: 0
+            runAsGroup: 0
+          command:
+            - sh
+            - -c
+            - |
+              DB=/geoip/GeoLite2-City.mmdb
+              if [ -f "$DB" ]; then
+                echo "GeoLite2-City.mmdb already cached on this node, skipping download"
+                exit 0
+              fi
+              echo "Downloading GeoLite2-City.mmdb..."
+              curl -sL "https://download.maxmind.com/app/geoip_download?edition_id=GeoLite2-City&license_key=${MAXMIND_LICENSE_KEY}&suffix=tar.gz" \
+                -o /tmp/geolite.tar.gz
+              tar -xzf /tmp/geolite.tar.gz -C /tmp
+              find /tmp -name "GeoLite2-City.mmdb" -exec cp {} "$DB" \;
+              echo "Cached GeoLite2-City.mmdb to $DB"
+          env:
+            - name: MAXMIND_LICENSE_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: maxmind-license
+                  key: license-key
+          volumeMounts:
+            - name: geoip
+              mountPath: /geoip
+
+      containers:
+        - name: pdns
+          image: dl010/powerdns-auth:5.0.5
+          imagePullPolicy: Always
+          securityContext:
+            runAsUser: 0
+            runAsGroup: 0
+          env:
+            - name: PDNS_launch
+              value: "geoip"
+            - name: PDNS_geoip_database_files
+              value: "/usr/share/GeoIP/GeoLite2-City.mmdb"
+            - name: PDNS_geoip_zones_file
+              value: "/etc/powerdns/zones/geoip-zones.yaml"
+            - name: PDNS_enable_lua_records
+              value: "yes"
+            - name: PDNS_max_cache_entries
+              value: "20000"
+            - name: PDNS_max_packet_cache_entries
+              value: "20000"
+            - name: PDNS_distributor_threads
+              value: "1"
+            - name: PDNS_receiver_threads
+              value: "2"
+            - name: PDNS_local_port
+              value: "53"
+            - name: PDNS_socket_dir
+              value: "/var/run"
+            - name: PDNS_edns_subnet_processing
+              value: "yes"
+            - name: PDNS_loglevel
+              value: "9"
+            - name: PDNS_primary
+              value: "yes"
+            - name: PDNS_allow_axfr_ips
+              value: "173.245.48.0/20,103.21.244.0/22,103.22.200.0/22,103.31.4.0/22,141.101.64.0/18,108.162.192.0/18,190.93.240.0/20,188.114.96.0/20,197.234.240.0/22,198.41.128.0/17,162.158.0.0/15,104.16.0.0/13,104.24.0.0/14,172.64.0.0/13,131.0.72.0/22"
+            - name: PDNS_webserver
+              value: "yes"
+            - name: PDNS_webserver_address
+              value: "127.0.0.1"
+            - name: PDNS_webserver_port
+              value: "8081"
+            - name: PDNS_api
+              value: "yes"
+            - name: PDNS_api_key
+              value: "changeme"
+            - name: PDNS_setuid
+              value: "0"
+            - name: PDNS_setgid
+              value: "0"
+
+          ports:
+            - containerPort: 53
+              protocol: TCP
+              name: dns-tcp
+            - containerPort: 53
+              protocol: UDP
+              name: dns-udp
+
+          volumeMounts:
+            - name: geoip
+              mountPath: /usr/share/GeoIP/GeoLite2-City.mmdb
+              subPath: GeoLite2-City.mmdb
+            - name: config-volume
+              mountPath: /etc/powerdns/zones
+            - name: run-volume
+              mountPath: /var/run
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+
+        - name: config-watcher
+          image: dl010/powerdns-auth:5.0.5
+          securityContext:
+            runAsUser: 0
+            runAsGroup: 0
+          command:
+            - sh
+            - -c
+            - |
+              echo "[config-watcher] Starting ConfigMap symlink watcher..."
+              last_target=""
+              while true; do
+                if [ -L /etc/powerdns/zones/geoip-zones.yaml ]; then
+                  current_target=$(readlink -f /etc/powerdns/zones/geoip-zones.yaml)
+                  if [ "$current_target" != "$last_target" ]; then
+                    if [ -n "$last_target" ]; then
+                      echo "[config-watcher] ConfigMap change detected: $last_target -> $current_target"
+                      echo "[config-watcher] Running pdns_control reload..."
+                      pdns_control --socket-dir=/var/run reload
+                    fi
+                    last_target="$current_target"
+                  fi
+                fi
+                sleep 10
+              done
+          volumeMounts:
+            - name: config-volume
+              mountPath: /etc/powerdns/zones
+            - name: run-volume
+              mountPath: /var/run
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 50m
+              memory: 64Mi
+
+      volumes:
+        - name: geoip
+          hostPath:
+            path: /var/lib/powerdns/geoip
+            type: DirectoryOrCreate
+        - name: config-volume
+          configMap:
+            name: powerdns-config
+            defaultMode: 0755
+        - name: run-volume
+          emptyDir: {}

@@ -1,0 +1,431 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: ociportrules.network.vmd1.homelab
+spec:
+  group: network.vmd1.homelab
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      subresources:
+        status: {}
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              properties:
+                nodeSelector:
+                  type: object
+                  additionalProperties:
+                    type: string
+                nodeName:
+                  type: string
+                protocol:
+                  type: string
+                ports:
+                  type: array
+                  items:
+                    type: integer
+                    minimum: 1
+                    maximum: 65535
+            status:
+              type: object
+              properties:
+                conditions:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      type:
+                        type: string
+                      status:
+                        type: string
+                      lastTransitionTime:
+                        type: string
+                      reason:
+                        type: string
+                      message:
+                        type: string
+                syncedNodes:
+                  type: object
+                  additionalProperties:
+                    type: string
+  scope: Cluster
+  names:
+    plural: ociportrules
+    singular: ociportrule
+    kind: OCIPortRule
+    shortNames:
+      - opr
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: oci-port-controller
+  namespace: oci-controller
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: oci-port-controller-role
+rules:
+  - apiGroups: [""]
+    resources: ["nodes"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get"]
+  - apiGroups: ["network.vmd1.homelab"]
+    resources: ["ociportrules", "ociportrules/status"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: oci-port-controller-binding
+subjects:
+  - kind: ServiceAccount
+    name: oci-port-controller
+    namespace: oci-controller
+roleRef:
+  kind: ClusterRole
+  name: oci-port-controller-role
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: oci-port-controller-code
+  namespace: oci-controller
+data:
+  controller.py: |
+    import os
+    import sys
+    import time
+    import base64
+    import logging
+    from datetime import datetime, timezone
+
+    import oci
+    from kubernetes import client, config
+    from kubernetes.client.rest import ApiException
+
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s [%(levelname)s] %(message)s",
+        handlers=[logging.StreamHandler(sys.stdout)]
+    )
+    logger = logging.getLogger("oci-port-controller")
+
+    POLL_INTERVAL = int(os.environ.get("POLL_INTERVAL", "30"))
+    NAMESPACE     = os.environ.get("POD_NAMESPACE", "oci-controller")
+    SSH_KEY_PATH  = "/etc/ssh-key/id_rsa"
+
+    try:
+        config.load_incluster_config()
+    except Exception:
+        logger.warning("Could not load in-cluster config, using local kubeconfig.")
+        config.load_kube_config()
+
+    v1 = client.CoreV1Api()
+    custom_api = client.CustomObjectsApi()
+
+    _oci_client_cache: dict = {}
+
+    def _decode_secret_key(secret, key: str) -> str:
+        if secret.data and key in secret.data:
+            return base64.b64decode(secret.data[key]).decode("utf-8").strip()
+        raise KeyError(f"Key '{key}' not found in secret")
+
+    def get_oci_clients(account_name: str):
+        if account_name in _oci_client_cache:
+            return _oci_client_cache[account_name]
+
+        secret_name = f"oci-credentials-<region>{account_name}"
+        logger.info(f"Loading OCI credentials from secret '{secret_name}' in namespace '{NAMESPACE}'")
+        try:
+            secret = v1.read_namespaced_secret(secret_name, NAMESPACE)
+        except ApiException as e:
+            logger.error(f"Error reading secret '{secret_name}': {e}")
+            return None
+
+        try:
+            oci_config = {
+                "user":        _decode_secret_key(secret, "OCI_USER_OCID"),
+                "key_content": _decode_secret_key(secret, "OCI_KEY_CONTENT"),
+                "fingerprint": _decode_secret_key(secret, "OCI_FINGERPRINT"),
+                "tenancy":     _decode_secret_key(secret, "OCI_TENANCY_OCID"),
+                "region":      _decode_secret_key(secret, "OCI_REGION"),
+            }
+            compartment_id = _decode_secret_key(secret, "OCI_COMPARTMENT_OCID")
+            oci.config.validate_config(oci_config)
+        except Exception as e:
+            logger.error(f"Invalid OCI config for account '{account_name}': {e}")
+            return None
+
+        compute_client = oci.core.ComputeClient(oci_config)
+        network_client = oci.core.VirtualNetworkClient(oci_config)
+        _oci_client_cache[account_name] = (compute_client, network_client, compartment_id)
+        return compute_client, network_client, compartment_id
+
+    def reconcile_oci_security_list(compute_client, network_client, compartment_id: str, node_name: str, ports: list[int], protocol: str = "tcp") -> bool:
+        try:
+            instances = compute_client.list_instances(compartment_id=compartment_id, display_name=node_name, lifecycle_state="RUNNING").data
+            if not instances:
+                logger.error(f"No running OCI instance found with display_name='{node_name}'")
+                return False
+            instance_id = instances[0].id
+
+            vnic_attachments = compute_client.list_vnic_attachments(compartment_id=compartment_id, instance_id=instance_id).data
+            if not vnic_attachments:
+                logger.error(f"No VNIC attachment found for instance '{node_name}'")
+                return False
+            
+            vnic_id = vnic_attachments[0].vnic_id
+            vnic = network_client.get_vnic(vnic_id).data
+            subnet_id = vnic.subnet_id
+            subnet = network_client.get_subnet(subnet_id).data
+
+            proto_num = "17" if protocol.lower() == "udp" else "6"
+
+            all_ok = True
+            for sec_list_id in subnet.security_list_ids:
+                sec_list = network_client.get_security_list(sec_list_id).data
+                ingress_rules = list(sec_list.ingress_security_rules)
+                updated = False
+
+                for port in ports:
+                    already_allowed = False
+                    for rule in ingress_rules:
+                        if rule.protocol == proto_num and rule.source == "0.0.0.0/0":
+                            opts = rule.udp_options if proto_num == "17" else rule.tcp_options
+                            if opts and opts.destination_port_range:
+                                r_min = opts.destination_port_range.min
+                                r_max = opts.destination_port_range.max
+                                if r_min <= port <= r_max:
+                                    already_allowed = True
+                                    break
+                    if not already_allowed:
+                        logger.info(f"Adding OCI Security List ingress rule for port {port}/{protocol} on {node_name}")
+                        if proto_num == "17":
+                            new_rule = oci.core.models.IngressSecurityRule(
+                                protocol=proto_num,
+                                source="0.0.0.0/0",
+                                is_stateless=False,
+                                udp_options=oci.core.models.UdpOptions(
+                                    destination_port_range=oci.core.models.PortRange(min=port, max=port)
+                                )
+                            )
+                        else:
+                            new_rule = oci.core.models.IngressSecurityRule(
+                                protocol=proto_num,
+                                source="0.0.0.0/0",
+                                is_stateless=False,
+                                tcp_options=oci.core.models.TcpOptions(
+                                    destination_port_range=oci.core.models.PortRange(min=port, max=port)
+                                )
+                            )
+                        ingress_rules.append(new_rule)
+                        updated = True
+
+                if updated:
+                    details = oci.core.models.UpdateSecurityListDetails(ingress_security_rules=ingress_rules)
+                    network_client.update_security_list(sec_list_id, update_security_list_details=details)
+                    logger.info(f"✓ Updated OCI Security List '{sec_list.display_name}' for node '{node_name}'")
+
+            return all_ok
+        except Exception as e:
+            logger.error(f"Error updating OCI Security List for node '{node_name}': {e}")
+            return False
+
+    import subprocess
+
+    def reconcile_node_ssh_firewall(public_ip: str, username: str, ports: list[int], protocol: str = "tcp") -> bool:
+        if not os.path.exists(SSH_KEY_PATH):
+            logger.error(f"SSH key file not found at {SSH_KEY_PATH}")
+            return False
+
+        proto_flag = "-p udp" if protocol.lower() == "udp" else "-p tcp"
+
+        ssh_base_cmd = [
+            "ssh",
+            "-i", SSH_KEY_PATH,
+            "-o", "StrictHostKeyChecking=no",
+            "-o", "ConnectTimeout=10",
+            f"{username}@{public_ip}"
+        ]
+
+        all_ok = True
+        for port in ports:
+            check_cmd = ssh_base_cmd + [f"sudo iptables -C INPUT -m state --state NEW {proto_flag} --dport {port} -j ACCEPT"]
+            res = subprocess.run(check_cmd, capture_output=True, text=True)
+
+            if res.returncode != 0:
+                logger.info(f"Opening port {port}/{protocol} via SSH on node {public_ip}")
+                add_cmd = ssh_base_cmd + [f"sudo iptables -I INPUT 6 -m state --state NEW {proto_flag} --dport {port} -j ACCEPT && (sudo netfilter-persistent save || true)"]
+                add_res = subprocess.run(add_cmd, capture_output=True, text=True)
+                if add_res.returncode == 0:
+                    logger.info(f"✓ Port {port}/{protocol} opened on node {public_ip} via SSH")
+                else:
+                    logger.error(f"Failed to open port {port}/{protocol} on node {public_ip}: {add_res.stderr.strip()}")
+                    all_ok = False
+        return all_ok
+
+    def reconcile_rule(rule):
+        name = rule["metadata"]["name"]
+        spec = rule.get("spec", {})
+        ports = spec.get("ports", [])
+        protocol = spec.get("protocol", "tcp")
+        if not ports:
+            logger.warning(f"OCIPortRule '{name}' has no ports specified. Skipping.")
+            return
+
+        target_nodes = []
+        if "nodeName" in spec and spec["nodeName"]:
+            try:
+                n = v1.read_node(spec["nodeName"])
+                target_nodes.append(n)
+            except Exception as e:
+                logger.error(f"Could not find node '{spec['nodeName']}': {e}")
+        elif "nodeSelector" in spec and spec["nodeSelector"]:
+            selector_str = ",".join([f"{k}={v}" for k, v in spec["nodeSelector"].items()])
+            try:
+                target_nodes = v1.list_node(label_selector=selector_str).items
+            except Exception as e:
+                logger.error(f"Failed to list nodes with selector '{selector_str}': {e}")
+
+        synced_nodes = {}
+        for node in target_nodes:
+            node_name = node.metadata.name
+            labels = node.metadata.labels or {}
+            public_ip = labels.get("node.vmd1.homelab/public-ip")
+            username  = labels.get("node.vmd1.homelab/username", "ubuntu")
+            account   = labels.get("node.vmd1.homelab/oci-account") or labels.get("oci-account")
+
+            if not account:
+                logger.warning(f"Node '{node_name}' lacks 'node.vmd1.homelab/oci-account' or 'oci-account' label. Skipping.")
+                synced_nodes[node_name] = "Failed: Missing OCI Account Label"
+                continue
+
+            if not public_ip:
+                logger.warning(f"Node '{node_name}' lacks 'node.vmd1.homelab/public-ip' label. Skipping SSH firewall sync.")
+
+            clients = get_oci_clients(account)
+            if not clients:
+                synced_nodes[node_name] = f"Failed: Could not load OCI credentials for account '{account}'"
+                continue
+            compute_client, network_client, compartment_id = clients
+
+            oci_ok = reconcile_oci_security_list(compute_client, network_client, compartment_id, node_name, ports, protocol)
+
+            ssh_ok = True
+            if public_ip:
+                ssh_ok = reconcile_node_ssh_firewall(public_ip, username, ports, protocol)
+
+            if oci_ok and ssh_ok:
+                synced_nodes[node_name] = f"Synced at {datetime.now(timezone.utc).isoformat()}"
+            else:
+                synced_nodes[node_name] = f"Partial/Failed at {datetime.now(timezone.utc).isoformat()} (OCI: {oci_ok}, SSH: {ssh_ok})"
+
+        # Update CR status subresource
+        try:
+            status_body = {
+                "status": {
+                    "syncedNodes": synced_nodes,
+                    "conditions": [{
+                        "type": "Ready",
+                        "status": "True",
+                        "lastTransitionTime": datetime.now(timezone.utc).isoformat(),
+                        "reason": "Reconciled",
+                        "message": f"Successfully processed {len(target_nodes)} node(s)"
+                    }]
+                }
+            }
+            custom_api.patch_cluster_custom_object_status(
+                group="network.vmd1.homelab",
+                version="v1alpha1",
+                plural="ociportrules",
+                name=name,
+                body=status_body
+            )
+        except Exception as e:
+            logger.error(f"Failed to update status for OCIPortRule '{name}': {e}")
+
+    def main():
+        logger.info("OCI Port Controller started.")
+        while True:
+            try:
+                rules = custom_api.list_cluster_custom_object(
+                    group="network.vmd1.homelab",
+                    version="v1alpha1",
+                    plural="ociportrules"
+                ).get("items", [])
+                for rule in rules:
+                    reconcile_rule(rule)
+            except Exception as e:
+                logger.exception(f"Unhandled exception in main loop: {e}")
+            time.sleep(POLL_INTERVAL)
+
+    if __name__ == "__main__":
+        main()
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: oci-port-controller
+  namespace: oci-controller
+  labels:
+    app: oci-port-controller
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: oci-port-controller
+  template:
+    metadata:
+      labels:
+        app: oci-port-controller
+    spec:
+      serviceAccountName: oci-port-controller
+      containers:
+        - name: controller
+          image: python:3.11-slim
+          command:
+            - sh
+            - -c
+            - "apt-get update && apt-get install -y openssh-client && pip install --no-cache-dir oci kubernetes && python /app/controller.py"
+          env:
+            - name: PYTHONUNBUFFERED
+              value: "1"
+            - name: MALLOC_TRIM_THRESHOLD_
+              value: "100000"
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: POLL_INTERVAL
+              value: "30"
+          volumeMounts:
+            - name: code-volume
+              mountPath: /app
+            - name: ssh-key-volume
+              mountPath: /etc/ssh-key
+              readOnly: true
+          resources:
+            limits:
+              cpu: 200m
+              memory: 256Mi
+            requests:
+              cpu: 20m
+              memory: 128Mi
+      volumes:
+        - name: code-volume
+          configMap:
+            name: oci-port-controller-code
+        - name: ssh-key-volume
+          secret:
+            secretName: node-ssh-key
+            defaultMode: 0600

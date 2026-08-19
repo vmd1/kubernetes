@@ -1,0 +1,77 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: vmd1-web
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: edge-services
+  namespace: vmd1-web
+  labels:
+    app: edge-services
+spec:
+  updateStrategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 4
+  selector:
+    matchLabels:
+      app: edge-services
+  template:
+    metadata:
+      labels:
+        app: edge-services
+    spec:
+      automountServiceAccountToken: false
+      tolerations:
+        - operator: Exists
+      containers:
+        - name: vmd1-dev
+          image: ghcr.io/vmd1/vmd1.homelab:edge
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 80
+              protocol: TCP
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 80
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          resources:
+            requests:
+              cpu: 10m
+              memory: 24Mi
+            limits:
+              cpu: 100m
+              memory: 64Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: vmd1-dev
+  namespace: vmd1-web
+  labels:
+    app: vmd1-dev
+spec:
+  selector:
+    app: edge-services
+  internalTrafficPolicy: Cluster
+  trafficDistribution: PreferSameZone
+  ports:
+    - name: http
+      port: 80
+      targetPort: 80
+      protocol: TCP
+---
+apiVersion: traefik.io/v1alpha1
+kind: ServersTransport
+metadata:
+  name: edge-transport
+  namespace: vmd1-web
+spec:
+  forwardingTimeouts:
+    dialTimeout: 10s
+    responseHeaderTimeout: 10s
+    idleConnTimeout: 30s

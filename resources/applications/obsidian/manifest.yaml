@@ -1,0 +1,158 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: obsidian
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: obsidian-config
+  namespace: obsidian
+data:
+  10-obsidian.ini: |
+    [couchdb]
+    single_node = true
+    max_document_size = 50000000
+
+    [cluster]
+    n = 1
+
+    [chttpd]
+    require_valid_user = true
+    require_valid_user_except_for_up = true
+    max_http_request_size = 4294967296
+    enable_cors = true
+    bind_address = 0.0.0.0
+
+    [chttpd_auth]
+    require_valid_user = true
+    authentication_redirect = /_utils/session.html
+
+    [httpd]
+    WWW-Authenticate = Basic realm="couchdb"
+    enable_cors = true
+
+    [cors]
+    origins = app://obsidian.md,capacitor://localhost,http://localhost
+    credentials = true
+    headers = accept, authorization, content-type, origin, referer
+    methods = GET, PUT, POST, HEAD, DELETE, OPTIONS
+    max_age = 3600
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: obsidian-pvc
+  namespace: obsidian
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: longhorn-single-replica
+  resources:
+    requests:
+      storage: 10Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: obsidian-sync
+  namespace: obsidian
+  labels:
+    app: obsidian-sync
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: obsidian-sync
+  template:
+    metadata:
+      labels:
+        app: obsidian-sync
+    spec:
+      automountServiceAccountToken: false
+      nodeSelector:
+        topology.kubernetes.io/zone: uk-home
+      tolerations:
+        - key: "node.kubernetes.io/not-ready"
+          operator: "Exists"
+          effect: "NoExecute"
+          tolerationSeconds: 60
+        - key: "node.kubernetes.io/unreachable"
+          operator: "Exists"
+          effect: "NoExecute"
+          tolerationSeconds: 60
+      securityContext:
+        fsGroup: 5984
+      initContainers:
+        - name: init-config
+          image: busybox:1.36
+          command:
+            - /bin/sh
+            - -c
+            - cp /config-source/10-obsidian.ini /opt/couchdb/etc/local.d/10-obsidian.ini
+          volumeMounts:
+            - name: config-source
+              mountPath: /config-source
+            - name: couchdb-local-d
+              mountPath: /opt/couchdb/etc/local.d
+      containers:
+        - name: couchdb
+          image: couchdb:3.4.2
+          envFrom:
+            - secretRef:
+                name: obsidian-secrets
+          ports:
+            - name: http
+              containerPort: 5984
+              protocol: TCP
+          resources:
+            requests:
+              cpu: 20m
+              memory: 96Mi
+            limits:
+              cpu: 300m
+              memory: 256Mi
+          readinessProbe:
+            httpGet:
+              path: /_up
+              port: 5984
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /_up
+              port: 5984
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          volumeMounts:
+            - name: obsidian-data
+              mountPath: /opt/couchdb/data
+            - name: couchdb-local-d
+              mountPath: /opt/couchdb/etc/local.d
+      volumes:
+        - name: obsidian-data
+          persistentVolumeClaim:
+            claimName: obsidian-pvc
+        - name: config-source
+          configMap:
+            name: obsidian-config
+        - name: couchdb-local-d
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: obsidian-sync
+  namespace: obsidian
+  labels:
+    app: obsidian-sync
+spec:
+  selector:
+    app: obsidian-sync
+  ports:
+    - name: http
+      port: 5984
+      targetPort: 5984
+      protocol: TCP

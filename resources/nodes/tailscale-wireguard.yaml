@@ -1,0 +1,11 @@
+apiVersion: network.vmd1.homelab/v1alpha1
+kind: OCIPortRule
+metadata:
+  name: tailscale-wireguard
+spec:
+  nodeSelector:
+    node-role.kubernetes.io/ingress: "true"
+  protocol: udp
+  ports:
+    - 41641
+    - 41642

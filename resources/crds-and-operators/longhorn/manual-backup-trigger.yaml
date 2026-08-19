@@ -1,0 +1,16 @@
+apiVersion: longhorn.io/v1beta2
+kind: Snapshot
+metadata:
+  name: manual-snap-hourly-trigger
+  namespace: longhorn-system
+spec:
+  volume: pvc-bca7837c-11e3-444d-9b6a-7c9708dadd78
+  createSnapshot: true
+---
+apiVersion: longhorn.io/v1beta2
+kind: Backup
+metadata:
+  name: manual-backup-hourly-trigger
+  namespace: longhorn-system
+spec:
+  snapshotName: manual-snap-hourly-trigger

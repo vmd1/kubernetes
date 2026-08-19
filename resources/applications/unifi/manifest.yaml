@@ -1,0 +1,246 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: unifi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: unifi-db-pvc
+  namespace: unifi
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: longhorn-single-replica
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: unifi-data-pvc
+  namespace: unifi
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: longhorn-single-replica
+  resources:
+    requests:
+      storage: 10Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: unifi-db
+  namespace: unifi
+  labels:
+    app: unifi-db
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: unifi-db
+  template:
+    metadata:
+      labels:
+        app: unifi-db
+    spec:
+      automountServiceAccountToken: false
+      nodeSelector:
+        topology.kubernetes.io/zone: uk-home
+      tolerations:
+        - key: "node.kubernetes.io/not-ready"
+          operator: "Exists"
+          effect: "NoExecute"
+          tolerationSeconds: 60
+        - key: "node.kubernetes.io/unreachable"
+          operator: "Exists"
+          effect: "NoExecute"
+          tolerationSeconds: 60
+      containers:
+        - name: mongo
+          image: mongo:7.0
+          args:
+            - "--wiredTigerCacheSizeGB=0.25"
+          ports:
+            - name: mongo
+              containerPort: 27017
+              protocol: TCP
+          resources:
+            requests:
+              cpu: 20m
+              memory: 128Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+          volumeMounts:
+            - name: db-data
+              mountPath: /data/db
+            - name: db-init
+              mountPath: /docker-entrypoint-initdb.d/init-mongo.js
+              subPath: init-mongo.js
+      volumes:
+        - name: db-data
+          persistentVolumeClaim:
+            claimName: unifi-db-pvc
+        - name: db-init
+          configMap:
+            name: unifi-db-init
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: unifi-db
+  namespace: unifi
+  labels:
+    app: unifi-db
+spec:
+  selector:
+    app: unifi-db
+  ports:
+    - name: mongo
+      port: 27017
+      targetPort: 27017
+      protocol: TCP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: unifi
+  namespace: unifi
+  labels:
+    app: unifi
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: unifi
+  template:
+    metadata:
+      labels:
+        app: unifi
+    spec:
+      automountServiceAccountToken: false
+      nodeSelector:
+        topology.kubernetes.io/zone: uk-home
+      tolerations:
+        - key: "node.kubernetes.io/not-ready"
+          operator: "Exists"
+          effect: "NoExecute"
+          tolerationSeconds: 60
+        - key: "node.kubernetes.io/unreachable"
+          operator: "Exists"
+          effect: "NoExecute"
+          tolerationSeconds: 60
+      containers:
+        - name: unifi
+          image: lscr.io/linuxserver/unifi-network-application:latest
+          env:
+            - name: PUID
+              value: "1000"
+            - name: PGID
+              value: "1000"
+            - name: TZ
+              value: "Europe/London"
+            - name: MONGO_HOST
+              value: "unifi-db"
+            - name: MONGO_PORT
+              value: "27017"
+            - name: MONGO_USER
+              valueFrom:
+                secretKeyRef:
+                  name: unifi-db-secrets
+                  key: MONGO_USER
+            - name: MONGO_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: unifi-db-secrets
+                  key: MONGO_PASS
+            - name: MONGO_DBNAME
+              valueFrom:
+                secretKeyRef:
+                  name: unifi-db-secrets
+                  key: MONGO_DBNAME
+            - name: MONGO_AUTHSOURCE
+              valueFrom:
+                secretKeyRef:
+                  name: unifi-db-secrets
+                  key: MONGO_AUTHSOURCE
+            - name: MEM_START
+              value: "256"
+            - name: MEM_LIMIT
+              value: "512"
+            - name: MALLOC_TRIM_THRESHOLD_
+              value: "100000"
+          ports:
+            - name: https
+              containerPort: 8443
+              protocol: TCP
+            - name: inform
+              containerPort: 8080
+              protocol: TCP
+            - name: stun
+              containerPort: 3478
+              protocol: UDP
+            - name: discovery
+              containerPort: 10001
+              protocol: UDP
+          resources:
+            requests:
+              cpu: 50m
+              memory: 512Mi
+            limits:
+              cpu: 500m
+              memory: 768Mi
+          volumeMounts:
+            - name: unifi-config
+              mountPath: /config
+      volumes:
+        - name: unifi-config
+          persistentVolumeClaim:
+            claimName: unifi-data-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: unifi
+  namespace: unifi
+  labels:
+    app: unifi
+  annotations:
+    kube-vip.io/loadbalancerIPs: "192.168.12.10"
+spec:
+  type: LoadBalancer
+  loadBalancerClass: kube-vip.io/kube-vip-class
+  selector:
+    app: unifi
+  ports:
+    - name: https
+      port: 8443
+      targetPort: 8443
+      protocol: TCP
+    - name: inform
+      port: 8080
+      targetPort: 8080
+      protocol: TCP
+    - name: stun
+      port: 3478
+      targetPort: 3478
+      protocol: UDP
+    - name: discovery
+      port: 10001
+      targetPort: 10001
+      protocol: UDP
+---
+apiVersion: traefik.io/v1alpha1
+kind: ServersTransport
+metadata:
+  name: unifi-insecure-transport
+  namespace: unifi
+spec:
+  insecureSkipVerify: true

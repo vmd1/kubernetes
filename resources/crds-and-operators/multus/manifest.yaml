@@ -1,0 +1,62 @@
+apiVersion: helm.cattle.io/v1
+kind: HelmChart
+metadata:
+  name: multus
+  namespace: kube-system
+spec:
+  repo: https://rke2-charts.rancher.io
+  chart: rke2-multus
+  targetNamespace: kube-system
+  valuesContent: |-
+    # Restrict DaemonSet to uk-home zone nodes only (hades-01)
+    labels:
+      nodeSelector:
+        kubernetes.io/os: linux
+        topology.kubernetes.io/zone: uk-home
+    config:
+      fullnameOverride: multus
+      cni_conf:
+        confDir: /var/lib/rancher/k3s/agent/etc/cni/net.d
+        binDir: /var/lib/rancher/k3s/data/cni/
+        kubeconfig: /var/lib/rancher/k3s/agent/etc/cni/net.d/multus.d/multus.kubeconfig
+        # Required for rke2-multus >= v4.2.202 on K3s
+        multusAutoconfigDir: /var/lib/rancher/k3s/agent/etc/cni/net.d
+    rke2-whereabouts:
+      fullnameOverride: whereabouts
+      enabled: true
+      # Restrict whereabouts DaemonSet to uk-home zone nodes only
+      nodeSelector:
+        kubernetes.io/os: linux
+        topology.kubernetes.io/zone: uk-home
+      cniConf:
+        confDir: /var/lib/rancher/k3s/agent/etc/cni/net.d
+        binDir: /var/lib/rancher/k3s/data/cni/
+---
+# Storage network over eth0 (192.168.11.0/24) for Longhorn
+# Attach to pods via: k8s.v1.cni.cncf.io/networks: storage-macvlan-eth0
+apiVersion: k8s.cni.cncf.io/v1
+kind: NetworkAttachmentDefinition
+metadata:
+  name: storage-macvlan-eth0
+  namespace: longhorn-system
+spec:
+  config: |-
+    {
+      "cniVersion": "1.0.0",
+      "type": "macvlan",
+      "master": "eth0",
+      "mode": "bridge",
+      "ipam": {
+        "type": "whereabouts",
+        "range": "192.168.11.0/24",
+        "exclude": [
+          "192.168.11.0/29",
+          "192.168.11.251/32",
+          "192.168.11.252/32",
+          "192.168.11.253/32",
+          "192.168.11.254/32",
+          "192.168.11.255/32"
+        ],
+        "configuration_path": "/var/lib/rancher/k3s/agent/etc/cni/net.d/whereabouts.d/whereabouts.conf"
+      }
+    }

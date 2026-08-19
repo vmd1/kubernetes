@@ -1,0 +1,195 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kubevip
+  namespace: kube-system
+data:
+  range-uk-home: "192.168.12.1-192.168.12.254"
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: kube-vip-cloud-provider
+  namespace: kube-system
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: system:kube-vip-cloud-provider-role
+rules:
+  - apiGroups: [""]
+    resources: ["services", "services/status", "nodes", "endpoints"]
+    verbs: ["get", "list", "watch", "update", "patch"]
+  - apiGroups: ["coordination.k8s.io"]
+    resources: ["leases"]
+    verbs: ["get", "list", "watch", "create", "update", "patch"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: system:kube-vip-cloud-provider-binding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: system:kube-vip-cloud-provider-role
+subjects:
+  - kind: ServiceAccount
+    name: kube-vip-cloud-provider
+    namespace: kube-system
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kube-vip-cloud-provider
+  namespace: kube-system
+  labels:
+    app.kubernetes.io/name: kube-vip-cloud-provider
+spec:
+  replicas: 1
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: kube-vip-cloud-provider
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: kube-vip-cloud-provider
+    spec:
+      serviceAccountName: kube-vip-cloud-provider
+      priorityClassName: system-cluster-critical
+      tolerations:
+        - key: "node-role.kubernetes.io/control-plane"
+          operator: "Exists"
+          effect: "NoSchedule"
+        - key: "node-role.kubernetes.io/master"
+          operator: "Exists"
+          effect: "NoSchedule"
+      nodeSelector:
+        topology.kubernetes.io/zone: uk-home
+      containers:
+        - name: kube-vip-cloud-provider
+          image: ghcr.io/kube-vip/kube-vip-cloud-provider:v0.0.12
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: KUBEVIP_ENABLE_LOADBALANCERCLASS
+              value: "true"
+            - name: KUBEVIP_CUSTOM_LOADBALANCERCLASS_NAME
+              value: "kube-vip.io/kube-vip-class"
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 64Mi
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: kube-vip
+  namespace: kube-system
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: system:kube-vip-role
+rules:
+  - apiGroups: [""]
+    resources: ["services", "services/status", "nodes", "pods", "endpoints"]
+    verbs: ["get", "list", "watch", "update", "patch"]
+  - apiGroups: ["coordination.k8s.io"]
+    resources: ["leases"]
+    verbs: ["get", "list", "watch", "create", "update", "patch"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: system:kube-vip-binding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: system:kube-vip-role
+subjects:
+  - kind: ServiceAccount
+    name: kube-vip
+    namespace: kube-system
+
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: kube-vip-ds
+  namespace: kube-system
+  labels:
+    app.kubernetes.io/name: kube-vip-ds
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: kube-vip-ds
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: kube-vip-ds
+    spec:
+      serviceAccountName: kube-vip
+      hostNetwork: true
+      priorityClassName: system-node-critical
+      nodeSelector:
+        topology.kubernetes.io/zone: uk-home
+      tolerations:
+        - key: "node-role.kubernetes.io/control-plane"
+          operator: "Exists"
+          effect: "NoSchedule"
+        - key: "node-role.kubernetes.io/master"
+          operator: "Exists"
+          effect: "NoSchedule"
+      containers:
+        - name: kube-vip
+          image: ghcr.io/kube-vip/kube-vip:v0.8.9
+          imagePullPolicy: IfNotPresent
+          args:
+            - manager
+          env:
+            - name: address
+              value: "192.168.12.1"
+            - name: vip_interface
+              value: "eth0"
+            - name: cp_enable
+              value: "true"
+            - name: vip_nodename
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: vip_arp
+              value: "true"
+            - name: vip_arbiter
+              value: "true"
+            - name: lb_enable
+              value: "true"
+            - name: svc_enable
+              value: "true"
+            - name: svc_election
+              value: "true"
+            - name: KUBEVIP_ENABLE_LOADBALANCERCLASS
+              value: "true"
+            - name: KUBEVIP_CUSTOM_LOADBALANCERCLASS_NAME
+              value: "kube-vip.io/kube-vip-class"
+          securityContext:
+            capabilities:
+              add:
+                - NET_ADMIN
+                - NET_RAW
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
