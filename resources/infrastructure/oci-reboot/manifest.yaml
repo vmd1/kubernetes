@@ -67,8 +67,12 @@ data:
     import sys
     import time
     import base64
+    import socket
     import logging
     from datetime import datetime, timezone
+
+    # Set default socket timeout for all network calls
+    socket.setdefaulttimeout(30)
 
     import oci
     from kubernetes import client, config
@@ -314,11 +318,10 @@ spec:
       serviceAccountName: oci-reboot-controller
       containers:
         - name: controller
-          image: python:3.11-alpine
+          image: ghcr.io/vmd1/k8s-operator:edge
           command:
-            - sh
-            - -c
-            - "pip install --no-cache-dir oci kubernetes && python /app/controller.py"
+            - python
+            - /app/controller.py
           env:
             - name: MALLOC_TRIM_THRESHOLD_
               value: "100000"
