@@ -9,6 +9,7 @@ The [kustomization.yaml](kustomization.yaml) here is the Kustomize entrypoint th
 | Application | Description |
 | :--- | :--- |
 | [Authentik](authentik/README.md) | Centralized Identity Provider (IdP) with SSO forward-auth middleware for Traefik. |
+| [BookOrbit](bookorbit/README.md) | Digital library and reading platform (ebooks, audiobooks, comics, PDFs) with CNPG backend. |
 | [Cinepro](cinepro/README.md) | Media-aggregation API backend (`cinepro-core`) with Redis caching. |
 | [Headlamp](headlamp/README.md) | Kubernetes web UI dashboard with cluster-admin service account access. |
 | [Home Assistant](home-assistant/README.md) | Home automation core on the local subnet with a filebrowser sidecar. |

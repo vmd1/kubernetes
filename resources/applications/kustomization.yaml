@@ -3,6 +3,7 @@ kind: Kustomization
 
 resources:
   - authentik
+  - bookorbit
   - cinepro
   - headlamp
   - home-assistant
