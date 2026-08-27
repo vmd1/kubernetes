@@ -13,5 +13,5 @@ UniFi Network Application manages UniFi networking hardware (Access Points, Swit
 
 - **Node Co-Location**: Pinned strictly to `uk-home` zone with `kubernetes.io/arch: amd64` (`hades-02`) due to MongoDB 7.0 requirements.
 - **Dedicated Subnet LoadBalancer**: Kube-VIP assigns IP `192.168.12.10` pinned to `hades-02` (`kube-vip.io/vipHost: hades-02`) for device inform (8080) and STUN (3478/UDP).
-- **RAM Constraints**: Total stack limit capped at **1.0 GiB** (MongoDB limit `256Mi` with `wiredTigerCacheSizeGB=0.15`, UniFi limit `768Mi` with `MEM_LIMIT=512M`).
+- **RAM Constraints**: MongoDB limit `512Mi` with `wiredTigerCacheSizeGB=0.25` (minimum engine requirement), UniFi limit `768Mi` with `MEM_LIMIT=512M`.
 - **Traefik Ingress**: Route `unifi.vmd1.homelab` on `websecure` (port 443) using `ServersTransport` with `insecureSkipVerify: true` to backend port `8443`.

@@ -65,7 +65,7 @@ spec:
         - name: mongo
           image: mongo:7.0
           args:
-            - "--wiredTigerCacheSizeGB=0.15"
+            - "--wiredTigerCacheSizeGB=0.25"
           ports:
             - name: mongo
               containerPort: 27017
@@ -73,10 +73,10 @@ spec:
           resources:
             requests:
               cpu: 20m
-              memory: 128Mi
+              memory: 256Mi
             limits:
               cpu: 200m
-              memory: 256Mi
+              memory: 512Mi
           volumeMounts:
             - name: db-data
               mountPath: /data/db
