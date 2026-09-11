@@ -23,7 +23,17 @@ spec:
     ingress:
       enabled: false
     nodeSelector:
-      kubernetes.io/hostname: hades-01
+      topology.kubernetes.io/zone: uk-home
+    affinity:
+      nodeAffinity:
+        preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            preference:
+              matchExpressions:
+                - key: kubernetes.io/hostname
+                  operator: In
+                  values:
+                    - hades-02
     resources:
       limits:
         memory: 512Mi

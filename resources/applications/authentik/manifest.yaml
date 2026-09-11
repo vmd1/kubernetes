@@ -110,6 +110,18 @@ spec:
         app.kubernetes.io/component: server
     spec:
       serviceAccountName: authentik
+      nodeSelector:
+        topology.kubernetes.io/zone: uk-home
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              preference:
+                matchExpressions:
+                  - key: kubernetes.io/hostname
+                    operator: In
+                    values:
+                      - hades-02
       containers:
         - name: authentik
           image: ghcr.io/goauthentik/server:2026.5.4
@@ -176,6 +188,18 @@ spec:
         app.kubernetes.io/component: worker
     spec:
       serviceAccountName: authentik
+      nodeSelector:
+        topology.kubernetes.io/zone: uk-home
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              preference:
+                matchExpressions:
+                  - key: kubernetes.io/hostname
+                    operator: In
+                    values:
+                      - hades-02
       containers:
         - name: authentik-worker
           image: ghcr.io/goauthentik/server:2026.5.4
