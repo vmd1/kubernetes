@@ -9,12 +9,21 @@ kind: ClusterRole
 metadata:
   name: tailscale-region-controller-role
 rules:
-  # Only "nodes" is genuinely cluster-scoped; everything else the
-  # controller touches lives in the tailscale namespace (see the
-  # namespaced Role below) so it can't reach into other namespaces.
+  # "nodes" and the legacy tailscale.com CRDs are genuinely cluster-scoped
+  # (Connector/ProxyClass have no namespace) - a namespaced Role can never
+  # grant access to them regardless of which namespace it's bound in.
+  # Everything else the controller touches lives in the tailscale
+  # namespace (see the namespaced Role below) so it can't reach into
+  # other namespaces.
   - apiGroups: [""]
     resources: ["nodes"]
     verbs: ["get", "list", "watch"]
+  # Only needed for one-time cleanup of the legacy Connector/ProxyClass
+  # objects this controller used to manage before it started owning exit
+  # node pods directly - see cleanup_legacy_operator_resources() below.
+  - apiGroups: ["tailscale.com"]
+    resources: ["connectors", "proxyclasses"]
+    verbs: ["get", "list", "watch", "delete"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -50,12 +59,6 @@ rules:
   - apiGroups: ["rbac.authorization.k8s.io"]
     resources: ["roles", "rolebindings"]
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
-  # Only needed for one-time cleanup of the legacy Connector/ProxyClass
-  # objects this controller used to manage before it started owning exit
-  # node pods directly - see cleanup_legacy_operator_resources() below.
-  - apiGroups: ["tailscale.com"]
-    resources: ["connectors", "proxyclasses"]
-    verbs: ["get", "list", "watch", "delete"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
