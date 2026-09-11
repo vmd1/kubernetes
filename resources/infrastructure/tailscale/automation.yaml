@@ -202,8 +202,13 @@ data:
             # We drop empty values or compare directly
             existing_tolerations = existing_ss.get("pod", {}).get("tolerations", [])
             expected_tolerations = expected_ss["pod"]["tolerations"]
-            existing_ts_container = existing_ss.get("pod", {}).get("tailscaleContainer", {})
-            expected_ts_container = expected_ss["pod"]["tailscaleContainer"]
+            # Compare only "env" - the API server injects a default
+            # "resources: {}" into tailscaleContainer that we never set
+            # ourselves, so comparing the whole dict always mismatches and
+            # causes an update-every-cycle loop that races the operator's
+            # own status updates on this object.
+            existing_ts_container = existing_ss.get("pod", {}).get("tailscaleContainer", {}).get("env", [])
+            expected_ts_container = expected_ss["pod"]["tailscaleContainer"]["env"]
             existing_static_endpoints = existing_spec.get("staticEndpoints", {})
             expected_static_endpoints = expected_spec["staticEndpoints"]
             if (
