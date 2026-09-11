@@ -8,4 +8,4 @@ spec:
   protocol: udp
   ports:
     - 41641
-    - 30841
+    - 41642

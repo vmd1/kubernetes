@@ -61,13 +61,6 @@ data:
     RECONCILE_INTERVAL = int(os.environ.get("RECONCILE_INTERVAL", "30"))
     MTU_VALUE = os.environ.get("TAILSCALE_MTU", "1130")
 
-    # Fixed UDP NodePort advertised as each exit node's static endpoint, so
-    # peers can hole-punch directly to the node's ExternalIP:port instead of
-    # relying on the pod's (symmetric) egress NAT mapping. Must stay within
-    # the cluster's service-node-port-range (default 30000-32767) and match
-    # the OCIPortRule opened for it in resources/nodes/tailscale-wireguard.yaml.
-    STATIC_ENDPOINT_NODEPORT = int(os.environ.get("STATIC_ENDPOINT_NODEPORT", "30841"))
-
     # How long a pod may sit on a NotReady/Unreachable node before it's evicted
     # and rescheduled onto a healthy sibling node in the same region. This
     # overrides the cluster-default 300s (injected automatically by the
@@ -135,18 +128,6 @@ data:
                 "labels": MANAGED_LABEL
             },
             "spec": {
-                "staticEndpoints": {
-                    "nodePort": {
-                        "ports": [
-                            {
-                                "port": STATIC_ENDPOINT_NODEPORT
-                            }
-                        ],
-                        "selector": {
-                            "topology.kubernetes.io/zone": region
-                        }
-                    }
-                },
                 "statefulSet": {
                     "pod": {
                         "tailscaleContainer": {
@@ -209,13 +190,10 @@ data:
             # own status updates on this object.
             existing_ts_container = existing_ss.get("pod", {}).get("tailscaleContainer", {}).get("env", [])
             expected_ts_container = expected_ss["pod"]["tailscaleContainer"]["env"]
-            existing_static_endpoints = existing_spec.get("staticEndpoints", {})
-            expected_static_endpoints = expected_spec["staticEndpoints"]
             if (
                 existing_ss.get("pod", {}).get("nodeSelector", {}).get("topology.kubernetes.io/zone") == region
                 and existing_ts_container == expected_ts_container
                 and existing_tolerations == expected_tolerations
-                and existing_static_endpoints == expected_static_endpoints
             ):
                 logger.debug(f"ProxyClass '{name}' is up to date.")
                 return
