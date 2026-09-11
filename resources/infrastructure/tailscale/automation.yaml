@@ -130,6 +130,7 @@ data:
             "spec": {
                 "statefulSet": {
                     "pod": {
+                        "hostNetwork": True,
                         "tailscaleContainer": {
                             "env": [
                                 {
@@ -187,6 +188,7 @@ data:
             expected_ts_container = expected_ss["pod"]["tailscaleContainer"]
             if (
                 existing_ss.get("pod", {}).get("nodeSelector", {}).get("topology.kubernetes.io/zone") == region
+                and existing_ss.get("pod", {}).get("hostNetwork") == expected_ss["pod"]["hostNetwork"]
                 and existing_ts_container == expected_ts_container
                 and existing_tolerations == expected_tolerations
             ):
