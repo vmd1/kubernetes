@@ -6,7 +6,7 @@ Tailscale integrates the local Kubernetes cluster with a secure Tailscale overla
 
 | File | Description |
 | :--- | :--- |
-| [operator.yaml](operator.yaml) | Defines the HelmChart custom resource to deploy `tailscale-operator` version `1.98.4` into the `tailscale` namespace. |
+| [operator.yaml](operator.yaml) | Defines the HelmChart custom resource to deploy `tailscale-operator` version `1.102.3` into the `tailscale` namespace. |
 | [automation.yaml](automation.yaml) | Deploys a custom controller (`tailscale-region-controller`) including RBAC ServiceAccount, ConfigMap containing the watcher Python code, and deployment resources. |
 
 ## Design Decisions
