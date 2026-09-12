@@ -19,7 +19,7 @@ rules:
     resources: ["pods/exec"]
     verbs: ["create", "get"]
   - apiGroups: ["tailscale.com"]
-    resources: ["connectors", "proxyclasses"]
+    resources: ["connectors", "proxyclasses", "peerrelays"]
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
@@ -95,6 +95,7 @@ data:
     VERSION = "v1alpha1"
     PLURAL_CONNECTORS = "connectors"
     PLURAL_PROXYCLASSES = "proxyclasses"
+    PLURAL_PEERRELAYS = "peerrelays"
     MANAGED_LABEL = {"managed-by": "tailscale-region-controller"}
 
     def get_active_regions():
@@ -279,6 +280,66 @@ data:
             else:
                 logger.error(f"Error reconciling Connector '{name}': {e}")
 
+    def reconcile_peerrelay(region):
+        proxyclass_name = f"ts-proxyclass-{region}"
+        name = f"ts-peerrelay-{region}"
+        expected_body = {
+            "apiVersion": f"{GROUP}/{VERSION}",
+            "kind": "PeerRelay",
+            "metadata": {
+                "name": name,
+                "labels": MANAGED_LABEL
+            },
+            "spec": {
+                "replicas": 1,
+                "hostnamePrefix": f"{region}-relay",
+                "proxyClass": proxyclass_name,
+                "tags": ["tag:k8s-operator"]
+            }
+        }
+
+        try:
+            existing = custom_api.get_cluster_custom_object(
+                group=GROUP,
+                version=VERSION,
+                plural=PLURAL_PEERRELAYS,
+                name=name
+            )
+            existing_spec = existing.get("spec", {})
+            expected_spec = expected_body["spec"]
+
+            spec_ok = (
+                existing_spec.get("replicas") == expected_spec["replicas"] and
+                existing_spec.get("hostnamePrefix") == expected_spec["hostnamePrefix"] and
+                existing_spec.get("proxyClass") == expected_spec["proxyClass"] and
+                existing_spec.get("tags") == expected_spec["tags"]
+            )
+
+            if spec_ok:
+                logger.debug(f"PeerRelay '{name}' is up to date.")
+                return
+
+            logger.info(f"Updating PeerRelay '{name}'...")
+            expected_body["metadata"]["resourceVersion"] = existing["metadata"]["resourceVersion"]
+            custom_api.replace_cluster_custom_object(
+                group=GROUP,
+                version=VERSION,
+                plural=PLURAL_PEERRELAYS,
+                name=name,
+                body=expected_body
+            )
+        except ApiException as e:
+            if e.status == 404:
+                logger.info(f"Creating PeerRelay '{name}'...")
+                custom_api.create_cluster_custom_object(
+                    group=GROUP,
+                    version=VERSION,
+                    plural=PLURAL_PEERRELAYS,
+                    body=expected_body
+                )
+            else:
+                logger.error(f"Error reconciling PeerRelay '{name}': {e}")
+
     def delete_connector(name):
         try:
             logger.info(f"Deleting inactive Connector '{name}'...")
@@ -306,6 +367,20 @@ data:
         except ApiException as e:
             if e.status != 404:
                 logger.error(f"Error deleting ProxyClass '{name}': {e}")
+
+    def delete_peerrelay(name):
+        try:
+            logger.info(f"Deleting inactive PeerRelay '{name}'...")
+            custom_api.delete_cluster_custom_object(
+                group=GROUP,
+                version=VERSION,
+                plural=PLURAL_PEERRELAYS,
+                name=name,
+                body=client.V1DeleteOptions()
+            )
+        except ApiException as e:
+            if e.status != 404:
+                logger.error(f"Error deleting PeerRelay '{name}': {e}")
 
     def optimize_pod_networking():
         try:
@@ -432,6 +507,7 @@ data:
             _region_last_seen[region] = now
             reconcile_proxyclass(region)
             reconcile_connector(region)
+            reconcile_peerrelay(region)
 
         def _past_grace_period(region_name):
             # Lazily seed unknown regions with "now" rather than treating them
@@ -503,7 +579,38 @@ data:
         except Exception as e:
             logger.error(f"Error listing ProxyClasses: {e}")
 
-        # Now that both cleanup passes have used a consistent verdict for each
+        # Same grace-period treatment for PeerRelays.
+        try:
+            peerrelays = custom_api.list_cluster_custom_object(
+                group=GROUP,
+                version=VERSION,
+                plural=PLURAL_PEERRELAYS
+            )
+            for item in peerrelays.get("items", []):
+                name = item.get("metadata", {}).get("name", "")
+                labels = item.get("metadata", {}).get("labels", {})
+                if labels.get("managed-by") != "tailscale-region-controller":
+                    continue
+                if not name.startswith("ts-peerrelay-"):
+                    continue
+                region = name[len("ts-peerrelay-"):]
+                if region in active_regions:
+                    continue
+                if _past_grace_period(region):
+                    logger.info(
+                        f"Region '{region}' has been inactive for over "
+                        f"{REGION_GRACE_PERIOD}s, deleting PeerRelay."
+                    )
+                    delete_peerrelay(name)
+                else:
+                    logger.debug(
+                        f"Region '{region}' is inactive but still within its "
+                        f"{REGION_GRACE_PERIOD}s grace period; leaving PeerRelay in place."
+                    )
+        except Exception as e:
+            logger.error(f"Error listing PeerRelays: {e}")
+
+        # Now that all cleanup passes have used a consistent verdict for each
         # region, drop any expired-and-deleted regions from the tracker so it
         # doesn't grow unbounded across genuinely decommissioned regions.
         for region_name in list(_region_last_seen.keys()):
