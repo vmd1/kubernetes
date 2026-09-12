@@ -9,21 +9,18 @@ kind: ClusterRole
 metadata:
   name: tailscale-region-controller-role
 rules:
-  # "nodes" and the legacy tailscale.com CRDs are genuinely cluster-scoped
-  # (Connector/ProxyClass have no namespace) - a namespaced Role can never
-  # grant access to them regardless of which namespace it's bound in.
-  # Everything else the controller touches lives in the tailscale
-  # namespace (see the namespaced Role below) so it can't reach into
-  # other namespaces.
   - apiGroups: [""]
     resources: ["nodes"]
     verbs: ["get", "list", "watch"]
-  # Only needed for one-time cleanup of the legacy Connector/ProxyClass
-  # objects this controller used to manage before it started owning exit
-  # node pods directly - see cleanup_legacy_operator_resources() below.
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["pods/exec"]
+    verbs: ["create", "get"]
   - apiGroups: ["tailscale.com"]
     resources: ["connectors", "proxyclasses"]
-    verbs: ["get", "list", "watch", "delete"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -38,42 +35,6 @@ roleRef:
   name: tailscale-region-controller-role
   apiGroup: rbac.authorization.k8s.io
 ---
-apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
-metadata:
-  name: tailscale-region-controller-role
-  namespace: tailscale
-rules:
-  - apiGroups: [""]
-    resources: ["pods"]
-    verbs: ["get", "list", "watch"]
-  - apiGroups: [""]
-    resources: ["pods/exec"]
-    verbs: ["create", "get"]
-  - apiGroups: [""]
-    resources: ["secrets", "serviceaccounts"]
-    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
-  - apiGroups: ["apps"]
-    resources: ["deployments"]
-    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
-  - apiGroups: ["rbac.authorization.k8s.io"]
-    resources: ["roles", "rolebindings"]
-    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: RoleBinding
-metadata:
-  name: tailscale-region-controller-role
-  namespace: tailscale
-subjects:
-  - kind: ServiceAccount
-    name: tailscale-region-controller
-    namespace: tailscale
-roleRef:
-  kind: Role
-  name: tailscale-region-controller-role
-  apiGroup: rbac.authorization.k8s.io
----
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -85,619 +46,484 @@ data:
     import sys
     import time
     import logging
-    
+    from kubernetes import client, config
+    from kubernetes.client.rest import ApiException
+    from kubernetes.stream import stream
+
+    # Configure logging
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s [%(levelname)s] %(message)s",
         handlers=[logging.StreamHandler(sys.stdout)]
     )
     logger = logging.getLogger("tailscale-region-watcher")
-    
-    NAMESPACE = os.environ.get("POD_NAMESPACE", "tailscale")
+
     RECONCILE_INTERVAL = int(os.environ.get("RECONCILE_INTERVAL", "30"))
     MTU_VALUE = os.environ.get("TAILSCALE_MTU", "1130")
-    TAILSCALE_IMAGE = os.environ.get("TAILSCALE_IMAGE", "tailscale/tailscale:v1.98.4")
-    OAUTH_SECRET_NAME = os.environ.get("OAUTH_SECRET_NAME", "operator-oauth")
-    
-    # Fixed UDP ports for the tailscale container's two listeners. Both are
-    # exposed via hostPort (not a Kubernetes Service) so that peers can
-    # hole-punch directly to the node's real public IP:port instead of the
-    # pod's own (symmetric) egress NAT mapping - see automation.yaml history
-    # for why ProxyClass/staticEndpoints and hostNetwork don't work here.
-    # Must stay in sync with the OCIPortRule in
-    # resources/nodes/tailscale-wireguard.yaml.
-    EXIT_NODE_PORT = int(os.environ.get("EXIT_NODE_PORT", "41642"))
-    PEER_RELAY_PORT = int(os.environ.get("PEER_RELAY_PORT", "41643"))
-    
+
     # How long a pod may sit on a NotReady/Unreachable node before it's evicted
     # and rescheduled onto a healthy sibling node in the same region. This
     # overrides the cluster-default 300s (injected automatically by the
     # DefaultTolerationSeconds admission controller for any pod that doesn't
     # already tolerate these taints).
     FAILOVER_GRACE_SECONDS = int(os.environ.get("FAILOVER_GRACE_SECONDS", "60"))
-    
+
     # How long a region may be missing from the active set before we tear down
-    # its managed resources (Deployment, RBAC objects, and state Secret). This
-    # must be long enough to comfortably outlast a node reboot/upgrade/extended
-    # maintenance window, since deleting the state Secret destroys the
-    # region's Tailscale device identity - a brand new device registers when
-    # it is recreated. Defaults to 1 week.
+    # its Connector/ProxyClass. This must be long enough to comfortably outlast
+    # a node reboot/upgrade/extended maintenance window, since deleting a
+    # Connector destroys its Tailscale device identity and state (e.g. any
+    # serve/funnel config) - the operator will register a brand new device
+    # when it is recreated. Defaults to 1 week.
     REGION_GRACE_PERIOD = int(os.environ.get("REGION_GRACE_PERIOD", str(7 * 24 * 60 * 60)))
-    
-    MANAGED_LABEL = {"managed-by": "tailscale-region-controller"}
-    
-    # ---------------------------------------------------------------------------
-    # Naming helpers
-    # ---------------------------------------------------------------------------
-    
-    
-    def deployment_name(region):
-        return f"ts-{region}"
-    
-    
-    def proxy_sa_name(region):
-        return f"ts-{region}"
-    
-    
-    def state_secret_name(region):
-        return f"ts-{region}-state"
-    
-    
-    # ---------------------------------------------------------------------------
-    # Pure builders - no Kubernetes API calls, no side effects. Each returns a
-    # plain dict describing the desired object so it can be unit tested without
-    # a live cluster.
-    # ---------------------------------------------------------------------------
-    
-    
-    def build_state_secret(region):
-        return {
-            "apiVersion": "v1",
-            "kind": "Secret",
-            "metadata": {
-                "name": state_secret_name(region),
-                "namespace": NAMESPACE,
-                "labels": {**MANAGED_LABEL, "region": region},
-            },
-            "type": "Opaque",
-        }
-    
-    
-    def build_service_account(region):
-        return {
-            "apiVersion": "v1",
-            "kind": "ServiceAccount",
-            "metadata": {
-                "name": proxy_sa_name(region),
-                "namespace": NAMESPACE,
-                "labels": {**MANAGED_LABEL, "region": region},
-            },
-        }
-    
-    
-    def build_role(region):
-        return {
-            "apiVersion": "rbac.authorization.k8s.io/v1",
-            "kind": "Role",
-            "metadata": {
-                "name": proxy_sa_name(region),
-                "namespace": NAMESPACE,
-                "labels": {**MANAGED_LABEL, "region": region},
-            },
-            "rules": [
-                {
-                    "apiGroups": [""],
-                    "resources": ["secrets"],
-                    # Deliberately scoped to only this region's own state
-                    # secret (resourceNames is honored for get/update/patch,
-                    # though not for create - the controller itself always
-                    # pre-creates the secret, so the proxy's own ServiceAccount
-                    # never needs "create" on secrets at all).
-                    "resourceNames": [state_secret_name(region)],
-                    "verbs": ["get", "update", "patch"],
-                }
-            ],
-        }
-    
-    
-    def build_role_binding(region):
-        name = proxy_sa_name(region)
-        return {
-            "apiVersion": "rbac.authorization.k8s.io/v1",
-            "kind": "RoleBinding",
-            "metadata": {
-                "name": name,
-                "namespace": NAMESPACE,
-                "labels": {**MANAGED_LABEL, "region": region},
-            },
-            "subjects": [
-                {"kind": "ServiceAccount", "name": name, "namespace": NAMESPACE}
-            ],
-            "roleRef": {
-                "apiGroup": "rbac.authorization.k8s.io",
-                "kind": "Role",
-                "name": name,
-            },
-        }
-    
-    
-    def build_deployment(region):
-        name = deployment_name(region)
-        pod_labels = {**MANAGED_LABEL, "region": region, "app": name}
-        return {
-            "apiVersion": "apps/v1",
-            "kind": "Deployment",
-            "metadata": {
-                "name": name,
-                "namespace": NAMESPACE,
-                "labels": pod_labels,
-            },
-            "spec": {
-                "replicas": 1,
-                "selector": {"matchLabels": {"app": name}},
-                "template": {
-                    "metadata": {"labels": pod_labels},
-                    "spec": {
-                        "serviceAccountName": proxy_sa_name(region),
-                        "nodeSelector": {"topology.kubernetes.io/zone": region},
-                        "tolerations": [
-                            {
-                                "key": "node-role",
-                                "operator": "Equal",
-                                "value": "ingress",
-                                "effect": "NoSchedule",
-                            },
-                            {
-                                "key": "node.kubernetes.io/not-ready",
-                                "operator": "Exists",
-                                "effect": "NoExecute",
-                                "tolerationSeconds": FAILOVER_GRACE_SECONDS,
-                            },
-                            {
-                                "key": "node.kubernetes.io/unreachable",
-                                "operator": "Exists",
-                                "effect": "NoExecute",
-                                "tolerationSeconds": FAILOVER_GRACE_SECONDS,
-                            },
-                        ],
-                        # Kernel-networking exit nodes need net.ipv4.ip_forward
-                        # (and ipv6 forwarding, where present) enabled in the
-                        # pod's network namespace before tailscaled starts.
-                        # Copied from the sysctler init container the
-                        # tailscale-operator itself generates for Connector
-                        # proxies - proven to work in this cluster.
-                        "initContainers": [
-                            {
-                                "name": "sysctler",
-                                "image": TAILSCALE_IMAGE,
-                                "securityContext": {"privileged": True},
-                                "command": ["/bin/sh", "-c"],
-                                "args": [
-                                    "sysctl -w net.ipv4.ip_forward=1 && "
-                                    "if sysctl net.ipv6.conf.all.forwarding; then "
-                                    "sysctl -w net.ipv6.conf.all.forwarding=1; fi"
-                                ],
-                            }
-                        ],
-                        "containers": [
-                            {
-                                "name": "tailscale",
-                                "image": TAILSCALE_IMAGE,
-                                "securityContext": {"privileged": True},
-                                "env": [
-                                    {"name": "TS_KUBE_SECRET", "value": state_secret_name(region)},
-                                    {"name": "TS_AUTH_ONCE", "value": "true"},
-                                    {"name": "TS_USERSPACE", "value": "false"},
-                                    {"name": "TS_ACCEPT_DNS", "value": "false"},
-                                    {"name": "TS_HOSTNAME", "value": region},
-                                    {"name": "TS_PORT", "value": str(EXIT_NODE_PORT)},
-                                    {
-                                        "name": "TS_EXTRA_ARGS",
-                                        "value": "--advertise-exit-node --advertise-tags=tag:k8s-operator",
-                                    },
-                                    {
-                                        "name": "TS_CLIENT_ID",
-                                        "valueFrom": {
-                                            "secretKeyRef": {"name": OAUTH_SECRET_NAME, "key": "client_id"}
-                                        },
-                                    },
-                                    {
-                                        "name": "TS_CLIENT_SECRET",
-                                        "valueFrom": {
-                                            "secretKeyRef": {"name": OAUTH_SECRET_NAME, "key": "client_secret"}
-                                        },
-                                    },
-                                ],
-                                "ports": [
-                                    {
-                                        "name": "wireguard",
-                                        "containerPort": EXIT_NODE_PORT,
-                                        "hostPort": EXIT_NODE_PORT,
-                                        "protocol": "UDP",
-                                    },
-                                    {
-                                        "name": "peer-relay",
-                                        "containerPort": PEER_RELAY_PORT,
-                                        "hostPort": PEER_RELAY_PORT,
-                                        "protocol": "UDP",
-                                    },
-                                ],
-                                "resources": {
-                                    "requests": {"cpu": "20m", "memory": "48Mi"},
-                                    "limits": {"cpu": "200m", "memory": "128Mi"},
-                                },
-                            }
-                        ],
-                    },
-                },
-            },
-        }
-    
-    
-    # ---------------------------------------------------------------------------
-    # Pure diff helpers - compare a live object's relevant fields against the
-    # builder output above, ignoring fields the API server injects on its own
-    # (resourceVersion, status, defaulted "resources: {}", etc.) so we don't
-    # repeat the replace-every-cycle bug this controller has hit before.
-    # ---------------------------------------------------------------------------
-    
-    
-    def deployment_needs_update(existing_spec, expected_spec):
-        existing_pod = existing_spec.get("template", {}).get("spec", {})
-        expected_pod = expected_spec["template"]["spec"]
-    
-        if existing_pod.get("serviceAccountName") != expected_pod["serviceAccountName"]:
-            return True
-        if existing_pod.get("nodeSelector") != expected_pod["nodeSelector"]:
-            return True
-        if existing_pod.get("tolerations") != expected_pod["tolerations"]:
-            return True
-    
-        existing_containers = {c["name"]: c for c in existing_pod.get("containers", [])}
-        expected_containers = {c["name"]: c for c in expected_pod["containers"]}
-        if set(existing_containers) != set(expected_containers):
-            return True
-    
-        for cname, expected_c in expected_containers.items():
-            existing_c = existing_containers[cname]
-            if existing_c.get("image") != expected_c["image"]:
-                return True
-            if existing_c.get("env", []) != expected_c["env"]:
-                return True
-            if existing_c.get("ports", []) != expected_c["ports"]:
-                return True
-    
-        return False
-    
-    
-    def role_needs_update(existing_rules, expected_rules):
-        return existing_rules != expected_rules
-    
-    
-    def role_binding_needs_update(existing_subjects, existing_role_ref, expected_subjects, expected_role_ref):
-        return existing_subjects != expected_subjects or existing_role_ref != expected_role_ref
-    
-    
-    # ---------------------------------------------------------------------------
-    # Kubernetes-calling reconcile functions. Thin wrappers around the pure
-    # builders/diff helpers above - kept small and obvious on purpose so the
-    # interesting logic stays unit-testable without a cluster.
-    # ---------------------------------------------------------------------------
-    
-    
-    def reconcile_state_secret(v1_core, region):
-        """Create the state Secret if missing. Never overwrite an existing one -
-        it holds this region's live Tailscale device identity."""
-        name = state_secret_name(region)
-        try:
-            v1_core.read_namespaced_secret(name=name, namespace=NAMESPACE)
-            logger.debug(f"Secret '{name}' already exists.")
-        except ApiException as e:
-            if e.status == 404:
-                logger.info(f"Creating state Secret '{name}'...")
-                v1_core.create_namespaced_secret(namespace=NAMESPACE, body=build_state_secret(region))
-            else:
-                logger.error(f"Error reconciling Secret '{name}': {e}")
-    
-    
-    def reconcile_service_account(v1_core, region):
-        name = proxy_sa_name(region)
-        try:
-            v1_core.read_namespaced_service_account(name=name, namespace=NAMESPACE)
-            logger.debug(f"ServiceAccount '{name}' already exists.")
-        except ApiException as e:
-            if e.status == 404:
-                logger.info(f"Creating ServiceAccount '{name}'...")
-                v1_core.create_namespaced_service_account(namespace=NAMESPACE, body=build_service_account(region))
-            else:
-                logger.error(f"Error reconciling ServiceAccount '{name}': {e}")
-    
-    
-    def reconcile_role(rbac_api, region):
-        name = proxy_sa_name(region)
-        expected = build_role(region)
-        try:
-            existing = rbac_api.read_namespaced_role(name=name, namespace=NAMESPACE)
-            existing_rules = client.ApiClient().sanitize_for_serialization(existing.rules)
-            if not role_needs_update(existing_rules, expected["rules"]):
-                logger.debug(f"Role '{name}' is up to date.")
-                return
-            logger.info(f"Updating Role '{name}'...")
-            rbac_api.replace_namespaced_role(name=name, namespace=NAMESPACE, body=expected)
-        except ApiException as e:
-            if e.status == 404:
-                logger.info(f"Creating Role '{name}'...")
-                rbac_api.create_namespaced_role(namespace=NAMESPACE, body=expected)
-            else:
-                logger.error(f"Error reconciling Role '{name}': {e}")
-    
-    
-    def reconcile_role_binding(rbac_api, region):
-        name = proxy_sa_name(region)
-        expected = build_role_binding(region)
-        try:
-            existing = rbac_api.read_namespaced_role_binding(name=name, namespace=NAMESPACE)
-            sanitize = client.ApiClient().sanitize_for_serialization
-            existing_subjects = sanitize(existing.subjects)
-            existing_role_ref = sanitize(existing.role_ref)
-            if not role_binding_needs_update(
-                existing_subjects, existing_role_ref, expected["subjects"], expected["roleRef"]
-            ):
-                logger.debug(f"RoleBinding '{name}' is up to date.")
-                return
-            logger.info(f"Updating RoleBinding '{name}'...")
-            rbac_api.replace_namespaced_role_binding(name=name, namespace=NAMESPACE, body=expected)
-        except ApiException as e:
-            if e.status == 404:
-                logger.info(f"Creating RoleBinding '{name}'...")
-                rbac_api.create_namespaced_role_binding(namespace=NAMESPACE, body=expected)
-            else:
-                logger.error(f"Error reconciling RoleBinding '{name}': {e}")
-    
-    
-    def reconcile_deployment(apps_api, region):
-        name = deployment_name(region)
-        expected = build_deployment(region)
-        try:
-            existing = apps_api.read_namespaced_deployment(name=name, namespace=NAMESPACE)
-            existing_spec = client.ApiClient().sanitize_for_serialization(existing.spec)
-            if not deployment_needs_update(existing_spec, expected["spec"]):
-                logger.debug(f"Deployment '{name}' is up to date.")
-                return
-            logger.info(f"Updating Deployment '{name}'...")
-            apps_api.replace_namespaced_deployment(name=name, namespace=NAMESPACE, body=expected)
-        except ApiException as e:
-            if e.status == 404:
-                logger.info(f"Creating Deployment '{name}'...")
-                apps_api.create_namespaced_deployment(namespace=NAMESPACE, body=expected)
-            else:
-                logger.error(f"Error reconciling Deployment '{name}': {e}")
-    
-    
-    def reconcile_region(v1_core, apps_api, rbac_api, region):
-        reconcile_state_secret(v1_core, region)
-        reconcile_service_account(v1_core, region)
-        reconcile_role(rbac_api, region)
-        reconcile_role_binding(rbac_api, region)
-        reconcile_deployment(apps_api, region)
-    
-    
-    def delete_region_resources(v1_core, apps_api, rbac_api, region):
-        """Tear down everything for a region that's been inactive past the
-        grace period, including its state Secret - this intentionally destroys
-        the region's Tailscale device identity, same as the legacy
-        Connector-based controller did when it deleted a Connector."""
-        name = deployment_name(region)
-        for label, fn, args in [
-            ("Deployment", apps_api.delete_namespaced_deployment, (name, NAMESPACE)),
-            ("RoleBinding", rbac_api.delete_namespaced_role_binding, (name, NAMESPACE)),
-            ("Role", rbac_api.delete_namespaced_role, (name, NAMESPACE)),
-            ("ServiceAccount", v1_core.delete_namespaced_service_account, (name, NAMESPACE)),
-            ("Secret", v1_core.delete_namespaced_secret, (state_secret_name(region), NAMESPACE)),
-        ]:
-            try:
-                logger.info(f"Deleting inactive region '{region}' {label} '{name}'...")
-                fn(*args)
-            except ApiException as e:
-                if e.status != 404:
-                    logger.error(f"Error deleting {label} for region '{region}': {e}")
-    
-    
-    # ---------------------------------------------------------------------------
-    # One-time migration cleanup: the previous generation of this controller
-    # managed exit nodes via Connector/ProxyClass CRDs through the
-    # tailscale-operator. This generation owns the pods directly instead, so
-    # any leftover Connector/ProxyClass objects this controller created in the
-    # past are now orphaned and should be removed. Safe to call every cycle -
-    # it's a no-op once the legacy objects are gone.
-    # ---------------------------------------------------------------------------
-    
-    
-    def cleanup_legacy_operator_resources(custom_api):
-        group, version = "tailscale.com", "v1alpha1"
-        for plural in ("connectors", "proxyclasses"):
-            try:
-                items = custom_api.list_cluster_custom_object(group=group, version=version, plural=plural)
-            except ApiException as e:
-                logger.error(f"Error listing legacy {plural}: {e}")
-                continue
-            for item in items.get("items", []):
-                labels = item.get("metadata", {}).get("labels", {})
-                if labels.get("managed-by") != "tailscale-region-controller":
-                    continue
-                name = item["metadata"]["name"]
-                try:
-                    logger.info(f"Deleting legacy {plural[:-1]} '{name}' (migrated off tailscale-operator)...")
-                    custom_api.delete_cluster_custom_object(group=group, version=version, plural=plural, name=name)
-                except ApiException as e:
-                    if e.status != 404:
-                        logger.error(f"Error deleting legacy {plural[:-1]} '{name}': {e}")
-    
-    
-    # ---------------------------------------------------------------------------
-    # Per-pod tuning via exec, same pattern this controller has always used:
-    # containerboot doesn't fully set up MASQUERADE/TCPMSS clamping for exit
-    # nodes on its own, and "tailscale set --relay-server-port" has no env-var
-    # equivalent - both have to be applied at runtime after tailscaled is up.
-    # ---------------------------------------------------------------------------
-    
-    
-    def tune_exit_node_pods(v1_core):
-        try:
-            pods = v1_core.list_namespaced_pod(
-                namespace=NAMESPACE,
-                label_selector="managed-by=tailscale-region-controller",
-            )
-        except ApiException as e:
-            logger.error(f"Error listing pods for tuning: {e}")
-            return
-    
-        for pod in pods.items:
-            pod_name = pod.metadata.name
-            if pod.status.phase != "Running":
-                continue
-    
-            def run(cmd):
-                return stream(
-                    v1_core.connect_get_namespaced_pod_exec,
-                    name=pod_name,
-                    namespace=NAMESPACE,
-                    container="tailscale",
-                    command=cmd,
-                    stderr=True,
-                    stdin=False,
-                    stdout=True,
-                    tty=False,
-                )
-    
-            try:
-                res_mtu = run(["ip", "link", "show", "tailscale0"])
-                if "tailscale0" in res_mtu and f"mtu {MTU_VALUE}" not in res_mtu:
-                    logger.info(f"Optimizing MTU to {MTU_VALUE} on pod '{pod_name}'...")
-                    run(["ip", "link", "set", "dev", "tailscale0", "mtu", MTU_VALUE])
-    
-                res_nat = run(["iptables", "-t", "nat", "-S"])
-                if "-A POSTROUTING -o eth0 -j MASQUERADE" not in res_nat:
-                    logger.info(f"Adding NAT masquerading on pod '{pod_name}'...")
-                    run(["iptables", "-t", "nat", "-A", "POSTROUTING", "-o", "eth0", "-j", "MASQUERADE"])
-    
-                res_mangle = run(["iptables", "-t", "mangle", "-S"])
-                if "--clamp-mss-to-pmtu" not in res_mangle:
-                    logger.info(f"Adding TCPMSS clamp-to-pmtu on pod '{pod_name}'...")
-                    run([
-                        "iptables", "-t", "mangle", "-A", "FORWARD", "-p", "tcp",
-                        "--tcp-flags", "SYN,RST", "SYN", "-j", "TCPMSS", "--clamp-mss-to-pmtu",
-                    ])
-                if "--set-mss 1200" not in res_mangle:
-                    logger.info(f"Adding TCPMSS set-mss 1200 on pod '{pod_name}'...")
-                    run([
-                        "iptables", "-t", "mangle", "-A", "FORWARD", "-p", "tcp",
-                        "--tcp-flags", "SYN,RST", "SYN", "-j", "TCPMSS", "--set-mss", "1200",
-                    ])
-    
-                # Idempotent: re-setting the same port every cycle is a cheap
-                # no-op once it's already configured, and there's no env-var
-                # way to set this at container start.
-                run(["tailscale", "set", f"--relay-server-port={PEER_RELAY_PORT}"])
-            except Exception as ex:
-                logger.error(f"Failed to tune pod '{pod_name}': {ex}")
-    
-    
-    # ---------------------------------------------------------------------------
-    # Top-level reconcile loop
-    # ---------------------------------------------------------------------------
-    
+
+    # In-memory record of when each managed region was last seen active.
+    # Seeded lazily so that a controller restart doesn't immediately treat
+    # every currently-inactive region as "gone" - see reconcile().
     _region_last_seen = {}
-    
-    
-    def get_active_regions(v1_core):
+
+    # Initialize Kubernetes API clients
+    try:
+        config.load_incluster_config()
+    except Exception:
+        logger.warning("Could not load in-cluster config, falling back to local kubeconfig.")
+        config.load_kube_config()
+
+    v1_core = client.CoreV1Api()
+    custom_api = client.CustomObjectsApi()
+
+    GROUP = "tailscale.com"
+    VERSION = "v1alpha1"
+    PLURAL_CONNECTORS = "connectors"
+    PLURAL_PROXYCLASSES = "proxyclasses"
+    MANAGED_LABEL = {"managed-by": "tailscale-region-controller"}
+
+    def get_active_regions():
         try:
             nodes = v1_core.list_node()
             active_regions = set()
             for node in nodes.items:
-                node_ready = any(
-                    cond.type == "Ready" and cond.status == "True"
-                    for cond in (node.status.conditions or [])
-                )
+                # Check node readiness
+                node_ready = False
+                for cond in node.status.conditions or []:
+                    if cond.type == "Ready" and cond.status == "True":
+                        node_ready = True
+                        break
+            
                 if node_ready:
                     region = node.metadata.labels.get("topology.kubernetes.io/zone")
                     if region:
                         active_regions.add(region)
             return active_regions
-        except ApiException as e:
+        except Exception as e:
             logger.error(f"Error listing nodes: {e}")
             return set()
-    
-    
-    def reconcile(v1_core, apps_api, rbac_api, custom_api, active_regions):
+
+    def reconcile_proxyclass(region):
+        name = f"ts-proxyclass-{region}"
+        expected_body = {
+            "apiVersion": f"{GROUP}/{VERSION}",
+            "kind": "ProxyClass",
+            "metadata": {
+                "name": name,
+                "labels": MANAGED_LABEL
+            },
+            "spec": {
+                "statefulSet": {
+                    "pod": {
+                        "tailscaleContainer": {
+                            "env": [
+                                {
+                                    "name": "TS_PORT",
+                                    "value": "41642"
+                                }
+                            ]
+                        },
+                        "nodeSelector": {
+                            "topology.kubernetes.io/zone": region
+                        },
+                        "tolerations": [
+                            {
+                                "key": "node-role",
+                                "operator": "Equal",
+                                "value": "ingress",
+                                "effect": "NoSchedule"
+                            },
+                            {
+                                "key": "node.kubernetes.io/not-ready",
+                                "operator": "Exists",
+                                "effect": "NoExecute",
+                                "tolerationSeconds": FAILOVER_GRACE_SECONDS
+                            },
+                            {
+                                "key": "node.kubernetes.io/unreachable",
+                                "operator": "Exists",
+                                "effect": "NoExecute",
+                                "tolerationSeconds": FAILOVER_GRACE_SECONDS
+                            }
+                        ]
+                    }
+                }
+            }
+        }
+
+        try:
+            existing = custom_api.get_cluster_custom_object(
+                group=GROUP,
+                version=VERSION,
+                plural=PLURAL_PROXYCLASSES,
+                name=name
+            )
+            existing_spec = existing.get("spec", {})
+            expected_spec = expected_body["spec"]
+        
+            # Verify statefulSet matches exactly
+            existing_ss = existing_spec.get("statefulSet", {})
+            expected_ss = expected_spec["statefulSet"]
+        
+            # We drop empty values or compare directly
+            existing_tolerations = existing_ss.get("pod", {}).get("tolerations", [])
+            expected_tolerations = expected_ss["pod"]["tolerations"]
+            # Compare only "env" - the API server injects a default
+            # "resources: {}" into tailscaleContainer that we never set
+            # ourselves, so comparing the whole dict always mismatches and
+            # causes an update-every-cycle loop that races the operator's
+            # own status updates on this object.
+            existing_ts_container = existing_ss.get("pod", {}).get("tailscaleContainer", {}).get("env", [])
+            expected_ts_container = expected_ss["pod"]["tailscaleContainer"]["env"]
+            if (
+                existing_ss.get("pod", {}).get("nodeSelector", {}).get("topology.kubernetes.io/zone") == region
+                and existing_ts_container == expected_ts_container
+                and existing_tolerations == expected_tolerations
+            ):
+                logger.debug(f"ProxyClass '{name}' is up to date.")
+                return
+            
+            logger.info(f"Updating ProxyClass '{name}'...")
+            expected_body["metadata"]["resourceVersion"] = existing["metadata"]["resourceVersion"]
+            custom_api.replace_cluster_custom_object(
+                group=GROUP,
+                version=VERSION,
+                plural=PLURAL_PROXYCLASSES,
+                name=name,
+                body=expected_body
+            )
+        except ApiException as e:
+            if e.status == 404:
+                logger.info(f"Creating ProxyClass '{name}'...")
+                custom_api.create_cluster_custom_object(
+                    group=GROUP,
+                    version=VERSION,
+                    plural=PLURAL_PROXYCLASSES,
+                    body=expected_body
+                )
+            else:
+                logger.error(f"Error reconciling ProxyClass '{name}': {e}")
+
+    def reconcile_connector(region):
+        proxyclass_name = f"ts-proxyclass-{region}"
+        name = region
+        expected_body = {
+            "apiVersion": f"{GROUP}/{VERSION}",
+            "kind": "Connector",
+            "metadata": {
+                "name": name,
+                "labels": MANAGED_LABEL
+            },
+            "spec": {
+                "exitNode": True,
+                "hostname": region,
+                "proxyClass": proxyclass_name,
+                "tags": ["tag:k8s-operator"]
+            }
+        }
+
+        try:
+            existing = custom_api.get_cluster_custom_object(
+                group=GROUP,
+                version=VERSION,
+                plural=PLURAL_CONNECTORS,
+                name=name
+            )
+            existing_spec = existing.get("spec", {})
+            expected_spec = expected_body["spec"]
+        
+            spec_ok = (
+                existing_spec.get("exitNode") == expected_spec["exitNode"] and
+                existing_spec.get("hostname") == expected_spec["hostname"] and
+                existing_spec.get("proxyClass") == expected_spec["proxyClass"] and
+                existing_spec.get("tags") == expected_spec["tags"]
+            )
+
+            if spec_ok:
+                logger.debug(f"Connector '{name}' is up to date.")
+                return
+        
+            logger.info(f"Updating Connector '{name}'...")
+            expected_body["metadata"]["resourceVersion"] = existing["metadata"]["resourceVersion"]
+            custom_api.replace_cluster_custom_object(
+                group=GROUP,
+                version=VERSION,
+                plural=PLURAL_CONNECTORS,
+                name=name,
+                body=expected_body
+            )
+        except ApiException as e:
+            if e.status == 404:
+                logger.info(f"Creating Connector '{name}'...")
+                custom_api.create_cluster_custom_object(
+                    group=GROUP,
+                    version=VERSION,
+                    plural=PLURAL_CONNECTORS,
+                    body=expected_body
+                )
+            else:
+                logger.error(f"Error reconciling Connector '{name}': {e}")
+
+    def delete_connector(name):
+        try:
+            logger.info(f"Deleting inactive Connector '{name}'...")
+            custom_api.delete_cluster_custom_object(
+                group=GROUP,
+                version=VERSION,
+                plural=PLURAL_CONNECTORS,
+                name=name,
+                body=client.V1DeleteOptions()
+            )
+        except ApiException as e:
+            if e.status != 404:
+                logger.error(f"Error deleting Connector '{name}': {e}")
+
+    def delete_proxyclass(name):
+        try:
+            logger.info(f"Deleting inactive ProxyClass '{name}'...")
+            custom_api.delete_cluster_custom_object(
+                group=GROUP,
+                version=VERSION,
+                plural=PLURAL_PROXYCLASSES,
+                name=name,
+                body=client.V1DeleteOptions()
+            )
+        except ApiException as e:
+            if e.status != 404:
+                logger.error(f"Error deleting ProxyClass '{name}': {e}")
+
+    def optimize_pod_networking():
+        try:
+            # List all exit node pods managed by the operator
+            pods = v1_core.list_namespaced_pod(
+                namespace="tailscale",
+                label_selector="tailscale.com/parent-resource-type=connector"
+            )
+            for pod in pods.items:
+                pod_name = pod.metadata.name
+                if pod.status.phase != "Running":
+                    continue
+            
+                try:
+                    # 1. Optimize MTU
+                    check_mtu = ["ip", "link", "show", "tailscale0"]
+                    res_mtu = stream(
+                        v1_core.connect_get_namespaced_pod_exec,
+                        name=pod_name,
+                        namespace="tailscale",
+                        container="tailscale",
+                        command=check_mtu,
+                        stderr=True,
+                        stdin=False,
+                        stdout=True,
+                        tty=False
+                    )
+                    if "tailscale0" in res_mtu and f"mtu {MTU_VALUE}" not in res_mtu:
+                        logger.info(f"Optimizing MTU to {MTU_VALUE} on pod '{pod_name}'...")
+                        set_mtu = ["ip", "link", "set", "dev", "tailscale0", "mtu", MTU_VALUE]
+                        stream(
+                            v1_core.connect_get_namespaced_pod_exec,
+                            name=pod_name,
+                            namespace="tailscale",
+                            container="tailscale",
+                            command=set_mtu,
+                            stderr=True,
+                            stdin=False,
+                            stdout=True,
+                            tty=False
+                        )
+                
+                    # 2. Add Masquerading
+                    check_nat = ["iptables", "-t", "nat", "-S"]
+                    res_nat = stream(
+                        v1_core.connect_get_namespaced_pod_exec,
+                        name=pod_name,
+                        namespace="tailscale",
+                        container="tailscale",
+                        command=check_nat,
+                        stderr=True,
+                        stdin=False,
+                        stdout=True,
+                        tty=False
+                    )
+                    if "-A POSTROUTING -o eth0 -j MASQUERADE" not in res_nat:
+                        logger.info(f"Adding NAT masquerading on pod '{pod_name}'...")
+                        set_nat = ["iptables", "-t", "nat", "-A", "POSTROUTING", "-o", "eth0", "-j", "MASQUERADE"]
+                        stream(
+                            v1_core.connect_get_namespaced_pod_exec,
+                            name=pod_name,
+                            namespace="tailscale",
+                            container="tailscale",
+                            command=set_nat,
+                            stderr=True,
+                            stdin=False,
+                            stdout=True,
+                            tty=False
+                        )
+                
+                    # 3. Add TCPMSS clamping
+                    check_mangle = ["iptables", "-t", "mangle", "-S"]
+                    res_mangle = stream(
+                        v1_core.connect_get_namespaced_pod_exec,
+                        name=pod_name,
+                        namespace="tailscale",
+                        container="tailscale",
+                        command=check_mangle,
+                        stderr=True,
+                        stdin=False,
+                        stdout=True,
+                        tty=False
+                    )
+                    if "--clamp-mss-to-pmtu" not in res_mangle:
+                        logger.info(f"Adding TCPMSS clamp-to-pmtu on pod '{pod_name}'...")
+                        set_clamp = ["iptables", "-t", "mangle", "-A", "FORWARD", "-p", "tcp", "--tcp-flags", "SYN,RST", "SYN", "-j", "TCPMSS", "--clamp-mss-to-pmtu"]
+                        stream(
+                            v1_core.connect_get_namespaced_pod_exec,
+                            name=pod_name,
+                            namespace="tailscale",
+                            container="tailscale",
+                            command=set_clamp,
+                            stderr=True,
+                            stdin=False,
+                            stdout=True,
+                            tty=False
+                        )
+                
+                    if "--set-mss 1200" not in res_mangle:
+                        logger.info(f"Adding TCPMSS set-mss 1200 on pod '{pod_name}'...")
+                        set_mss = ["iptables", "-t", "mangle", "-A", "FORWARD", "-p", "tcp", "--tcp-flags", "SYN,RST", "SYN", "-j", "TCPMSS", "--set-mss", "1200"]
+                        stream(
+                            v1_core.connect_get_namespaced_pod_exec,
+                            name=pod_name,
+                            namespace="tailscale",
+                            container="tailscale",
+                            command=set_mss,
+                            stderr=True,
+                            stdin=False,
+                            stdout=True,
+                            tty=False
+                        )
+                except Exception as ex:
+                    logger.error(f"Failed to optimize network settings on pod '{pod_name}': {ex}")
+        except Exception as e:
+            logger.error(f"Error listing pods for network optimization: {e}")
+
+    def reconcile(active_regions):
         logger.info(f"Starting reconciliation. Active regions: {list(active_regions)}")
         now = time.time()
-    
+
+        # Reconcile active regions and record that we saw them just now.
         for region in active_regions:
             _region_last_seen[region] = now
-            reconcile_region(v1_core, apps_api, rbac_api, region)
-    
+            reconcile_proxyclass(region)
+            reconcile_connector(region)
+
         def _past_grace_period(region_name):
+            # Lazily seed unknown regions with "now" rather than treating them
+            # as already-expired. This matters on controller restart: without
+            # it, every region that happens to be inactive at that exact moment
+            # (e.g. mid-reboot) would be deleted on the very next tick instead
+            # of getting the benefit of the grace period.
             last_seen = _region_last_seen.setdefault(region_name, now)
             return (now - last_seen) > REGION_GRACE_PERIOD
-    
+
+        # Clean up connectors managed by this controller whose region has been
+        # missing for longer than the grace period (i.e. genuinely decommissioned,
+        # not just a node that's mid-reboot).
         try:
-            deployments = apps_api.list_namespaced_deployment(
-                namespace=NAMESPACE, label_selector="managed-by=tailscale-region-controller"
+            connectors = custom_api.list_cluster_custom_object(
+                group=GROUP,
+                version=VERSION,
+                plural=PLURAL_CONNECTORS
             )
-            for dep in deployments.items:
-                labels = dep.metadata.labels or {}
-                region = labels.get("region")
-                if not region or region in active_regions:
+            for item in connectors.get("items", []):
+                name = item.get("metadata", {}).get("name", "")
+                labels = item.get("metadata", {}).get("labels", {})
+                if labels.get("managed-by") != "tailscale-region-controller":
+                    continue
+                if name in active_regions:
+                    continue
+                if _past_grace_period(name):
+                    logger.info(
+                        f"Region '{name}' has been inactive for over "
+                        f"{REGION_GRACE_PERIOD}s, deleting Connector."
+                    )
+                    delete_connector(name)
+                else:
+                    logger.debug(
+                        f"Region '{name}' is inactive but still within its "
+                        f"{REGION_GRACE_PERIOD}s grace period; leaving Connector in place."
+                    )
+        except Exception as e:
+            logger.error(f"Error listing Connectors: {e}")
+
+        # Same grace-period treatment for ProxyClasses.
+        try:
+            proxyclasses = custom_api.list_cluster_custom_object(
+                group=GROUP,
+                version=VERSION,
+                plural=PLURAL_PROXYCLASSES
+            )
+            for item in proxyclasses.get("items", []):
+                name = item.get("metadata", {}).get("name", "")
+                labels = item.get("metadata", {}).get("labels", {})
+                if labels.get("managed-by") != "tailscale-region-controller":
+                    continue
+                if not name.startswith("ts-proxyclass-"):
+                    continue
+                region = name[len("ts-proxyclass-"):]
+                if region in active_regions:
                     continue
                 if _past_grace_period(region):
                     logger.info(
-                        f"Region '{region}' has been inactive for over {REGION_GRACE_PERIOD}s, "
-                        "deleting its managed resources."
+                        f"Region '{region}' has been inactive for over "
+                        f"{REGION_GRACE_PERIOD}s, deleting ProxyClass."
                     )
-                    delete_region_resources(v1_core, apps_api, rbac_api, region)
+                    delete_proxyclass(name)
                 else:
                     logger.debug(
                         f"Region '{region}' is inactive but still within its "
-                        f"{REGION_GRACE_PERIOD}s grace period; leaving resources in place."
+                        f"{REGION_GRACE_PERIOD}s grace period; leaving ProxyClass in place."
                     )
-        except ApiException as e:
-            logger.error(f"Error listing managed Deployments: {e}")
-    
+        except Exception as e:
+            logger.error(f"Error listing ProxyClasses: {e}")
+
+        # Now that both cleanup passes have used a consistent verdict for each
+        # region, drop any expired-and-deleted regions from the tracker so it
+        # doesn't grow unbounded across genuinely decommissioned regions.
         for region_name in list(_region_last_seen.keys()):
             if region_name not in active_regions and _past_grace_period(region_name):
                 _region_last_seen.pop(region_name, None)
-    
-        cleanup_legacy_operator_resources(custom_api)
-        tune_exit_node_pods(v1_core)
-    
-    
+
+        # Optimize network settings (MTU, NAT, and TCPMSS) for all running connector pods
+        optimize_pod_networking()
+
     def main():
-        try:
-            config.load_incluster_config()
-        except Exception:
-            logger.warning("Could not load in-cluster config, falling back to local kubeconfig.")
-            config.load_kube_config()
-    
-        v1_core = client.CoreV1Api()
-        apps_api = client.AppsV1Api()
-        rbac_api = client.RbacAuthorizationV1Api()
-        custom_api = client.CustomObjectsApi()
-    
         logger.info("Tailscale Region Exit Node Controller started.")
         while True:
             try:
-                active_regions = get_active_regions(v1_core)
-                reconcile(v1_core, apps_api, rbac_api, custom_api, active_regions)
+                active_regions = get_active_regions()
+                reconcile(active_regions)
             except Exception as e:
                 logger.exception(f"Unhandled exception in reconciliation loop: {e}")
             time.sleep(RECONCILE_INTERVAL)
-    
-    
+
     if __name__ == "__main__":
-        from kubernetes import client, config
-        from kubernetes.client.rest import ApiException
-        from kubernetes.stream import stream
         main()
 ---
 apiVersion: apps/v1
@@ -735,14 +561,6 @@ spec:
               value: "30"
             - name: TAILSCALE_MTU
               value: "1130"
-            - name: TAILSCALE_IMAGE
-              value: "tailscale/tailscale:v1.98.4"
-            - name: OAUTH_SECRET_NAME
-              value: "operator-oauth"
-            - name: EXIT_NODE_PORT
-              value: "41642"
-            - name: PEER_RELAY_PORT
-              value: "41643"
             - name: REGION_GRACE_PERIOD
               value: "604800"  # 1 week
             - name: FAILOVER_GRACE_SECONDS
