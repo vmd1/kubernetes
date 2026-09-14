@@ -16,6 +16,11 @@ spec:
     global:
       nodeSelector:
         storage.vmd1.homelab/longhorn-client: "true"
+    csi:
+      attacherReplicaCount: 2
+      provisionerReplicaCount: 2
+      resizerReplicaCount: 2
+      snapshotterReplicaCount: 2
     defaultSettings:
       createDefaultDiskLabeledNodes: true
       systemManagedComponentsNodeSelector: "storage.vmd1.homelab/longhorn-client:true"

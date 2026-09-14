@@ -45,7 +45,7 @@ The monitoring namespace deploys log aggregation (`loki` + `promtail`), metrics 
 
 ## Constraints & Scheduling
 
-- **Pinnning Loki/Prometheus**: Both `loki` and `prometheus` deployments are pinned to node `hades-01` via `nodeSelector` for co-location near persistent data nodes.
+- **Loki/Prometheus/Grafana scheduling**: All three deployments are hard-pinned via `nodeSelector` to `topology.kubernetes.io/zone: uk-home` (i.e. `hades-01` or `hades-02` only), plus a soft `preferredDuringSchedulingIgnoredDuringExecution` node affinity toward `hades-02` (weight 100) to keep memory pressure off `hades-01` (control-plane/etcd/db/storage). The zone pin is a hard requirement; the `hades-02` preference is not — the scheduler can still place them on `hades-01` if `hades-02` lacks capacity. PVCs are `longhorn-single-replica` (network-attached via Longhorn), so relocation doesn't require any data migration.
 - **Tolerations**: Promtail DaemonSet tolerates all node taints (`NoSchedule`, `NoExecute`) to run logs forwarding on every node in the cluster.
 - **Resource Constraints**:
   - **Loki**: Request `10m` CPU, `128Mi` RAM. Limit `500m` CPU, `512Mi` RAM.
