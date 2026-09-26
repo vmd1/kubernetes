@@ -24,7 +24,7 @@ This folder hosts the central personal web/developer portal (`vmd1.homelab`) and
 - **Kubernetes Service**: `vmd1-dev` (ClusterIP, port `80`).
 - **Ingress Routes**:
   - `vmd1.homelab` -> routes to service `vmd1-dev` port `80` (utilizing `edge-transport`).
-  - Mapped auxiliary domains `vmd1.homelab`, `gcses.vmd1.homelab`, `gcse-results.vmd1.homelab`, `flix4all.cc`, and `finny.vmd1.homelab` protected by `security-headers` middleware.
+  - Mapped auxiliary domains `vmd1.homelab`, `gcses.vmd1.homelab`, `gcse-results.vmd1.homelab`, and `finny.vmd1.homelab` protected by `security-headers` middleware.
 
 ## Storage
 

@@ -20,6 +20,7 @@ The [kustomization.yaml](kustomization.yaml) here is the Kustomize entrypoint th
 | [Nextcloud](nextcloud/README.md) | Nextcloud + Collabora Online office suite with Backblaze B2 S3 primary storage. |
 | [Ntfy](ntfy/README.md) | HTTP pub-sub push notification service with SMTP ingress. |
 | [Obsidian](obsidian/README.md) | CouchDB backend for Obsidian Self-Hosted LiveSync. |
+| [QEComp](qecomp/README.md) | OIDC-authenticated app with Redis leader-election HA, CNPG backend, and a dedicated production Authelia OIDC provider. |
 | [UniFi](unifi/README.md) | UniFi Network Application for managing UniFi networking hardware. |
 | [Uptime Kuma](uptime-kuma/README.md) | Self-hosted uptime and latency monitoring. |
 | [Vaultwarden](vaultwarden/README.md) | Lightweight Bitwarden-compatible password vault (PostgreSQL + Authentik SSO). |

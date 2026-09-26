@@ -1,0 +1,123 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: qecomp
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: qecomp-config
+  namespace: qecomp
+data:
+  OIDC_GROUPS_CLAIM: "groups"
+  S3_BUCKET: "qecomp"
+  S3_REGION: "eu-central-003"
+  S3_ENDPOINT_URL: "https://s3.eu-central-003.backblazeb2.com"
+  APP_PORT: "8000"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: qecomp
+  namespace: qecomp
+  labels:
+    app: qecomp
+spec:
+  selector:
+    app: qecomp
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8000
+  type: ClusterIP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: qecomp
+  namespace: qecomp
+  labels:
+    app: qecomp
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app: qecomp
+  template:
+    metadata:
+      labels:
+        app: qecomp
+    spec:
+      imagePullSecrets:
+        - name: ghcr-pull-secret
+      nodeSelector:
+        topology.kubernetes.io/zone: uk-home
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchExpressions:
+                  - key: app
+                    operator: In
+                    values: [qecomp]
+              topologyKey: "kubernetes.io/hostname"
+      initContainers:
+        - name: migrate
+          image: ghcr.io/vmd1/vex-tm-tools-priv:main
+          command: ["alembic", "upgrade", "head"]
+          envFrom:
+            - configMapRef: { name: qecomp-config }
+          env:
+            - name: POSTGRES_DSN
+              valueFrom: { secretKeyRef: { name: qecomp-secrets, key: POSTGRES_DSN } }
+      containers:
+        - name: qecomp
+          image: ghcr.io/vmd1/vex-tm-tools-priv:main
+          ports:
+            - name: http
+              containerPort: 8000
+          envFrom:
+            - configMapRef: { name: qecomp-config }
+          env:
+            - name: POD_IP
+              valueFrom: { fieldRef: { fieldPath: status.podIP } }
+            - name: POSTGRES_DSN
+              valueFrom: { secretKeyRef: { name: qecomp-secrets, key: POSTGRES_DSN } }
+            - name: REDIS_URL
+              valueFrom: { secretKeyRef: { name: qecomp-secrets, key: REDIS_URL } }
+            - name: OIDC_ISSUER_URL
+              valueFrom: { secretKeyRef: { name: qecomp-secrets, key: OIDC_ISSUER_URL } }
+            - name: OIDC_CLIENT_ID
+              valueFrom: { secretKeyRef: { name: qecomp-secrets, key: OIDC_CLIENT_ID } }
+            - name: OIDC_CLIENT_SECRET
+              valueFrom: { secretKeyRef: { name: qecomp-secrets, key: OIDC_CLIENT_SECRET } }
+            - name: ADMIN_LOCAL_PASSWORD
+              valueFrom: { secretKeyRef: { name: qecomp-secrets, key: ADMIN_LOCAL_PASSWORD } }
+            - name: SECRET_KEY
+              valueFrom: { secretKeyRef: { name: qecomp-secrets, key: SECRET_KEY } }
+            - name: ENCRYPTION_KEY
+              valueFrom: { secretKeyRef: { name: qecomp-secrets, key: ENCRYPTION_KEY } }
+            - name: S3_ACCESS_KEY
+              valueFrom: { secretKeyRef: { name: qecomp-secrets, key: S3_ACCESS_KEY } }
+            - name: S3_SECRET_KEY
+              valueFrom: { secretKeyRef: { name: qecomp-secrets, key: S3_SECRET_KEY } }
+          livenessProbe:
+            httpGet: { path: /healthz, port: http }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          readinessProbe:
+            httpGet: { path: /readyz, port: http }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          resources:
+            requests: { cpu: "250m", memory: "256Mi" }
+            limits: { cpu: "1", memory: "512Mi" }

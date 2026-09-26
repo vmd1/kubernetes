@@ -8,7 +8,7 @@ Cert-Manager automatically provisions, renews, and manages TLS certificates in t
 | :--- | :--- |
 | [manifest.yaml](manifest.yaml) | Defines the HelmChart custom resource that deploys `cert-manager` version `v1.20.2` in the `cert-manager` namespace. |
 | [cluster-issuer.yaml](cluster-issuer.yaml) | Configures a Cluster-wide Issuer `letsencrypt-cloudflare` using the Let's Encrypt ACME server and DNS-01 challenge solving via Cloudflare. |
-| [certificate.yaml](certificate.yaml) | Deploys a wildcard certificate request (`cluster-wildcard-tls`) for multiple domains (`vmd1.homelab`, `vmd1.homelab`, `vmd1.homelab`, `vmd1.homelab`, `flix4all.cc` and their wildcards) targeting the `traefik` namespace. |
+| [certificate.yaml](certificate.yaml) | Deploys a wildcard certificate request (`cluster-wildcard-tls`) for multiple domains (`vmd1.homelab`, `vmd1.homelab`, `vmd1.homelab`, `vmd1.homelab` and their wildcards) targeting the `traefik` namespace. |
 
 ## Design Decisions
 

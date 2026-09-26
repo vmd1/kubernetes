@@ -1,0 +1,207 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: authelia-data
+  namespace: qecomp
+spec:
+  accessModes: ["ReadWriteOnce"]
+  storageClassName: longhorn-single-replica
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: authelia-config
+  namespace: qecomp
+data:
+  configuration.yml: |
+    ---
+    theme: light
+    server:
+      address: "tcp://:9091"
+    log:
+      level: info
+    totp:
+      disable: false
+      issuer: qecomp.vex.vmd1.homelab
+    notifier:
+      # No SMTP configured — filesystem notifier writes 2FA/reset links to
+      # disk inside the pod, which nobody can read in prod. Replace with a
+      # real `smtp:` block (host, port, sender, credentials) before this
+      # is actually relied on for password resets / 2FA enrollment.
+      filesystem:
+        filename: /config/data/notification.txt
+    authentication_backend:
+      file:
+        path: /secrets/users_database.yml
+        password:
+          algorithm: bcrypt
+    access_control:
+      default_policy: one_factor
+      rules:
+        - domain: "auth.vex.vmd1.homelab"
+          policy: bypass
+          resources:
+            - "^/api/.*"
+        - domain: "vex.vmd1.homelab"
+          policy: one_factor
+    session:
+      cookies:
+        - domain: vex.vmd1.homelab
+          authelia_url: "https://auth.vex.vmd1.homelab"
+          default_redirection_url: "https://vex.vmd1.homelab"
+          name: authelia_session
+          expiration: 1h
+          inactivity: 15m
+    regulation:
+      max_retries: 5
+      find_time: 2m
+      ban_time: 5m
+    storage:
+      local:
+        path: /config/data/db.sqlite3
+    identity_providers:
+      oidc:
+        cors:
+          endpoints: [authorization, token, revocation, introspection, userinfo]
+          allowed_origins:
+            - "https://vex.vmd1.homelab"
+        # CRITICAL — without this, the ID token is minimal (sub/iss/aud
+        # only) and QEComp's backend (which only ever decodes the ID
+        # token, never calls userinfo) gets zero groups/email/username on
+        # every login: the UI shows a raw UUID and every user gets zero
+        # permissions.
+        claims_policies:
+          qecomp_policy:
+            id_token:
+              - email
+              - email_verified
+              - preferred_username
+              - groups
+              - name
+        clients:
+          - client_id: qecomp
+            client_name: "QEComp"
+            claims_policy: qecomp_policy
+            client_secret: "$pbkdf2-sha512$310000$zMEaRWS0z3xd9bztDPeD9w$/Vuq9DPD77mh6TAWPuSdirVixcaLq4gtPgiwzGt5tBF8wHMf3uO9DmedtIhPg6Zw.MT49xmoB/gp5vwNT87Rvg"
+            public: false
+            authorization_policy: one_factor
+            redirect_uris:
+              - "https://vex.vmd1.homelab/auth/callback"
+              # QEComp builds this URL from the request scheme it sees, and
+              # since Traefik terminates TLS and forwards to the pod over
+              # plain HTTP, the app doesn't trust X-Forwarded-Proto (a
+              # uvicorn proxy-headers setting baked into the image, not
+              # configurable from here) and sends "http://" instead of
+              # "https://". Traefik's web entrypoint redirects HTTP->HTTPS
+              # globally, so accepting this variant is safe — the browser
+              # still lands on https in the end. Registered as a workaround
+              # until the app's own proxy-header handling is fixed upstream.
+              - "http://vex.vmd1.homelab/auth/callback"
+            scopes: [openid, profile, email, groups]
+            userinfo_signed_response_alg: none
+            token_endpoint_auth_method: client_secret_post
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: authelia
+  namespace: qecomp
+  labels:
+    app: authelia
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: authelia
+  template:
+    metadata:
+      labels:
+        app: authelia
+    spec:
+      # Kubernetes auto-injects <SERVICE_NAME>_* env vars for every Service
+      # in the namespace. Since the Service here is named "authelia", that
+      # collides with Authelia's own AUTHELIA_-prefixed config env vars
+      # (e.g. injected AUTHELIA_PORT clashes with server.address) and the
+      # app fails to start. Disable the injection rather than rename the
+      # Service.
+      enableServiceLinks: false
+      nodeSelector:
+        topology.kubernetes.io/zone: uk-home
+      containers:
+        - name: authelia
+          image: authelia/authelia:latest
+          ports:
+            - name: http
+              containerPort: 9091
+          env:
+            - name: AUTHELIA_IDENTITY_VALIDATION_RESET_PASSWORD_JWT_SECRET_FILE
+              value: /secrets/jwt_secret
+            - name: AUTHELIA_SESSION_SECRET_FILE
+              value: /secrets/session_secret
+            - name: AUTHELIA_STORAGE_ENCRYPTION_KEY_FILE
+              value: /secrets/storage_encryption_key
+            - name: AUTHELIA_IDENTITY_PROVIDERS_OIDC_HMAC_SECRET_FILE
+              value: /secrets/oidc_hmac_secret
+            - name: AUTHELIA_IDENTITY_PROVIDERS_OIDC_ISSUER_PRIVATE_KEY_FILE
+              value: /secrets/oidc_issuer_private_key.pem
+          volumeMounts:
+            - name: config
+              mountPath: /config/configuration.yml
+              subPath: configuration.yml
+              readOnly: true
+            - name: users
+              mountPath: /secrets/users_database.yml
+              subPath: users_database.yml
+              readOnly: true
+            - name: secrets
+              mountPath: /secrets/jwt_secret
+              subPath: jwt_secret
+              readOnly: true
+            - name: secrets
+              mountPath: /secrets/session_secret
+              subPath: session_secret
+              readOnly: true
+            - name: secrets
+              mountPath: /secrets/storage_encryption_key
+              subPath: storage_encryption_key
+              readOnly: true
+            - name: secrets
+              mountPath: /secrets/oidc_hmac_secret
+              subPath: oidc_hmac_secret
+              readOnly: true
+            - name: secrets
+              mountPath: /secrets/oidc_issuer_private_key.pem
+              subPath: oidc_issuer_private_key.pem
+              readOnly: true
+            - name: data
+              mountPath: /config/data
+          readinessProbe:
+            httpGet: { path: /api/health, port: http }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+      volumes:
+        - name: config
+          configMap: { name: authelia-config }
+        - name: users
+          secret: { secretName: authelia-users }
+        - name: secrets
+          secret: { secretName: authelia-secrets }
+        - name: data
+          persistentVolumeClaim: { claimName: authelia-data }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: authelia
+  namespace: qecomp
+spec:
+  selector:
+    app: authelia
+  ports:
+    - name: http
+      port: 9091
+      targetPort: 9091
+  type: ClusterIP

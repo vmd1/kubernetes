@@ -14,6 +14,7 @@ resources:
   - nextcloud
   - ntfy
   - obsidian
+  - qecomp
   - unifi
   - uptime-kuma
   - vaultwarden
