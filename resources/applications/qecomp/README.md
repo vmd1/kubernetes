@@ -17,7 +17,7 @@ QEComp is an OIDC-authenticated app (API + SPA served same-origin) with Redis-ba
 
 | File | Description |
 | :--- | :--- |
-| [manifest.yaml](manifest.yaml) | Namespace `qecomp`, ConfigMap `qecomp-config`, Deployment `qecomp` (`ghcr.io/vmd1/vex-tm-tools-priv:main`, private image), ClusterIP Service on port 8000. |
+| [manifest.yaml](manifest.yaml) | Namespace `qecomp`, ConfigMap `qecomp-config`, Deployment `qecomp` (`ghcr.io/qerobotics/vex-tm-tools:backend`, private image), ClusterIP Service on port 8000. |
 | [ingressroute.yaml](ingressroute.yaml) | Traefik `IngressRoute` for `qecomp.vmd1.homelab` (QEComp) and `auth.vex.vmd1.homelab` (Authelia), plus the dedicated `Certificate` for the Authelia host. |
 | [authelia.yaml](authelia.yaml) | Authelia `Deployment`, `Service`, `ConfigMap` (OIDC provider config), and `PersistentVolumeClaim` for its SQLite storage. |
 | [secrets.sops.yaml](secrets.sops.yaml) | SOPS-encrypted Secrets: `qecomp-secrets`, `ghcr-pull-secret` (private image pull), `authelia-secrets`, `authelia-users`. |
@@ -36,7 +36,7 @@ QEComp is an OIDC-authenticated app (API + SPA served same-origin) with Redis-ba
 - **CloudNativePG (CNPG)**: Database service `pg-cluster-rw.cnpg.svc.cluster.local:5432`, database/role `qecomp` created out-of-band via `psql` exec (not the CNPG `Database` CRD).
 - **Redis**: `redis-master.redis.svc.cluster.local:6379` (no auth), shared with `cinepro`.
 - **Backblaze B2**: S3-compatible object storage, bucket `qecomp` (private) in region `eu-central-003`.
-- **GHCR**: private image `ghcr.io/vmd1/vex-tm-tools-priv:main`, pulled via `ghcr-pull-secret`.
+- **GHCR**: private image `ghcr.io/qerobotics/vex-tm-tools:backend`, pulled via `ghcr-pull-secret`.
 
 ## Services & Routers
 
