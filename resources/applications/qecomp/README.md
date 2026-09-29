@@ -1,6 +1,6 @@
 # QEComp (`resources/applications/qecomp/`)
 
-QEComp is an OIDC-authenticated app (API + SPA served same-origin) with Redis-backed leader election for HA, fronted at `vex.vmd1.homelab`. Authelia — a dedicated production OIDC provider for this app — runs alongside it in the same namespace, fronted at `auth.vex.vmd1.homelab`.
+QEComp is an OIDC-authenticated app (API + SPA served same-origin) with Redis-backed leader election for HA, fronted at `qecomp.vmd1.homelab`. Authelia — a dedicated production OIDC provider for this app — runs alongside it in the same namespace, fronted at `auth.vex.vmd1.homelab`.
 
 ## Table of Contents
 
@@ -18,7 +18,7 @@ QEComp is an OIDC-authenticated app (API + SPA served same-origin) with Redis-ba
 | File | Description |
 | :--- | :--- |
 | [manifest.yaml](manifest.yaml) | Namespace `qecomp`, ConfigMap `qecomp-config`, Deployment `qecomp` (`ghcr.io/vmd1/vex-tm-tools-priv:main`, private image), ClusterIP Service on port 8000. |
-| [ingressroute.yaml](ingressroute.yaml) | Traefik `IngressRoute` for `vex.vmd1.homelab` (QEComp) and `auth.vex.vmd1.homelab` (Authelia), plus the dedicated `Certificate` for the Authelia host. |
+| [ingressroute.yaml](ingressroute.yaml) | Traefik `IngressRoute` for `qecomp.vmd1.homelab` (QEComp) and `auth.vex.vmd1.homelab` (Authelia), plus the dedicated `Certificate` for the Authelia host. |
 | [authelia.yaml](authelia.yaml) | Authelia `Deployment`, `Service`, `ConfigMap` (OIDC provider config), and `PersistentVolumeClaim` for its SQLite storage. |
 | [secrets.sops.yaml](secrets.sops.yaml) | SOPS-encrypted Secrets: `qecomp-secrets`, `ghcr-pull-secret` (private image pull), `authelia-secrets`, `authelia-users`. |
 | [kustomization.yaml](kustomization.yaml) | Kustomize manifest for QEComp + Authelia. |
@@ -28,7 +28,7 @@ QEComp is an OIDC-authenticated app (API + SPA served same-origin) with Redis-ba
 - **Leader-election HA**: QEComp scales via `kubectl scale deployment/qecomp -n qecomp --replicas=N` — the app handles N replicas natively via a Redis leader-election lock (only one pod is ever "active"; the rest serve reads/HA passively). Pod anti-affinity is declared up front so it takes effect automatically once scaled past 1 replica.
 - **Dedicated Authelia instance**: Authelia here is scoped to QEComp only (not the cluster-wide Authentik SSO used elsewhere) — a separate OIDC provider, file-backed auth, SQLite storage, singular replica.
 - **`enableServiceLinks: false` on the Authelia pod**: Kubernetes auto-injects `<SERVICE_NAME>_*` env vars for every Service in a pod's namespace. Since the Service is named `authelia`, this collided with Authelia's own `AUTHELIA_`-prefixed config env vars (the injected `AUTHELIA_PORT` conflicted with the explicit `server.address` setting) and crash-looped the pod on startup. Confirmed live during deployment — disabling service-link injection was the fix, not renaming the Service.
-- **Two-level subdomain TLS**: the shared `cluster-wildcard-tls` (`*.vmd1.homelab`) only covers one DNS label, so it doesn't reach `auth.vex.vmd1.homelab`. A dedicated `Certificate` (`authelia-vex-tls`) is issued for it via the existing `letsencrypt-cloudflare` ClusterIssuer. `vex.vmd1.homelab` itself needs no explicit `tls:` block — Traefik's default certificate (the wildcard) already covers it.
+- **Two-level subdomain TLS**: the shared `cluster-wildcard-tls` (`*.vmd1.homelab`) only covers one DNS label, so it doesn't reach `auth.vex.vmd1.homelab`. A dedicated `Certificate` (`authelia-vex-tls`) is issued for it via the existing `letsencrypt-cloudflare` ClusterIssuer. `qecomp.vmd1.homelab` needs no explicit `tls:` block, like the other `vmd1.homelab` apps.
 - **`edge-retry` middleware referenced explicitly**: this middleware only actually exists in namespace `vmd1-web` (created outside git); other apps in this repo reference it with no namespace, which silently resolves to their own namespace and never resolves. QEComp/Authelia reference it as `namespace: vmd1-web` so it actually works.
 
 ## Dependencies
@@ -41,7 +41,7 @@ QEComp is an OIDC-authenticated app (API + SPA served same-origin) with Redis-ba
 ## Services & Routers
 
 - **Service**: `qecomp` (ClusterIP, port 80 → 8000), `authelia` (ClusterIP, port 9091).
-- **IngressRoute**: `vex.vmd1.homelab` (QEComp), `auth.vex.vmd1.homelab` (Authelia, explicit TLS via `authelia-vex-tls`).
+- **IngressRoute**: `qecomp.vmd1.homelab` (QEComp), `auth.vex.vmd1.homelab` (Authelia, explicit TLS via `authelia-vex-tls`).
 
 ## Storage
 

@@ -45,13 +45,13 @@ data:
           policy: bypass
           resources:
             - "^/api/.*"
-        - domain: "vex.vmd1.homelab"
+        - domain: "qecomp.vmd1.homelab"
           policy: one_factor
     session:
       cookies:
         - domain: vex.vmd1.homelab
           authelia_url: "https://auth.vex.vmd1.homelab"
-          default_redirection_url: "https://vex.vmd1.homelab"
+          default_redirection_url: "https://auth.vex.vmd1.homelab"
           name: authelia_session
           expiration: 1h
           inactivity: 15m
@@ -67,7 +67,7 @@ data:
         cors:
           endpoints: [authorization, token, revocation, introspection, userinfo]
           allowed_origins:
-            - "https://vex.vmd1.homelab"
+            - "https://qecomp.vmd1.homelab"
         # CRITICAL — without this, the ID token is minimal (sub/iss/aud
         # only) and QEComp's backend (which only ever decodes the ID
         # token, never calls userinfo) gets zero groups/email/username on
@@ -89,7 +89,7 @@ data:
             public: false
             authorization_policy: one_factor
             redirect_uris:
-              - "https://vex.vmd1.homelab/auth/callback"
+              - "https://qecomp.vmd1.homelab/auth/callback"
               # QEComp builds this URL from the request scheme it sees, and
               # since Traefik terminates TLS and forwards to the pod over
               # plain HTTP, the app doesn't trust X-Forwarded-Proto (a
@@ -99,7 +99,7 @@ data:
               # globally, so accepting this variant is safe — the browser
               # still lands on https in the end. Registered as a workaround
               # until the app's own proxy-header handling is fixed upstream.
-              - "http://vex.vmd1.homelab/auth/callback"
+              - "http://qecomp.vmd1.homelab/auth/callback"
             scopes: [openid, profile, email, groups]
             userinfo_signed_response_alg: none
             token_endpoint_auth_method: client_secret_post
