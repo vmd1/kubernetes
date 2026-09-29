@@ -51,7 +51,6 @@ data:
       cookies:
         - domain: vex.vmd1.homelab
           authelia_url: "https://auth.vex.vmd1.homelab"
-          default_redirection_url: "https://auth.vex.vmd1.homelab"
           name: authelia_session
           expiration: 1h
           inactivity: 15m
