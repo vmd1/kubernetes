@@ -1,0 +1,90 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: gossip
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gossip-relay
+  namespace: gossip
+  labels:
+    app: gossip-relay
+spec:
+  # Single instance only: topics and bans live in memory.
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: gossip-relay
+  template:
+    metadata:
+      labels:
+        app: gossip-relay
+    spec:
+      automountServiceAccountToken: false
+      nodeSelector:
+        topology.kubernetes.io/zone: uk-home
+      containers:
+        - name: relay
+          image: ghcr.io/vmd1/gossip/relay:sha-fdbd2ad
+          env:
+            - name: RELAY_ORIGIN
+              value: wss://gossip.vmd1.homelab
+            - name: ABUSE_CONTACT
+              value: abuse@vmd1.homelab
+            - name: TRUSTED_PROXY
+              value: "true"
+            - name: TRUSTED_PROXY_HEADER
+              value: cf-connecting-ip
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          securityContext:
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gossip-relay
+  namespace: gossip
+  labels:
+    app: gossip-relay
+spec:
+  selector:
+    app: gossip-relay
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+      protocol: TCP
