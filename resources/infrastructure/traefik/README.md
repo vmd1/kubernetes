@@ -14,7 +14,7 @@ This folder holds the **Traefik custom resources** that sit on top of the Traefi
 
 | File | Description |
 | :--- | :--- |
-| [dashboard.yaml](dashboard.yaml) | `IngressRoute` exposing the Traefik admin dashboard at `traefik.vmd1.homelab` (gated by Authentik) plus a `redirectRegex` middleware (`traefik-dashboard-redirect`) that sends `/` to `/dashboard/`. |
+| [dashboard.yaml](dashboard.yaml) | `IngressRoute` exposing the Traefik admin dashboard at `traefik.vmd1.homelab` (gated by oauth2-proxy (Authelia)) plus a `redirectRegex` middleware (`traefik-dashboard-redirect`) that sends `/` to `/dashboard/`. |
 | [compress.yaml](compress.yaml) | `Middleware` `compress` enabling Gzip/Brotli response compression. |
 | [security-headers.yaml](security-headers.yaml) | `Middleware` `security-headers` setting HSTS (preload, includeSubdomains), XSS filter, nosniff, frame deny, and `referrer-policy: same-origin`. |
 | [rate-limit.yaml](rate-limit.yaml) | `Middleware` `rate-limit` with `average: 300`, `burst: 150` requests/second. |
@@ -25,14 +25,14 @@ This folder holds the **Traefik custom resources** that sit on top of the Traefi
 ## Design Decisions
 
 - **Reusable Middleware Chain**: The `rate-limit`, `compress`, and `security-headers` middlewares are attached to most public `IngressRoute`s across the cluster (e.g. Longhorn UI, Grafana, dashboard).
-- **Dashboard Behind SSO**: `traefik.vmd1.homelab` routes to `api@internal` and is protected by the `authentik-auth` middleware plus the standard chain.
+- **Dashboard Behind SSO**: `traefik.vmd1.homelab` routes to `api@internal` and is protected by the `oauth2-proxy-kmnet-uk` middleware plus the standard chain.
 - **Home Network LB**: `traefik-uk-home-lb` uses `loadBalancerClass: kube-vip.io/kube-vip-class` with `externalTrafficPolicy: Local` to preserve client source IPs and expose the ingress on the `192.168.12.0/24` LAN.
 
 ## Dependencies
 
 - **Traefik controller** in [crds-and-operators/traefik](../../crds-and-operators/traefik/README.md) (provides the CRDs and `api@internal`).
 - **Kube-VIP** in [crds-and-operators/kube-vip](../../crds-and-operators/kube-vip/README.md) (allocates `192.168.12.20`).
-- **Authentik** (for the dashboard SSO gate).
+- **oauth2-proxy** (`oauth2-proxy-kmnet-uk` middleware, for the dashboard SSO gate).
 
 ## Services & Routers
 

@@ -18,11 +18,11 @@ This directory manages the homelab media stack. It aggregates media ingestion (`
 - **Node Co-location**: All components (`jellyfin`, `seerr`, and `download-agent`) are pinned to node `hades-01` via `nodeSelector`. This allows mounting a common local storage host path (`/mnt/huge/media`) without network overhead or latency.
 - **Resource Tuning**: Dotnet garbage collection (`DOTNET_GCDynamicAdaptationMode=1`) and Node.js garbage collection optimizations (`MALLOC_TRIM_THRESHOLD_=100000`) are applied to minimize inactive memory consumption.
 - **Low Idle Overhead**: Download Agent is configured with an explicit low CPU request (`30m`) so Kubernetes doesn't reserve excessive headroom on `hades-01` at rest.
-- **SSO for Download UI**: The download manager UI is gated behind Authentik (`authentik-auth`), whereas Jellyfin relies on its native user credentials.
+- **SSO for Download UI**: The download manager UI is gated behind oauth2-proxy + Authelia (`oauth2-proxy-kmnet-uk`), whereas Jellyfin relies on its native user credentials.
 
 ## Dependencies
 
-- **Authentik**: Authentik namespace middleware `authentik-auth` is required to protect the `download-agent` UI route.
+- **oauth2-proxy**: oauth2-proxy namespace middleware `oauth2-proxy-kmnet-uk` is required to protect the `download-agent` UI route.
 - **Private Image Registry**: The `download-agent` uses an image pull secret `registry-kmnet-creds` to retrieve the container from the local registry.
 
 ## Services & Routers
@@ -34,7 +34,7 @@ This directory manages the homelab media stack. It aggregates media ingestion (`
 - **Ingress Routes**:
   - `jellyfin.vmd1.homelab` -> routes to `jellyfin` on port `8096`.
   - `seerr.vmd1.homelab` -> routes to `seerr` on port `80`.
-  - `download.vmd1.homelab` -> routes to `download-agent` on port `5000` (gated by Authentik).
+  - `download.vmd1.homelab` -> routes to `download-agent` on port `5000` (gated by oauth2-proxy (Authelia)).
 
 ## Storage
 

@@ -9,7 +9,7 @@ The [kustomization.yaml](kustomization.yaml) here is the Kustomize entrypoint th
 | Application | Description |
 | :--- | :--- |
 | [Authelia](authelia/README.md) | Cluster-wide OIDC provider (`identity.vmd1.homelab`) backed by lldap, CNPG and Redis. |
-| [Authentik](authentik/README.md) | Centralized Identity Provider (IdP) with SSO forward-auth middleware for Traefik. |
+| [Authentik](authentik/README.md) | Legacy Identity Provider, superseded by Authelia + oauth2-proxy; pending removal. |
 | [BookOrbit](bookorbit/README.md) | Digital library and reading platform (ebooks, audiobooks, comics, PDFs) with CNPG backend. |
 | [Cinepro](cinepro/README.md) | Media-aggregation API backend (`cinepro-core`) with Redis caching. |
 | [Gossip](gossip/README.md) | Gossip WebSocket relay and website (`gossip.vmd1.homelab`), single in-memory instance. |
@@ -26,13 +26,13 @@ The [kustomization.yaml](kustomization.yaml) here is the Kustomize entrypoint th
 | [QEComp](qecomp/README.md) | OIDC-authenticated app with Redis leader-election HA, CNPG backend, and a dedicated production Authelia OIDC provider. |
 | [UniFi](unifi/README.md) | UniFi Network Application for managing UniFi networking hardware. |
 | [Uptime Kuma](uptime-kuma/README.md) | Self-hosted uptime and latency monitoring. |
-| [Vaultwarden](vaultwarden/README.md) | Lightweight Bitwarden-compatible password vault (PostgreSQL + Authentik SSO). |
+| [Vaultwarden](vaultwarden/README.md) | Lightweight Bitwarden-compatible password vault (PostgreSQL + Authelia SSO). |
 | [vmd1-dev](vmd1-dev/README.md) | Personal web/developer portal DaemonSet running on ingress edge nodes. |
 
 ## Common Patterns
 
 - **Ingress**: Applications are exposed via Traefik `IngressRoute` resources on `websecure` with the `cluster-wildcard-tls` certificate.
-- **Auth**: Many admin/status UIs are gated behind the `authentik-auth` middleware from the [Authentik](authentik/README.md) namespace.
+- **Auth**: Many admin/status UIs are gated behind the per-domain `oauth2-proxy-<domain>` middlewares from the [oauth2-proxy](oauth2-proxy/README.md) namespace (Authelia SSO).
 - **Storage**: Stateful applications use `longhorn-single-replica` or `local-path` StorageClasses and pin to `region: uk-home` nodes.
 - **Secrets**: Credentials live in SOPS-encrypted `secrets.sops.yaml` files alongside each application.
 

@@ -13,12 +13,12 @@ Home Assistant is a home automation platform running locally in the cluster. It 
 
 - **Host Network Mode**: Runs with `hostNetwork: true` and `dnsPolicy: ClusterFirstWithHostNet`. This is crucial for local mDNS/SSDP smart home device auto-discovery (e.g. LIFX, Apple HomeKit, Google Cast) which relies on broadcast domains.
 - **Embedded File Browser Sidecar**: Integrates a `filebrowser/filebrowser` container in the same pod sharing the `/config` mount. This permits secure browser-based edits of YAML configurations without needing terminal access.
-- **SSO Gate on Editor**: While the primary Home Assistant dashboard (`home.vmd1.homelab`) uses its internal login system, the File Browser management dashboard (`edit-home.vmd1.homelab`) is gated behind Authentik.
+- **SSO Gate on Editor**: While the primary Home Assistant dashboard (`home.vmd1.homelab`) uses its internal login system, the File Browser management dashboard (`edit-home.vmd1.homelab`) is gated behind oauth2-proxy (Authelia).
 
 ## Dependencies
 
 - **Local Discovery Network**: Requires binding directly to host network interface card on home node.
-- **Authentik**: Requires `authentik-auth` middleware inside the `authentik` namespace to protect the config file editor route.
+- **oauth2-proxy**: Requires `oauth2-proxy-kmnet-uk` middleware inside the `oauth2-proxy` namespace to protect the config file editor route.
 
 ## Services & Routers
 
@@ -27,7 +27,7 @@ Home Assistant is a home automation platform running locally in the cluster. It 
   - `home-assistant-filebrowser` (ClusterIP, port `80` routing to File Browser port `8082`).
 - **Ingress Routes**:
   - `home.vmd1.homelab` routing to `home-assistant` on port `8123` (websecure).
-  - `edit-home.vmd1.homelab` routing to `home-assistant-filebrowser` on port `80` (websecure), gated by Authentik middleware.
+  - `edit-home.vmd1.homelab` routing to `home-assistant-filebrowser` on port `80` (websecure), gated by oauth2-proxy (Authelia) middleware.
 
 ## Storage
 

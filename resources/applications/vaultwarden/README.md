@@ -1,6 +1,6 @@
 # Vaultwarden (Bitwarden Server)
 
-Vaultwarden is an alternative Bitwarden server API implementation written in Rust. It provides a lightweight backend compatible with official Bitwarden clients, integrating with CNPG PostgreSQL and Authentik for SSO.
+Vaultwarden is an alternative Bitwarden server API implementation written in Rust. It provides a lightweight backend compatible with official Bitwarden clients, integrating with CNPG PostgreSQL and Authelia for SSO.
 
 ## Breakdown of Files
 
@@ -12,14 +12,14 @@ Vaultwarden is an alternative Bitwarden server API implementation written in Rus
 ## Design Decisions
 
 - **PostgreSQL Database Backend**: Configured with `DATABASE_URL` pointing to the cluster's CloudNativePG cluster. This ensures that all login credentials, vaults, and configuration records are fully replicated and backed up off-instance, allowing Vaultwarden to operate as a stateless workload.
-- **SSO Integration**: Configured with OIDC authentication pointing to the local Authentik IdP authority (`https://authentik.vmd1.homelab/application/o/vaultwarden/`) to permit Single Sign-On (SSO) login.
+- **SSO Integration**: Configured with OIDC authentication pointing to the [Authelia](../authelia/README.md) OIDC authority (`https://identity.vmd1.homelab`, client `vaultwarden`) to permit Single Sign-On (SSO) login.
 - **Strict Registration Limits**: Disables new signups (`"signups_allowed": false`) to prevent unauthorized public registrations, while leaving organization invitations open (`"invitations_allowed": true`).
 - **SMTP relaying**: Connects to SMTP2Go using encrypted STARTTLS over port 587 for dispatching secure 2FA tokens, organizational invitations, and vault sharing emails.
 
 ## Dependencies
 
 - **Database**: CloudNativePG PostgreSQL Cluster (`pg-cluster-rw.cnpg.svc.cluster.local`).
-- **OIDC Identity Provider**: Authentik server.
+- **OIDC Identity Provider**: [Authelia](../authelia/README.md) (`identity.vmd1.homelab`).
 - **Mail Relay**: Outbound access to SMTP2Go (`mail-eu.smtp2go.com:587`).
 
 ## Services & Routers

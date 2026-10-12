@@ -11,11 +11,11 @@ Headlamp is an easy-to-use, extensible Kubernetes web UI. It provides a visual d
 ## Design Decisions
 
 - **Admin Service Account Integration**: Employs `-in-cluster` and `-unsafe-use-service-account-token` args, letting Headlamp authenticate via the cluster-admin service account (`headlamp`). This removes the need for users to manually input kubeconfigs or tokens to log in.
-- **SSO Authentication Gate**: Secured behind the Authentik `authentik-auth` middleware at the Traefik router level to prevent unauthorized access.
+- **SSO Authentication Gate**: Secured behind the `oauth2-proxy-kmnet-uk` (oauth2-proxy + Authelia) middleware at the Traefik router level to prevent unauthorized access.
 
 ## Dependencies
 
-- **Authentik**: Authentik namespace middleware `authentik-auth` is required to authenticate requests to the ingress.
+- **oauth2-proxy**: oauth2-proxy namespace middleware `oauth2-proxy-kmnet-uk` is required to authenticate requests to the ingress.
 - **K8s RBAC**: Relies on the default Kubernetes cluster-admin role mapping.
 
 ## Services & Routers
@@ -23,7 +23,7 @@ Headlamp is an easy-to-use, extensible Kubernetes web UI. It provides a visual d
 - **Kubernetes Service**: `headlamp` (ClusterIP, exposing port `80` mapping to container port `4466`).
 - **Ingress Route**:
   - Host `headlamp.vmd1.homelab` on `websecure` entrypoint.
-  - Middlewares: `authentik-auth` in `authentik` namespace.
+  - Middlewares: `oauth2-proxy-kmnet-uk` in `oauth2-proxy` namespace.
 
 ## Storage
 
