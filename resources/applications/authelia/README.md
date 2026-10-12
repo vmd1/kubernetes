@@ -27,7 +27,7 @@ Authelia is the cluster-wide OpenID Connect 1.0 provider, served at `identity.vm
 - **lldap backend**: users and groups come from lldap (`implementation: lldap`, base DN `dc=kmnet,dc=uk`), so passwords and group membership are shared with everything else that uses lldap. Authelia holds no user database of its own.
 - **Stateless pods**: storage is PostgreSQL (CNPG) and sessions are in Redis (database index `5`), so both replicas are interchangeable and there is no PVC.
 - **Config templating**: `X_AUTHELIA_CONFIG_FILTERS=template` lets the config read the SMTP username and the OIDC signing key from the mounted Secret instead of embedding them in the ConfigMap.
-- **Authorization policies**: each oauth2-proxy client has its own policy (`domain_<slug>`) that allows only members of the matching lldap group `Domain: <domain>` (`two_factor`, deny everyone else), so access to one domain never implies another. `everyone_one_factor` guards Vaultwarden. Tighten or loosen per client in `identity_providers.oidc.authorization_policies`.
+- **Authorization policies**: each oauth2-proxy client has its own policy (`domain_<slug>`) that allows only members of the matching lldap group `Domain: <domain>` (`two_factor`, deny everyone else), so access to one domain never implies another. Vaultwarden uses the built-in `one_factor` policy (any lldap user). Tighten or loosen per client in `identity_providers.oidc.authorization_policies`.
 - **Claims policy**: the `default` claims policy puts `email`, `email_verified`, `preferred_username`, `groups` and `name` into the ID token, which oauth2-proxy reads for headers.
 - **`enableServiceLinks: false`**: the Service is named `authelia`, so Kubernetes would otherwise inject `AUTHELIA_*` variables that collide with Authelia's env-based config and crash-loop the pod (same issue as the qecomp instance).
 - **Image pinned** to `authelia/authelia:4.39.28`.
@@ -62,7 +62,7 @@ Authelia is the cluster-wide OpenID Connect 1.0 provider, served at `identity.vm
 | `oauth2-proxy-vmd1-dev` | `https://secure.vmd1.homelab/oauth2/callback` | `domain_*` (group `Domain: <domain>`) |
 | `oauth2-proxy-010356-xyz` | `https://secure.vmd1.homelab/oauth2/callback` | `domain_*` (group `Domain: <domain>`) |
 | `oauth2-proxy-848226-xyz` | `https://secure.vmd1.homelab/oauth2/callback` | `domain_*` (group `Domain: <domain>`) |
-| `vaultwarden` | `https://vault.vmd1.homelab/identity/connect/oidc-signin` | `everyone_one_factor` |
+| `vaultwarden` | `https://vault.vmd1.homelab/identity/connect/oidc-signin` | `one_factor` |
 
 Authelia matches redirect URIs exactly (no wildcards), which is why oauth2-proxy uses one fixed `secure.<domain>` callback host per domain.
 

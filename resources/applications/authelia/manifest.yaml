@@ -40,6 +40,9 @@ data:
     # identity_providers.oidc.authorization_policies.
     access_control:
       default_policy: deny
+      rules:
+        - domain: "*.vmd1.homelab"
+          policy: deny
     session:
       redis:
         host: redis-master.redis.svc.cluster.local
@@ -91,8 +94,6 @@ data:
             rules:
               - policy: two_factor
                 subject: "group:Domain: vmd1.homelab"
-          everyone_one_factor:
-            default_policy: one_factor
         clients:
           - client_id: oauth2-proxy-kmnet-uk
             client_name: "oauth2-proxy (vmd1.homelab)"
@@ -151,13 +152,14 @@ data:
             client_secret: "$pbkdf2-sha512$310000$vn4g60f8lvlBfYRmm1Rqmg$qn7lKIvGKwoQBu2Zhvz/WJhPJ.5DIIXoQo1Xzk3grcLmJenPF0gs48eNlL1bxN6eS2SaM1AXRgAp8uxa89AbYg"
             public: false
             claims_policy: default
-            authorization_policy: everyone_one_factor
+            authorization_policy: one_factor
             consent_mode: implicit
             require_pkce: true
             pkce_challenge_method: S256
             redirect_uris:
               - "https://vault.vmd1.homelab/identity/connect/oidc-signin"
             scopes: [openid, profile, email, offline_access]
+            response_types: [code]
             grant_types: [authorization_code, refresh_token]
             token_endpoint_auth_method: client_secret_basic
 ---
