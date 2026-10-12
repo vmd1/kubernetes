@@ -28,7 +28,7 @@ spec:
         topology.kubernetes.io/zone: uk-home
       containers:
         - name: relay
-          image: ghcr.io/vmd1/gossip/relay:sha-fdbd2ad
+          image: ghcr.io/vmd1/gossip/relay:sha-2a9e8d7
           env:
             - name: RELAY_ORIGIN
               value: wss://gossip.vmd1.homelab
