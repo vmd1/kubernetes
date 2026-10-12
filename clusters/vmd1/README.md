@@ -19,7 +19,7 @@ The cluster is split into four layers, applied in dependency order:
 | [crds-and-operators.yaml](crds-and-operators.yaml) | `./resources/crds-and-operators` | — | CRDs and operators (cert-manager, CNPG, Longhorn, Traefik, Multus, OCI controllers, PowerDNS, Redis, Kube-VIP) |
 | [nodes.yaml](nodes.yaml) | `./resources/nodes` | `crds-and-operators` | `OCIPortRule` instances that open firewall ports on ingress nodes |
 | [infrastructure.yaml](infrastructure.yaml) | `./resources/infrastructure` | `nodes` | Cluster infrastructure (Tailscale, Traefik middleware/LB, Longhorn UI + backup target, registry, lldap, cf-ddns, OCI reboot) |
-| [applications.yaml](applications.yaml) | `./resources/applications` | `infrastructure` | User-facing applications (Authelia, Authentik, Matrix, Media, Monitoring, Nextcloud, etc.) |
+| [applications.yaml](applications.yaml) | `./resources/applications` | `infrastructure` | User-facing applications (Authelia, Matrix, Media, Monitoring, Nextcloud, etc.) |
 
 ## Layer Dependency Chain
 

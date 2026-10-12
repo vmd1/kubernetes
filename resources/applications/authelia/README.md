@@ -1,6 +1,6 @@
 # Authelia (`resources/applications/authelia/`)
 
-Authelia is the cluster-wide OpenID Connect 1.0 provider, served at `identity.vmd1.homelab`. It replaces [Authentik](../authentik/README.md) and the former QEComp-only Authelia instance. Authelia's own ForwardAuth is **not** used: Traefik forward-auth is handled by [oauth2-proxy](../oauth2-proxy/README.md), which is an OIDC client of this instance. This is separate from the QEComp-only Authelia in [qecomp](../qecomp/README.md).
+Authelia is the cluster-wide OpenID Connect 1.0 provider, served at `identity.vmd1.homelab`. It replaces the former Authentik deployment and the former QEComp-only Authelia instance. Authelia's own ForwardAuth is **not** used: Traefik forward-auth is handled by [oauth2-proxy](../oauth2-proxy/README.md), which is an OIDC client of this instance. This is separate from the QEComp-only Authelia in [qecomp](../qecomp/README.md).
 
 ## Table of Contents
 

@@ -9,7 +9,6 @@ The [kustomization.yaml](kustomization.yaml) here is the Kustomize entrypoint th
 | Application | Description |
 | :--- | :--- |
 | [Authelia](authelia/README.md) | Cluster-wide OIDC provider (`identity.vmd1.homelab`) backed by lldap, CNPG and Redis. |
-| [Authentik](authentik/README.md) | Legacy Identity Provider, superseded by Authelia + oauth2-proxy; pending removal. |
 | [BookOrbit](bookorbit/README.md) | Digital library and reading platform (ebooks, audiobooks, comics, PDFs) with CNPG backend. |
 | [Cinepro](cinepro/README.md) | Media-aggregation API backend (`cinepro-core`) with Redis caching. |
 | [Gossip](gossip/README.md) | Gossip WebSocket relay and website (`gossip.vmd1.homelab`), single in-memory instance. |

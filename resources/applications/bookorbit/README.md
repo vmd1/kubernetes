@@ -56,4 +56,4 @@ BookOrbit is a self-hosted digital library and reading platform for ebooks, audi
 
 - [../README.md](../README.md) — Applications layer.
 - [../../crds-and-operators/cnpg/README.md](../../crds-and-operators/cnpg/README.md) — CNPG PostgreSQL operator.
-- [../authentik/README.md](../authentik/README.md) — Authentik SSO/Forward Auth.
+- [../authelia/README.md](../authelia/README.md) and [../oauth2-proxy/README.md](../oauth2-proxy/README.md) — Authelia SSO and oauth2-proxy Forward Auth.
