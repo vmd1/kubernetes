@@ -73,7 +73,22 @@ data:
         claims_policies:
           default:
             id_token: [email, email_verified, preferred_username, groups, name]
+        cors:
+          endpoints: [authorization, token, revocation, introspection, userinfo]
+          allowed_origins:
+            - "https://tmtools.vmd1.homelab"
         authorization_policies:
+          qecomp_users:
+            default_policy: deny
+            rules:
+              - policy: one_factor
+                subject:
+                  - ["group:qecomp-admin"]
+                  - ["group:qecomp-emcee"]
+                  - ["group:qecomp-lighting"]
+                  - ["group:qecomp-operator"]
+                  - ["group:qecomp-video"]
+                  - ["group:qecomp-viewer"]
           domain_kmnet_uk:
             default_policy: deny
             rules:
@@ -147,6 +162,22 @@ data:
               - "https://secure.vmd1.homelab/oauth2/callback"
             scopes: [openid, profile, email, groups]
             token_endpoint_auth_method: client_secret_basic
+          - client_id: qecomp
+            client_name: "QEComp"
+            client_secret: "$pbkdf2-sha512$310000$zMEaRWS0z3xd9bztDPeD9w$/Vuq9DPD77mh6TAWPuSdirVixcaLq4gtPgiwzGt5tBF8wHMf3uO9DmedtIhPg6Zw.MT49xmoB/gp5vwNT87Rvg"
+            public: false
+            claims_policy: default
+            authorization_policy: qecomp_users
+            consent_mode: implicit
+            redirect_uris:
+              - "https://tmtools.vmd1.homelab/auth/callback"
+              # QEComp builds the callback from the request scheme it sees (Traefik terminates TLS and
+              # forwards plain HTTP) and sends "http://". Traefik redirects HTTP->HTTPS globally, so the
+              # browser still lands on https; remove once the app trusts X-Forwarded-Proto.
+              - "http://tmtools.vmd1.homelab/auth/callback"
+            scopes: [openid, profile, email, groups]
+            userinfo_signed_response_alg: none
+            token_endpoint_auth_method: client_secret_post
           - client_id: vaultwarden
             client_name: "Vaultwarden"
             client_secret: "$pbkdf2-sha512$310000$vn4g60f8lvlBfYRmm1Rqmg$qn7lKIvGKwoQBu2Zhvz/WJhPJ.5DIIXoQo1Xzk3grcLmJenPF0gs48eNlL1bxN6eS2SaM1AXRgAp8uxa89AbYg"

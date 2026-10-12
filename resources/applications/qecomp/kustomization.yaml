@@ -4,5 +4,4 @@ kind: Kustomization
 resources:
   - manifest.yaml
   - ingressroute.yaml
-  - authelia.yaml
   - secrets.sops.yaml

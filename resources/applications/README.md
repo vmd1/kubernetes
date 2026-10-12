@@ -23,7 +23,7 @@ The [kustomization.yaml](kustomization.yaml) here is the Kustomize entrypoint th
 | [Ntfy](ntfy/README.md) | HTTP pub-sub push notification service with SMTP ingress. |
 | [oauth2-proxy](oauth2-proxy/README.md) | Per-domain Traefik ForwardAuth middlewares authenticating against Authelia. |
 | [Obsidian](obsidian/README.md) | CouchDB backend for Obsidian Self-Hosted LiveSync. |
-| [QEComp](qecomp/README.md) | OIDC-authenticated app with Redis leader-election HA, CNPG backend, and a dedicated production Authelia OIDC provider. |
+| [QEComp](qecomp/README.md) | OIDC-authenticated app with Redis leader-election HA, CNPG backend, signing in through the cluster-wide Authelia (lldap `qecomp-*` groups). |
 | [UniFi](unifi/README.md) | UniFi Network Application for managing UniFi networking hardware. |
 | [Uptime Kuma](uptime-kuma/README.md) | Self-hosted uptime and latency monitoring. |
 | [Vaultwarden](vaultwarden/README.md) | Lightweight Bitwarden-compatible password vault (PostgreSQL + Authelia SSO). |

@@ -1,6 +1,6 @@
 # Authelia (`resources/applications/authelia/`)
 
-Authelia is the cluster-wide OpenID Connect 1.0 provider, served at `identity.vmd1.homelab`. It replaces [Authentik](../authentik/README.md). Authelia's own ForwardAuth is **not** used: Traefik forward-auth is handled by [oauth2-proxy](../oauth2-proxy/README.md), which is an OIDC client of this instance. This is separate from the QEComp-only Authelia in [qecomp](../qecomp/README.md).
+Authelia is the cluster-wide OpenID Connect 1.0 provider, served at `identity.vmd1.homelab`. It replaces [Authentik](../authentik/README.md) and the former QEComp-only Authelia instance. Authelia's own ForwardAuth is **not** used: Traefik forward-auth is handled by [oauth2-proxy](../oauth2-proxy/README.md), which is an OIDC client of this instance. This is separate from the QEComp-only Authelia in [qecomp](../qecomp/README.md).
 
 ## Table of Contents
 
@@ -62,6 +62,7 @@ Authelia is the cluster-wide OpenID Connect 1.0 provider, served at `identity.vm
 | `oauth2-proxy-vmd1-dev` | `https://secure.vmd1.homelab/oauth2/callback` | `domain_*` (group `Domain: <domain>`) |
 | `oauth2-proxy-010356-xyz` | `https://secure.vmd1.homelab/oauth2/callback` | `domain_*` (group `Domain: <domain>`) |
 | `oauth2-proxy-848226-xyz` | `https://secure.vmd1.homelab/oauth2/callback` | `domain_*` (group `Domain: <domain>`) |
+| `qecomp` | `https://tmtools.vmd1.homelab/auth/callback` (and the `http://` variant QEComp currently sends) | `qecomp_users` (lldap `qecomp-*` groups, `one_factor`) |
 | `vaultwarden` | `https://vault.vmd1.homelab/identity/connect/oidc-signin` | `one_factor` |
 
 Authelia matches redirect URIs exactly (no wildcards), which is why oauth2-proxy uses one fixed `secure.<domain>` callback host per domain.
