@@ -31,7 +31,7 @@ spec:
       affinity:
         podAntiAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
-            - topologyKey: topology.kubernetes.io/zone
+            - topologyKey: topology.kubernetes.io/region
               labelSelector:
                 matchLabels:
                   app: vaultwarden
@@ -104,6 +104,8 @@ metadata:
   labels:
     app: vaultwarden
 spec:
+  # Prefer endpoints in the caller's zone (kube-proxy); falls back to any endpoint if none is local.
+  trafficDistribution: PreferClose
   selector:
     app: vaultwarden
   ports:
