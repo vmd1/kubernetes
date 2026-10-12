@@ -1,0 +1,552 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: oauth2-proxy
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: oauth2-proxy-kmnet-uk
+  namespace: oauth2-proxy
+  labels:
+    app: oauth2-proxy-kmnet-uk
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app: oauth2-proxy-kmnet-uk
+  template:
+    metadata:
+      labels:
+        app: oauth2-proxy-kmnet-uk
+    spec:
+      enableServiceLinks: false
+      automountServiceAccountToken: false
+      nodeSelector:
+        topology.kubernetes.io/zone: uk-home
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              preference:
+                matchExpressions:
+                  - key: kubernetes.io/hostname
+                    operator: In
+                    values:
+                      - hades-02
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app: oauth2-proxy-kmnet-uk
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+      containers:
+        - name: oauth2-proxy
+          image: quay.io/oauth2-proxy/oauth2-proxy:v7.15.5
+          args:
+            - --http-address=0.0.0.0:4180
+            - --provider=oidc
+            - --oidc-issuer-url=https://identity.vmd1.homelab
+            - --client-id=oauth2-proxy-kmnet-uk
+            - --scope=openid profile email groups
+            - --oidc-groups-claim=groups
+            - "--allowed-group=Domain: vmd1.homelab"
+            - --code-challenge-method=S256
+            - --email-domain=*
+            - --upstream=static://202
+            - --reverse-proxy=true
+            - --skip-provider-button=true
+            - --set-xauthrequest=true
+            - --redirect-url=https://secure.vmd1.homelab/oauth2/callback
+            - --cookie-name=_oauth2_proxy_kmnet_uk
+            - --cookie-domain=.vmd1.homelab
+            - --whitelist-domain=.vmd1.homelab
+            - --cookie-secure=true
+            - --cookie-samesite=lax
+            - --cookie-expire=12h
+            - --cookie-refresh=0
+            - --session-cookie-minimal=true
+            - --silence-ping-logging=true
+          env:
+            - name: OAUTH2_PROXY_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: oauth2-proxy-secrets
+                  key: client-secret-kmnet-uk
+            - name: OAUTH2_PROXY_COOKIE_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: oauth2-proxy-secrets
+                  key: cookie-secret-kmnet-uk
+          ports:
+            - name: http
+              containerPort: 4180
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 250m
+              memory: 128Mi
+          readinessProbe:
+            httpGet: { path: /ping, port: http }
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /ping, port: http }
+            initialDelaySeconds: 15
+            periodSeconds: 20
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: oauth2-proxy-kmnet-uk
+  namespace: oauth2-proxy
+spec:
+  selector:
+    app: oauth2-proxy-kmnet-uk
+  ports:
+    - name: http
+      port: 4180
+      targetPort: 4180
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: oauth2-proxy-kmnet-uk
+  namespace: oauth2-proxy
+spec:
+  forwardAuth:
+    address: http://oauth2-proxy-kmnet-uk.oauth2-proxy.svc.cluster.local:4180/
+    trustForwardHeader: true
+    authResponseHeaders:
+      - X-Auth-Request-User
+      - X-Auth-Request-Email
+      - X-Auth-Request-Groups
+      - X-Auth-Request-Preferred-Username
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: oauth2-proxy-vmd1-dev
+  namespace: oauth2-proxy
+  labels:
+    app: oauth2-proxy-vmd1-dev
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app: oauth2-proxy-vmd1-dev
+  template:
+    metadata:
+      labels:
+        app: oauth2-proxy-vmd1-dev
+    spec:
+      enableServiceLinks: false
+      automountServiceAccountToken: false
+      nodeSelector:
+        topology.kubernetes.io/zone: uk-home
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              preference:
+                matchExpressions:
+                  - key: kubernetes.io/hostname
+                    operator: In
+                    values:
+                      - hades-02
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app: oauth2-proxy-vmd1-dev
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+      containers:
+        - name: oauth2-proxy
+          image: quay.io/oauth2-proxy/oauth2-proxy:v7.15.5
+          args:
+            - --http-address=0.0.0.0:4180
+            - --provider=oidc
+            - --oidc-issuer-url=https://identity.vmd1.homelab
+            - --client-id=oauth2-proxy-vmd1-dev
+            - --scope=openid profile email groups
+            - --oidc-groups-claim=groups
+            - "--allowed-group=Domain: vmd1.homelab"
+            - --code-challenge-method=S256
+            - --email-domain=*
+            - --upstream=static://202
+            - --reverse-proxy=true
+            - --skip-provider-button=true
+            - --set-xauthrequest=true
+            - --redirect-url=https://secure.vmd1.homelab/oauth2/callback
+            - --cookie-name=_oauth2_proxy_vmd1_dev
+            - --cookie-domain=.vmd1.homelab
+            - --whitelist-domain=.vmd1.homelab
+            - --cookie-secure=true
+            - --cookie-samesite=lax
+            - --cookie-expire=12h
+            - --cookie-refresh=0
+            - --session-cookie-minimal=true
+            - --silence-ping-logging=true
+          env:
+            - name: OAUTH2_PROXY_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: oauth2-proxy-secrets
+                  key: client-secret-vmd1-dev
+            - name: OAUTH2_PROXY_COOKIE_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: oauth2-proxy-secrets
+                  key: cookie-secret-vmd1-dev
+          ports:
+            - name: http
+              containerPort: 4180
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 250m
+              memory: 128Mi
+          readinessProbe:
+            httpGet: { path: /ping, port: http }
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /ping, port: http }
+            initialDelaySeconds: 15
+            periodSeconds: 20
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: oauth2-proxy-vmd1-dev
+  namespace: oauth2-proxy
+spec:
+  selector:
+    app: oauth2-proxy-vmd1-dev
+  ports:
+    - name: http
+      port: 4180
+      targetPort: 4180
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: oauth2-proxy-vmd1-dev
+  namespace: oauth2-proxy
+spec:
+  forwardAuth:
+    address: http://oauth2-proxy-vmd1-dev.oauth2-proxy.svc.cluster.local:4180/
+    trustForwardHeader: true
+    authResponseHeaders:
+      - X-Auth-Request-User
+      - X-Auth-Request-Email
+      - X-Auth-Request-Groups
+      - X-Auth-Request-Preferred-Username
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: oauth2-proxy-010356-xyz
+  namespace: oauth2-proxy
+  labels:
+    app: oauth2-proxy-010356-xyz
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app: oauth2-proxy-010356-xyz
+  template:
+    metadata:
+      labels:
+        app: oauth2-proxy-010356-xyz
+    spec:
+      enableServiceLinks: false
+      automountServiceAccountToken: false
+      nodeSelector:
+        topology.kubernetes.io/zone: uk-home
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              preference:
+                matchExpressions:
+                  - key: kubernetes.io/hostname
+                    operator: In
+                    values:
+                      - hades-02
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app: oauth2-proxy-010356-xyz
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+      containers:
+        - name: oauth2-proxy
+          image: quay.io/oauth2-proxy/oauth2-proxy:v7.15.5
+          args:
+            - --http-address=0.0.0.0:4180
+            - --provider=oidc
+            - --oidc-issuer-url=https://identity.vmd1.homelab
+            - --client-id=oauth2-proxy-010356-xyz
+            - --scope=openid profile email groups
+            - --oidc-groups-claim=groups
+            - "--allowed-group=Domain: vmd1.homelab"
+            - --code-challenge-method=S256
+            - --email-domain=*
+            - --upstream=static://202
+            - --reverse-proxy=true
+            - --skip-provider-button=true
+            - --set-xauthrequest=true
+            - --redirect-url=https://secure.vmd1.homelab/oauth2/callback
+            - --cookie-name=_oauth2_proxy_010356_xyz
+            - --cookie-domain=.vmd1.homelab
+            - --whitelist-domain=.vmd1.homelab
+            - --cookie-secure=true
+            - --cookie-samesite=lax
+            - --cookie-expire=12h
+            - --cookie-refresh=0
+            - --session-cookie-minimal=true
+            - --silence-ping-logging=true
+          env:
+            - name: OAUTH2_PROXY_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: oauth2-proxy-secrets
+                  key: client-secret-010356-xyz
+            - name: OAUTH2_PROXY_COOKIE_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: oauth2-proxy-secrets
+                  key: cookie-secret-010356-xyz
+          ports:
+            - name: http
+              containerPort: 4180
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 250m
+              memory: 128Mi
+          readinessProbe:
+            httpGet: { path: /ping, port: http }
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /ping, port: http }
+            initialDelaySeconds: 15
+            periodSeconds: 20
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: oauth2-proxy-010356-xyz
+  namespace: oauth2-proxy
+spec:
+  selector:
+    app: oauth2-proxy-010356-xyz
+  ports:
+    - name: http
+      port: 4180
+      targetPort: 4180
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: oauth2-proxy-010356-xyz
+  namespace: oauth2-proxy
+spec:
+  forwardAuth:
+    address: http://oauth2-proxy-010356-xyz.oauth2-proxy.svc.cluster.local:4180/
+    trustForwardHeader: true
+    authResponseHeaders:
+      - X-Auth-Request-User
+      - X-Auth-Request-Email
+      - X-Auth-Request-Groups
+      - X-Auth-Request-Preferred-Username
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: oauth2-proxy-848226-xyz
+  namespace: oauth2-proxy
+  labels:
+    app: oauth2-proxy-848226-xyz
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app: oauth2-proxy-848226-xyz
+  template:
+    metadata:
+      labels:
+        app: oauth2-proxy-848226-xyz
+    spec:
+      enableServiceLinks: false
+      automountServiceAccountToken: false
+      nodeSelector:
+        topology.kubernetes.io/zone: uk-home
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              preference:
+                matchExpressions:
+                  - key: kubernetes.io/hostname
+                    operator: In
+                    values:
+                      - hades-02
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app: oauth2-proxy-848226-xyz
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+      containers:
+        - name: oauth2-proxy
+          image: quay.io/oauth2-proxy/oauth2-proxy:v7.15.5
+          args:
+            - --http-address=0.0.0.0:4180
+            - --provider=oidc
+            - --oidc-issuer-url=https://identity.vmd1.homelab
+            - --client-id=oauth2-proxy-848226-xyz
+            - --scope=openid profile email groups
+            - --oidc-groups-claim=groups
+            - "--allowed-group=Domain: vmd1.homelab"
+            - --code-challenge-method=S256
+            - --email-domain=*
+            - --upstream=static://202
+            - --reverse-proxy=true
+            - --skip-provider-button=true
+            - --set-xauthrequest=true
+            - --redirect-url=https://secure.vmd1.homelab/oauth2/callback
+            - --cookie-name=_oauth2_proxy_848226_xyz
+            - --cookie-domain=.vmd1.homelab
+            - --whitelist-domain=.vmd1.homelab
+            - --cookie-secure=true
+            - --cookie-samesite=lax
+            - --cookie-expire=12h
+            - --cookie-refresh=0
+            - --session-cookie-minimal=true
+            - --silence-ping-logging=true
+          env:
+            - name: OAUTH2_PROXY_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: oauth2-proxy-secrets
+                  key: client-secret-848226-xyz
+            - name: OAUTH2_PROXY_COOKIE_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: oauth2-proxy-secrets
+                  key: cookie-secret-848226-xyz
+          ports:
+            - name: http
+              containerPort: 4180
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 250m
+              memory: 128Mi
+          readinessProbe:
+            httpGet: { path: /ping, port: http }
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /ping, port: http }
+            initialDelaySeconds: 15
+            periodSeconds: 20
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: oauth2-proxy-848226-xyz
+  namespace: oauth2-proxy
+spec:
+  selector:
+    app: oauth2-proxy-848226-xyz
+  ports:
+    - name: http
+      port: 4180
+      targetPort: 4180
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: oauth2-proxy-848226-xyz
+  namespace: oauth2-proxy
+spec:
+  forwardAuth:
+    address: http://oauth2-proxy-848226-xyz.oauth2-proxy.svc.cluster.local:4180/
+    trustForwardHeader: true
+    authResponseHeaders:
+      - X-Auth-Request-User
+      - X-Auth-Request-Email
+      - X-Auth-Request-Groups
+      - X-Auth-Request-Preferred-Username

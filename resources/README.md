@@ -16,7 +16,7 @@ This directory contains all the Kubernetes manifests that Flux reconciles into t
 | [crds-and-operators/](crds-and-operators/README.md) | `./resources/crds-and-operators` | Custom Resource Definitions and operators: cert-manager, CloudNativePG, Kube-VIP, Longhorn, Multus, OCI controller secrets, OCI port controller, PowerDNS, Redis, Traefik. |
 | [nodes/](nodes/README.md) | `./resources/nodes` | `OCIPortRule` instances (web, DNS, DoT, Tailscale WireGuard ports) targeting ingress nodes. |
 | [infrastructure/](infrastructure/README.md) | `./resources/infrastructure` | Cluster services: Tailscale, Traefik middleware/LB, Longhorn UI + backup target, cf-ddns, lldap, OCI reboot controller, registry. |
-| [applications/](applications/README.md) | `./resources/applications` | User-facing applications: Authentik, Cinepro, Headlamp, Home Assistant, Matrix, Media, Monitoring, MQTT, Nextcloud, Ntfy, Obsidian, UniFi, Uptime Kuma, Vaultwarden, vmd1-dev. |
+| [applications/](applications/README.md) | `./resources/applications` | User-facing applications: Authelia, Authentik, Cinepro, Headlamp, Home Assistant, Matrix, Media, Monitoring, MQTT, Nextcloud, Ntfy, oauth2-proxy, Obsidian, UniFi, Uptime Kuma, Vaultwarden, vmd1-dev. |
 
 ## Reconciliation Order
 

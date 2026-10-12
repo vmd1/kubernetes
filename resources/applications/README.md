@@ -8,6 +8,7 @@ The [kustomization.yaml](kustomization.yaml) here is the Kustomize entrypoint th
 
 | Application | Description |
 | :--- | :--- |
+| [Authelia](authelia/README.md) | Cluster-wide OIDC provider (`identity.vmd1.homelab`) backed by lldap, CNPG and Redis. |
 | [Authentik](authentik/README.md) | Centralized Identity Provider (IdP) with SSO forward-auth middleware for Traefik. |
 | [BookOrbit](bookorbit/README.md) | Digital library and reading platform (ebooks, audiobooks, comics, PDFs) with CNPG backend. |
 | [Cinepro](cinepro/README.md) | Media-aggregation API backend (`cinepro-core`) with Redis caching. |
@@ -20,6 +21,7 @@ The [kustomization.yaml](kustomization.yaml) here is the Kustomize entrypoint th
 | [MQTT](mqtt/README.md) | Eclipse Mosquitto broker for IoT/Home Assistant messaging. |
 | [Nextcloud](nextcloud/README.md) | Nextcloud + Collabora Online office suite with Backblaze B2 S3 primary storage. |
 | [Ntfy](ntfy/README.md) | HTTP pub-sub push notification service with SMTP ingress. |
+| [oauth2-proxy](oauth2-proxy/README.md) | Per-domain Traefik ForwardAuth middlewares authenticating against Authelia. |
 | [Obsidian](obsidian/README.md) | CouchDB backend for Obsidian Self-Hosted LiveSync. |
 | [QEComp](qecomp/README.md) | OIDC-authenticated app with Redis leader-election HA, CNPG backend, and a dedicated production Authelia OIDC provider. |
 | [UniFi](unifi/README.md) | UniFi Network Application for managing UniFi networking hardware. |

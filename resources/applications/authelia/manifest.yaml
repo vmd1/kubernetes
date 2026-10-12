@@ -1,0 +1,275 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: authelia
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: authelia-config
+  namespace: authelia
+data:
+  configuration.yml: |
+    ---
+    theme: auto
+    default_2fa_method: totp
+    server:
+      address: "tcp://:9091"
+    log:
+      level: info
+    totp:
+      disable: false
+      issuer: identity.vmd1.homelab
+    webauthn:
+      disable: false
+      display_name: vmd1 Identity
+    notifier:
+      smtp:
+        address: "submission://mail-eu.smtp2go.com:587"
+        username: '{{ secret "/secrets/smtp_username" }}'
+        sender: "Authelia <authelia@noreply.vmd1.homelab>"
+        subject: "[Identity] {title}"
+    authentication_backend:
+      ldap:
+        implementation: lldap
+        address: "ldap://lldap.lldap.svc.cluster.local:3890"
+        base_dn: dc=kmnet,dc=uk
+        user: uid=authelia,ou=people,dc=kmnet,dc=uk
+    # Only OIDC is served; forward-auth is handled by oauth2-proxy, so no
+    # access_control rules are consulted. Per-client policies live under
+    # identity_providers.oidc.authorization_policies.
+    access_control:
+      default_policy: deny
+    session:
+      redis:
+        host: redis-master.redis.svc.cluster.local
+        port: 6379
+        database_index: 5
+      cookies:
+        - domain: vmd1.homelab
+          authelia_url: "https://identity.vmd1.homelab"
+          name: authelia_session
+          expiration: 12h
+          inactivity: 1h
+    regulation:
+      max_retries: 5
+      find_time: 2m
+      ban_time: 5m
+    storage:
+      postgres:
+        address: "tcp://pg-cluster-rw.cnpg.svc.cluster.local:5432"
+        database: authelia
+        username: authelia
+    identity_providers:
+      oidc:
+        jwks:
+          - key_id: main
+            algorithm: RS256
+            use: sig
+            key: {{ secret "/secrets/oidc_issuer_private_key.pem" | mindent 10 "|" | msquote }}
+        claims_policies:
+          default:
+            id_token: [email, email_verified, preferred_username, groups, name]
+        authorization_policies:
+          domain_kmnet_uk:
+            default_policy: deny
+            rules:
+              - policy: two_factor
+                subject: "group:Domain: vmd1.homelab"
+          domain_vmd1_dev:
+            default_policy: deny
+            rules:
+              - policy: two_factor
+                subject: "group:Domain: vmd1.homelab"
+          domain_010356_xyz:
+            default_policy: deny
+            rules:
+              - policy: two_factor
+                subject: "group:Domain: vmd1.homelab"
+          domain_848226_xyz:
+            default_policy: deny
+            rules:
+              - policy: two_factor
+                subject: "group:Domain: vmd1.homelab"
+          everyone_one_factor:
+            default_policy: one_factor
+        clients:
+          - client_id: oauth2-proxy-kmnet-uk
+            client_name: "oauth2-proxy (vmd1.homelab)"
+            client_secret: "$pbkdf2-sha512$310000$QxaC3gjA69gVBQdnUER46Q$VGQscdsGNIFRFS1o4g5.vai7oosAXGNRB.P7LL6lXBUTBu5.7SQnP7D.Sra5bmXkEvjOE6Za5bKxX8kIfSsHJw"
+            public: false
+            claims_policy: default
+            authorization_policy: domain_kmnet_uk
+            consent_mode: implicit
+            require_pkce: true
+            pkce_challenge_method: S256
+            redirect_uris:
+              - "https://secure.vmd1.homelab/oauth2/callback"
+            scopes: [openid, profile, email, groups]
+            token_endpoint_auth_method: client_secret_basic
+          - client_id: oauth2-proxy-vmd1-dev
+            client_name: "oauth2-proxy (vmd1.homelab)"
+            client_secret: "$pbkdf2-sha512$310000$238.zfsID3YiLqK9YiBqkg$nfl5.UiipICiXtGVKPfl2Y7f.qA9f8nkv1cfJSxZGOdLQ1b99B2QwSZNj6mviQyYf2WDB4QMfTnj7UIKueQrew"
+            public: false
+            claims_policy: default
+            authorization_policy: domain_vmd1_dev
+            consent_mode: implicit
+            require_pkce: true
+            pkce_challenge_method: S256
+            redirect_uris:
+              - "https://secure.vmd1.homelab/oauth2/callback"
+            scopes: [openid, profile, email, groups]
+            token_endpoint_auth_method: client_secret_basic
+          - client_id: oauth2-proxy-010356-xyz
+            client_name: "oauth2-proxy (vmd1.homelab)"
+            client_secret: "$pbkdf2-sha512$310000$W/mDr6ef3jXHbL3wIjDS5w$s0/MRK/6lBA5BSd9zgsZNrvpcF8X/E7hVxoBMCqlNmKVqKU03GgjP0u.aS3w78sGacYqKuK2yxXDhQLfl00atw"
+            public: false
+            claims_policy: default
+            authorization_policy: domain_010356_xyz
+            consent_mode: implicit
+            require_pkce: true
+            pkce_challenge_method: S256
+            redirect_uris:
+              - "https://secure.vmd1.homelab/oauth2/callback"
+            scopes: [openid, profile, email, groups]
+            token_endpoint_auth_method: client_secret_basic
+          - client_id: oauth2-proxy-848226-xyz
+            client_name: "oauth2-proxy (vmd1.homelab)"
+            client_secret: "$pbkdf2-sha512$310000$aygXWl8StKQPCavTKXLddA$ZXavQvbHuNLSLy9Zs.TrhZ.JgfPHWGHjIIRD4oLEY0HLeiHQ.2PYiqanh4v.PQPC9jftUBh.7SRcWDXOSrIUgQ"
+            public: false
+            claims_policy: default
+            authorization_policy: domain_848226_xyz
+            consent_mode: implicit
+            require_pkce: true
+            pkce_challenge_method: S256
+            redirect_uris:
+              - "https://secure.vmd1.homelab/oauth2/callback"
+            scopes: [openid, profile, email, groups]
+            token_endpoint_auth_method: client_secret_basic
+          - client_id: vaultwarden
+            client_name: "Vaultwarden"
+            client_secret: "$pbkdf2-sha512$310000$vn4g60f8lvlBfYRmm1Rqmg$qn7lKIvGKwoQBu2Zhvz/WJhPJ.5DIIXoQo1Xzk3grcLmJenPF0gs48eNlL1bxN6eS2SaM1AXRgAp8uxa89AbYg"
+            public: false
+            claims_policy: default
+            authorization_policy: everyone_one_factor
+            consent_mode: implicit
+            require_pkce: true
+            pkce_challenge_method: S256
+            redirect_uris:
+              - "https://vault.vmd1.homelab/identity/connect/oidc-signin"
+            scopes: [openid, profile, email, offline_access]
+            grant_types: [authorization_code, refresh_token]
+            token_endpoint_auth_method: client_secret_basic
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: authelia
+  namespace: authelia
+  labels:
+    app: authelia
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app: authelia
+  template:
+    metadata:
+      labels:
+        app: authelia
+    spec:
+      # Kubernetes injects AUTHELIA_* service-link env vars for the Service named
+      # "authelia", which collide with Authelia's own env-based config
+      # (e.g. AUTHELIA_PORT vs server.address) and crash-loop the pod.
+      enableServiceLinks: false
+      automountServiceAccountToken: false
+      nodeSelector:
+        topology.kubernetes.io/zone: uk-home
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              preference:
+                matchExpressions:
+                  - key: kubernetes.io/hostname
+                    operator: In
+                    values:
+                      - hades-02
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app: authelia
+      containers:
+        - name: authelia
+          image: authelia/authelia:4.39.28
+          ports:
+            - name: http
+              containerPort: 9091
+          env:
+            - name: X_AUTHELIA_CONFIG_FILTERS
+              value: template
+            - name: AUTHELIA_IDENTITY_VALIDATION_RESET_PASSWORD_JWT_SECRET_FILE
+              value: /secrets/jwt_secret
+            - name: AUTHELIA_SESSION_SECRET_FILE
+              value: /secrets/session_secret
+            - name: AUTHELIA_STORAGE_ENCRYPTION_KEY_FILE
+              value: /secrets/storage_encryption_key
+            - name: AUTHELIA_STORAGE_POSTGRES_PASSWORD_FILE
+              value: /secrets/postgres_password
+            - name: AUTHELIA_IDENTITY_PROVIDERS_OIDC_HMAC_SECRET_FILE
+              value: /secrets/oidc_hmac_secret
+            - name: AUTHELIA_AUTHENTICATION_BACKEND_LDAP_PASSWORD_FILE
+              value: /secrets/ldap_password
+            - name: AUTHELIA_NOTIFIER_SMTP_PASSWORD_FILE
+              value: /secrets/smtp_password
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          volumeMounts:
+            - name: config
+              mountPath: /config/configuration.yml
+              subPath: configuration.yml
+              readOnly: true
+            - name: secrets
+              mountPath: /secrets
+              readOnly: true
+          readinessProbe:
+            httpGet: { path: /api/health, port: http }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /api/health, port: http }
+            initialDelaySeconds: 30
+            periodSeconds: 20
+            failureThreshold: 6
+      volumes:
+        - name: config
+          configMap: { name: authelia-config }
+        - name: secrets
+          secret: { secretName: authelia-secrets }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: authelia
+  namespace: authelia
+spec:
+  selector:
+    app: authelia
+  ports:
+    - name: http
+      port: 9091
+      targetPort: 9091
+  type: ClusterIP
