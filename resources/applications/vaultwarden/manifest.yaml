@@ -11,9 +11,12 @@ metadata:
   labels:
     app: vaultwarden
 spec:
-  replicas: 1
+  replicas: 2
   strategy:
-    type: Recreate
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
   selector:
     matchLabels:
       app: vaultwarden
@@ -25,6 +28,13 @@ spec:
       automountServiceAccountToken: false
       tolerations:
         - operator: Exists
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - topologyKey: topology.kubernetes.io/zone
+              labelSelector:
+                matchLabels:
+                  app: vaultwarden
       containers:
         - name: vaultwarden
           image: vaultwarden/server:latest
@@ -39,6 +49,12 @@ spec:
               value: "false"
             - name: WEBSOCKET_ENABLED
               value: "true"
+            # /data is a per-pod emptyDir, so attachments would only exist on one replica.
+            # A limit of 0 KB disables attachment uploads for users and organisations.
+            - name: USER_ATTACHMENT_LIMIT
+              value: "0"
+            - name: ORG_ATTACHMENT_LIMIT
+              value: "0"
             - name: DATABASE_URL
               valueFrom:
                 secretKeyRef:
@@ -49,6 +65,11 @@ spec:
                 secretKeyRef:
                   name: vaultwarden-secrets
                   key: ADMIN_TOKEN
+          readinessProbe:
+            httpGet:
+              path: /alive
+              port: http
+            periodSeconds: 10
           resources:
             requests:
               cpu: 100m

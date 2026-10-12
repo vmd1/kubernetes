@@ -30,6 +30,8 @@ Vaultwarden is an alternative Bitwarden server API implementation written in Rus
 
 ## Storage
 
+- **Two replicas across zones**: the Deployment runs 2 replicas (`RollingUpdate`, `maxUnavailable: 0`, readiness probe on `/alive`) with a *required* pod anti-affinity on `topology.kubernetes.io/zone`, so the replicas always land in different zones. Replicas are interchangeable because all state is in PostgreSQL and the RSA key and `config.json` come from the same Secret and ConfigMap.
+- **Attachments disabled**: `USER_ATTACHMENT_LIMIT=0` and `ORG_ATTACHMENT_LIMIT=0` turn off attachment uploads, because `/data` is a per-pod `emptyDir` and an attachment would only exist on one replica. Send *files* are also stored under `/data`, so they have the same limitation. WebSocket push notifications only reach clients connected to the same replica; normal sync is unaffected.
 - **Stateless Volume Setup**: Because user accounts, passwords, and vaults are stored inside the PostgreSQL database cluster, the local `/data` mount is backed by a transient `emptyDir: {}` volume.
 - **Static Configurations**: ConfigMap `vaultwarden-config` (`config.json`) and Secret `vaultwarden-keys` (`rsa_key.pem`) are projected as read-only subPath files into `/data` at start.
 
