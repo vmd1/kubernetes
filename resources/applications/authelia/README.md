@@ -30,7 +30,6 @@ Authelia is the cluster-wide OpenID Connect 1.0 provider, served at `identity.vm
 - **Authorization policies**: each oauth2-proxy client has its own policy (`domain_<slug>`) that allows only members of the matching lldap group `Domain: <domain>` (`two_factor`, deny everyone else), so access to one domain never implies another. Vaultwarden uses the built-in `one_factor` policy (any lldap user). Tighten or loosen per client in `identity_providers.oidc.authorization_policies`.
 - **Claims policy**: the `default` claims policy puts `email`, `email_verified`, `preferred_username`, `groups` and `name` into the ID token, which oauth2-proxy reads for headers.
 - **`enableServiceLinks: false`**: the Service is named `authelia`, so Kubernetes would otherwise inject `AUTHELIA_*` variables that collide with Authelia's env-based config and crash-loop the pod (same issue as the qecomp instance).
-- **DNS-only record**: `identity.vmd1.homelab` is deliberately not proxied by Cloudflare (`CF_PROXY_OFF` in `dns/domains/vmd1.homelab.js`). Backends such as Vaultwarden call the OIDC discovery/token endpoints server-to-server, and Cloudflare bot-challenges (HTTP 403) those requests from datacenter IPs such as the Oracle edge nodes.
 - **Image pinned** to `authelia/authelia:4.39.28`.
 
 ## Dependencies
