@@ -285,6 +285,10 @@ spec:
               value: "contains(groups[*], 'grafana-admin') && 'Admin' || contains(groups[*], 'grafana-editor') && 'Editor' || contains(groups[*], 'grafana-viewer') && 'Viewer'"
             - name: GF_AUTH_GENERIC_OAUTH_ALLOW_SIGN_UP
               value: "true"
+            # Sign-in is delegated to Authelia; hide the password form.
+            # Break-glass: remove this variable (or set it to "false") and redeploy.
+            - name: GF_AUTH_DISABLE_LOGIN_FORM
+              value: "true"
           volumeMounts:
             - name: datasources-volume
               mountPath: /etc/grafana/provisioning/datasources
