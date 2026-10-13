@@ -1,28 +1,33 @@
 # Docker Registry
 
-This folder deploys a private self-hosted Docker registry (`registry:2`). It provides in-cluster storage for custom container images, securing endpoints with htpasswd basic authentication.
+This folder deploys a private self-hosted Docker registry (`registry:2`). It provides in-cluster storage for custom container images, authenticating users against [lldap](../lldap/README.md) through a token server ([docker_auth](https://github.com/cesanta/docker_auth)).
 
 ## Breakdown of Files
 
 | File | Description |
 | :--- | :--- |
-| [manifest.yaml](manifest.yaml) | Full K8s manifest containing Namespace `registry`, PersistentVolumeClaim, Secret containing htpasswd strings, basicAuth Middleware, Deployment, Service, and Traefik `IngressRoute`. |
+| [manifest.yaml](manifest.yaml) | Namespace `registry`, PersistentVolumeClaim, `registry` Deployment and Service (token auth), `docker-auth` ConfigMap, Deployment and Service. |
+| [ingressroute.yaml](ingressroute.yaml) | Traefik `IngressRoute` for `registry.vmd1.homelab` (registry) and `registry.vmd1.homelab/auth` (token endpoint). |
+| [secrets.sops.yaml](secrets.sops.yaml) | SOPS-encrypted Secret `docker-auth-secrets` (token signing key and certificate, lldap bind password). |
 
 ## Design Decisions
 
-- **Secure Ingress with Middleware**: Rather than relying on registry-side basic auth configs, authentication is delegated to Traefik's `basicAuth` middleware (`registry-auth`) referencing htpasswd strings stored in `registry-auth-secret`.
+- **LDAP-backed token auth**: `registry:2` is configured with token authentication (`REGISTRY_AUTH=token`). `docker login` and pulls fetch a short-lived token from `docker-auth` at `https://registry.vmd1.homelab/auth`, which checks the user's lldap password and group membership. The registry verifies tokens against the signing certificate only and never sees passwords.
+- **Group-based access**: users must be in an lldap group to get a token. `registry-admin` can push and pull; `registry-pull` can only pull. `docker-auth` binds to lldap as the read-only `registry` service account and matches groups through the `memberOf` attribute.
 - **Golang Garbage Collection Tuning**: Injected `GOGC=50` environment variable to trigger garbage collection twice as fast as default. This limits memory bloat during massive parallel chunk pushes.
 - **Recreate Strategy**: The deployment is configured with `Recreate` to ensure the block volume is unmounted from old pods before scheduling new ones.
 
 ## Dependencies
 
-- **Traefik Ingress**: Leveraged for SSL termination and basic auth middleware execution.
+- **Traefik Ingress**: SSL termination and routing; `/auth` goes to `docker-auth`, everything else to the registry.
+- **lldap** (`lldap.lldap.svc.cluster.local:3890`): user and group directory, including the `registry` bind account.
 
 ## Services & Routers
 
-- **Kubernetes Service**: `registry` (ClusterIP, exposing port `5000` mapping to container port `5000`).
+- **Kubernetes Services**: `registry` (ClusterIP, port `5000`) and `docker-auth` (ClusterIP, port `5001`).
 - **Ingress Route**:
-  - Host `registry.vmd1.homelab` on `websecure` entrypoint, routing requests to `registry` service, protected by `registry-auth` basic auth middleware.
+  - Host `registry.vmd1.homelab` on `websecure` entrypoint, routing requests to the `registry` service (token-authenticated by the registry itself).
+  - Host `registry.vmd1.homelab` with path prefix `/auth` routing to the `docker-auth` service.
 
 ## Storage
 
@@ -41,5 +46,7 @@ This folder deploys a private self-hosted Docker registry (`registry:2`). It pro
 
 ## Configs & Credentials
 
-- **Secret**: `registry-auth-secret`
-  - Houses the user htpasswd credentials string (User: `admin`).
+- **Secret**: `docker-auth-secrets`
+  - `token.key` / `token.crt`: key pair `docker-auth` signs tokens with; the registry mounts only `token.crt`.
+  - `ldap_password`: password of the lldap `registry` bind account.
+- **Clients**: pulls from the cluster use a pull-only lldap account (`k3s-registry-pull`, member of `registry-pull`); the media namespace's `registry-kmnet-creds` image-pull secret and each node's k3s `registries.yaml` must carry its credentials. Pushers need an account in `registry-admin`.

@@ -16,15 +16,6 @@ spec:
     requests:
       storage: 10Gi
 ---
-apiVersion: traefik.io/v1alpha1
-kind: Middleware
-metadata:
-  name: registry-auth
-  namespace: registry
-spec:
-  basicAuth:
-    secret: registry-auth-secret
----
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -58,9 +49,24 @@ spec:
               value: ":5000"
             - name: REGISTRY_STORAGE_FILESYSTEM_ROOTDIRECTORY
               value: "/var/lib/registry"
+            # Token auth: docker-auth (LDAP/lldap-backed) issues tokens signed with the key in
+            # docker-auth-secrets; the registry only verifies them against the certificate.
+            - name: REGISTRY_AUTH
+              value: token
+            - name: REGISTRY_AUTH_TOKEN_REALM
+              value: https://registry.vmd1.homelab/auth
+            - name: REGISTRY_AUTH_TOKEN_SERVICE
+              value: registry.vmd1.homelab
+            - name: REGISTRY_AUTH_TOKEN_ISSUER
+              value: registry-token-issuer
+            - name: REGISTRY_AUTH_TOKEN_ROOTCERTBUNDLE
+              value: /auth/token.crt
           volumeMounts:
             - name: registry-data
               mountPath: /var/lib/registry
+            - name: token-cert
+              mountPath: /auth
+              readOnly: true
           resources:
             requests:
               cpu: 20m
@@ -72,6 +78,12 @@ spec:
         - name: registry-data
           persistentVolumeClaim:
             claimName: registry-pvc
+        - name: token-cert
+          secret:
+            secretName: docker-auth-secrets
+            items:
+              - key: token.crt
+                path: token.crt
 ---
 apiVersion: v1
 kind: Service
@@ -87,4 +99,105 @@ spec:
     - name: http
       port: 5000
       targetPort: 5000
+      protocol: TCP
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: docker-auth-config
+  namespace: registry
+data:
+  auth_config.yml: |
+    server:
+      addr: ":5001"
+    token:
+      issuer: registry-token-issuer
+      expiration: 900
+      certificate: /secrets/token.crt
+      key: /secrets/token.key
+    # Users authenticate against lldap. Only members of registry-admin (push/pull)
+    # or registry-pull (pull only) can obtain a token at all.
+    ldap_auth:
+      addr: lldap.lldap.svc.cluster.local:3890
+      bind_dn: uid=registry,ou=people,dc=kmnet,dc=uk
+      bind_password_file: /secrets/ldap_password
+      base: ou=people,dc=kmnet,dc=uk
+      filter: "(&(uid=${account})(|(memberOf=cn=registry-admin,ou=groups,dc=kmnet,dc=uk)(memberOf=cn=registry-pull,ou=groups,dc=kmnet,dc=uk)))"
+      labels:
+        group:
+          attribute: memberOf
+    acl:
+      - match:
+          labels:
+            group: "cn=registry-admin,ou=groups,dc=kmnet,dc=uk"
+        actions: ["*"]
+      - match:
+          type: repository
+          labels:
+            group: "cn=registry-pull,ou=groups,dc=kmnet,dc=uk"
+        actions: ["pull"]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: docker-auth
+  namespace: registry
+  labels:
+    app: docker-auth
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: docker-auth
+  template:
+    metadata:
+      labels:
+        app: docker-auth
+    spec:
+      automountServiceAccountToken: false
+      nodeSelector:
+        topology.kubernetes.io/zone: uk-home
+      containers:
+        - name: docker-auth
+          image: cesanta/docker_auth:1
+          args: ["/config/auth_config.yml"]
+          ports:
+            - containerPort: 5001
+              name: http
+          resources:
+            requests:
+              cpu: 10m
+              memory: 24Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+          volumeMounts:
+            - name: config
+              mountPath: /config
+              readOnly: true
+            - name: secrets
+              mountPath: /secrets
+              readOnly: true
+      volumes:
+        - name: config
+          configMap:
+            name: docker-auth-config
+        - name: secrets
+          secret:
+            secretName: docker-auth-secrets
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: docker-auth
+  namespace: registry
+  labels:
+    app: docker-auth
+spec:
+  selector:
+    app: docker-auth
+  ports:
+    - name: http
+      port: 5001
+      targetPort: 5001
       protocol: TCP

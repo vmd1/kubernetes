@@ -12,7 +12,7 @@ The [kustomization.yaml](kustomization.yaml) here is the Kustomize entrypoint fo
 | [lldap](lldap/README.md) | Lightweight LDAP user directory backed by the CNPG PostgreSQL cluster. |
 | [longhorn](longhorn/README.md) | Longhorn UI `IngressRoute` and the S3 `BackupTarget` (Backblaze B2). (Operator chart lives in [crds-and-operators/longhorn](../crds-and-operators/longhorn/README.md).) |
 | [oci-reboot](oci-reboot/README.md) | Watchdog controller that force-reboots unresponsive OCI nodes via the Oracle API. |
-| [registry](registry/README.md) | Private Docker registry with htpasswd basic auth behind Traefik. |
+| [registry](registry/README.md) | Private Docker registry with lldap-backed token auth (docker_auth) behind Traefik. |
 | [tailscale](tailscale/README.md) | Tailscale operator + region-aware connector/proxy-class automation controller. |
 | [traefik](traefik/README.md) | Traefik middlewares (rate-limit, security-headers, compress, TLS options), dashboard route, and the `uk-home` LoadBalancer. (Controller chart lives in [crds-and-operators/traefik](../crds-and-operators/traefik/README.md).) |
 

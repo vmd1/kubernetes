@@ -248,6 +248,43 @@ spec:
                   key: password
             - name: GF_DATABASE_SSL_MODE
               value: disable
+            - name: GF_SERVER_ROOT_URL
+              value: https://grafana.vmd1.homelab
+            - name: GF_AUTH_GENERIC_OAUTH_ENABLED
+              value: "true"
+            - name: GF_AUTH_GENERIC_OAUTH_NAME
+              value: Authelia
+            - name: GF_AUTH_GENERIC_OAUTH_CLIENT_ID
+              value: grafana
+            - name: GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: grafana-db-secret
+                  key: oidc_client_secret
+            - name: GF_AUTH_GENERIC_OAUTH_SCOPES
+              value: openid profile email groups
+            - name: GF_AUTH_GENERIC_OAUTH_AUTH_URL
+              value: https://identity.vmd1.homelab/api/oidc/authorization
+            - name: GF_AUTH_GENERIC_OAUTH_TOKEN_URL
+              value: https://identity.vmd1.homelab/api/oidc/token
+            - name: GF_AUTH_GENERIC_OAUTH_API_URL
+              value: https://identity.vmd1.homelab/api/oidc/userinfo
+            - name: GF_AUTH_GENERIC_OAUTH_USE_PKCE
+              value: "true"
+            - name: GF_AUTH_GENERIC_OAUTH_LOGIN_ATTRIBUTE_PATH
+              value: preferred_username
+            - name: GF_AUTH_GENERIC_OAUTH_NAME_ATTRIBUTE_PATH
+              value: name
+            - name: GF_AUTH_GENERIC_OAUTH_EMAIL_ATTRIBUTE_PATH
+              value: email
+            - name: GF_AUTH_GENERIC_OAUTH_GROUPS_ATTRIBUTE_PATH
+              value: groups
+            - name: GF_AUTH_GENERIC_OAUTH_ROLE_ATTRIBUTE_STRICT
+              value: "true"
+            - name: GF_AUTH_GENERIC_OAUTH_ROLE_ATTRIBUTE_PATH
+              value: "contains(groups[*], 'grafana-admin') && 'Admin' || contains(groups[*], 'grafana-editor') && 'Editor' || contains(groups[*], 'grafana-viewer') && 'Viewer'"
+            - name: GF_AUTH_GENERIC_OAUTH_ALLOW_SIGN_UP
+              value: "true"
           volumeMounts:
             - name: datasources-volume
               mountPath: /etc/grafana/provisioning/datasources
