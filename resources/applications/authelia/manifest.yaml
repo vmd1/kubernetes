@@ -89,6 +89,54 @@ data:
                   - ["group:qecomp-operator"]
                   - ["group:qecomp-video"]
                   - ["group:qecomp-viewer"]
+          grafana_users:
+            default_policy: deny
+            rules:
+              - policy: two_factor
+                subject:
+                  - ["group:grafana-admin"]
+                  - ["group:grafana-editor"]
+                  - ["group:grafana-viewer"]
+          nextcloud_users:
+            default_policy: deny
+            rules:
+              - policy: one_factor
+                subject:
+                  - ["group:nextcloud_users"]
+                  - ["group:nextcloud_admins"]
+          seerr_users:
+            default_policy: deny
+            rules:
+              - policy: one_factor
+                subject:
+                  - ["group:jellyfin"]
+                  - ["group:jellyfin_admin"]
+          jellyfin_users:
+            default_policy: deny
+            rules:
+              - policy: one_factor
+                subject:
+                  - ["group:jellyfin"]
+                  - ["group:jellyfin_admin"]
+          bookorbit_users:
+            default_policy: deny
+            rules:
+              - policy: one_factor
+                subject:
+                  - ["group:family"]
+          home_assistant_users:
+            default_policy: deny
+            rules:
+              - policy: one_factor
+                subject:
+                  - ["group:homeassistant_user"]
+                  - ["group:homeassistant_admin"]
+          continuwuity_users:
+            default_policy: deny
+            rules:
+              - policy: one_factor
+                subject:
+                  - ["group:synapse-users"]
           domain_kmnet_uk:
             default_policy: deny
             rules:
@@ -192,6 +240,110 @@ data:
             scopes: [openid, profile, email, offline_access]
             response_types: [code]
             grant_types: [authorization_code, refresh_token]
+            token_endpoint_auth_method: client_secret_basic
+          - client_id: grafana
+            client_name: "Grafana"
+            client_secret: "$pbkdf2-sha512$310000$GK/akg6KhtxkSPICpzrVuQ$M4eQSzDjCz.ooFEYVrl5eFYOLEf5GTS7I7hS7W95eX6RrAFhYsAj6Xi7tN.rri7OmHZmCVJU1M.j0FCuKH4rSw"
+            public: false
+            claims_policy: default
+            authorization_policy: grafana_users
+            consent_mode: implicit
+            require_pkce: true
+            pkce_challenge_method: S256
+            redirect_uris:
+              - "https://grafana.vmd1.homelab/login/generic_oauth"
+            scopes: [openid, profile, email, groups]
+            response_types: [code]
+            grant_types: [authorization_code]
+            token_endpoint_auth_method: client_secret_basic
+          - client_id: nextcloud
+            client_name: "Nextcloud"
+            client_secret: "$pbkdf2-sha512$310000$ciV8bqW/EMab4sBFIXvxBg$IwMEQ2MRJV8xexSfBNyKUq0klMFw8UTK6R29zb.0UwSyVerX4h8.kx5NZjQHFd7Qo/LwHkz9EFOVpmSi.y6wpg"
+            public: false
+            claims_policy: default
+            authorization_policy: nextcloud_users
+            consent_mode: implicit
+            require_pkce: true
+            pkce_challenge_method: S256
+            redirect_uris:
+              - "https://cloud.vmd1.homelab/apps/user_oidc/code"
+            scopes: [openid, profile, email, groups]
+            response_types: [code]
+            grant_types: [authorization_code]
+            token_endpoint_auth_method: client_secret_basic
+          - client_id: seerr
+            client_name: "Seerr"
+            client_secret: "$pbkdf2-sha512$310000$kSv7a3egyGCOXI4QnDfL7Q$HKW/0UaXQvj8Riv5yczPfgeQpjw.wKp8g/OrEE8fOTpZlHHVjeAdVbRMNHze.pP03FU6YZ1J2.PJWGprJn7hvg"
+            public: false
+            claims_policy: default
+            authorization_policy: seerr_users
+            consent_mode: implicit
+            require_pkce: true
+            pkce_challenge_method: S256
+            redirect_uris:
+              - "https://seerr.vmd1.homelab/login/oidc/callback"
+            scopes: [openid, profile, email, groups]
+            response_types: [code]
+            grant_types: [authorization_code]
+            token_endpoint_auth_method: client_secret_basic
+          - client_id: jellyfin
+            client_name: "Jellyfin"
+            client_secret: "$pbkdf2-sha512$310000$s5CGBdo4Ea1pjfT/YiOq0Q$8FRfy8t.NIcJbhzIa1FOzPgHak3Dam4NwTtuZCpLMmlx8kY434WH7wY15U26bjg37963X5klBY7yPZuZRRMYZg"
+            public: false
+            claims_policy: default
+            authorization_policy: jellyfin_users
+            consent_mode: implicit
+            require_pkce: true
+            pkce_challenge_method: S256
+            redirect_uris:
+              - "https://jellyfin.vmd1.homelab/sso/OID/redirect/authelia"
+            scopes: [openid, profile, email, groups]
+            response_types: [code]
+            grant_types: [authorization_code]
+            token_endpoint_auth_method: client_secret_post
+          - client_id: bookorbit
+            client_name: "BookOrbit"
+            client_secret: "$pbkdf2-sha512$310000$xJtkJr6bDbL5G0hwZNa4Tw$Tx93PmJSxOWHcrinUCj769uyKvS5OkXWtXH5Zn41bdGud5xmVMgOHMOEMu8/RJo4.k9QY/y2nUa2Jta7ohY6JA"
+            public: false
+            claims_policy: default
+            authorization_policy: bookorbit_users
+            consent_mode: implicit
+            require_pkce: true
+            pkce_challenge_method: S256
+            redirect_uris:
+              - "https://read.vmd1.homelab/oauth2-callback"
+              - "bookorbit://oauth2-callback"
+            scopes: [openid, profile, email, groups]
+            response_types: [code]
+            grant_types: [authorization_code]
+            token_endpoint_auth_method: client_secret_basic
+          - client_id: home-assistant
+            client_name: "Home Assistant"
+            client_secret: "$pbkdf2-sha512$310000$Jx7hjGiz9tYA2/Xz6HHulg$ct7rFHVVL8EaMOMwtr751l/bhc4ZKvnuUwLATUVe2k.hjqbPDEB4e6IQCS0P0v2t//Ry8CiECLNqJ3F6LWOyTw"
+            public: false
+            claims_policy: default
+            authorization_policy: home_assistant_users
+            consent_mode: implicit
+            require_pkce: true
+            pkce_challenge_method: S256
+            redirect_uris:
+              - "https://home.vmd1.homelab/auth/oidc/callback"
+            scopes: [openid, profile, email, groups]
+            response_types: [code]
+            grant_types: [authorization_code]
+            token_endpoint_auth_method: client_secret_post
+          - client_id: continuwuity
+            client_name: "Continuwuity (Matrix)"
+            client_secret: "$pbkdf2-sha512$310000$9M1dsREIV9jq.nnw.fAxQg$UbJIBLpsII.etGejE42OMoPKcoUGqLf9P3rxeVWy37bajE1CUm6ZM3kDyUfovZtUD6uS9eBz6gV63YokUs9Xcg"
+            public: false
+            claims_policy: default
+            authorization_policy: continuwuity_users
+            consent_mode: implicit
+            redirect_uris:
+              - "https://matrix.vmd1.homelab/_continuwuity/oidc/complete"
+            scopes: [openid, profile, email, groups]
+            response_types: [code]
+            grant_types: [authorization_code]
             token_endpoint_auth_method: client_secret_basic
 ---
 apiVersion: apps/v1
