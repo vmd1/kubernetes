@@ -25,6 +25,7 @@ BookOrbit is a self-hosted digital library and reading platform for ebooks, audi
 ## Design Decisions
 
 - **PostgreSQL & pgvector Backend**: Uses shared CNPG cluster `pg-cluster` in namespace `cnpg` with `vector`, `uuid-ossp`, `pg_trgm`, and `unaccent` extensions enabled.
+- **SSO through Authelia**: sign-in is delegated to the cluster-wide Authelia (OIDC provider `authelia`, client `bookorbit`, `client_secret_post`, PKCE). The provider is configured inside BookOrbit (Settings > OIDC / SSO, stored in its database, not in this repo): issuer `https://identity.vmd1.homelab`, scopes `openid profile email groups`, username claim `preferred_username`, and "Allow local account linking" on so existing local accounts attach by username. Auto-provisioning is off and no group-to-permission mappings are defined yet. `DISABLE_LOCAL_AUTH=true` removes the password form; to recover, unset it and redeploy. The Authelia policy `bookorbit_users` currently allows the lldap group `family`.
 - **Single Replica Strategy**: Deployment uses strategy `Recreate` to ensure safe volume detachment on Longhorn RWO volumes.
 
 ## Dependencies

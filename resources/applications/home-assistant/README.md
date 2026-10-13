@@ -13,7 +13,8 @@ Home Assistant is a home automation platform running locally in the cluster. It 
 
 - **Host Network Mode**: Runs with `hostNetwork: true` and `dnsPolicy: ClusterFirstWithHostNet`. This is crucial for local mDNS/SSDP smart home device auto-discovery (e.g. LIFX, Apple HomeKit, Google Cast) which relies on broadcast domains.
 - **Embedded File Browser Sidecar**: Integrates a `filebrowser/filebrowser` container in the same pod sharing the `/config` mount. This permits secure browser-based edits of YAML configurations without needing terminal access.
-- **SSO Gate on Editor**: While the primary Home Assistant dashboard (`home.vmd1.homelab`) uses its internal login system, the File Browser management dashboard (`edit-home.vmd1.homelab`) is gated behind oauth2-proxy (Authelia).
+- **SSO Gate on Editor**: The File Browser management dashboard (`edit-home.vmd1.homelab`) is gated behind oauth2-proxy (Authelia).
+- **Sign-in through Authelia**: the dashboard (`home.vmd1.homelab`) uses the `hass-oidc-auth` custom component (see [Single Sign-On](#single-sign-on-authelia)). The old LLDAP command-line auth provider was removed.
 
 ## Dependencies
 
@@ -50,3 +51,13 @@ Home Assistant is a home automation platform running locally in the cluster. It 
 
 - Configurations are stored directly inside files on the persistent volume `/config` (e.g., `configuration.yaml`).
 - Configured with Timezone `TZ: Europe/London`.
+
+## Single Sign-On (Authelia)
+
+Home Assistant signs in through the cluster-wide Authelia using the [`hass-oidc-auth`](https://github.com/christiaangoossens/hass-oidc-auth) custom component (v1.2.1). Everything below lives on the `/config` volume, not in this repo:
+
+- **Component**: installed manually into `/config/custom_components/auth_oidc` (from the release zip, not through HACS). Update it by replacing that folder and restarting.
+- **`configuration.yaml`**: an `auth_oidc:` block with client `home-assistant` (confidential client; the secret is `oidc_client_secret` in `secrets.yaml`), discovery URL `https://identity.vmd1.homelab/.well-known/openid-configuration`, groups scope `groups`, username claim `preferred_username`, and roles `admin: homeassistant_admin` / `user: homeassistant_user` (users in neither group are refused). In Authelia the client uses `client_secret_post` with PKCE.
+- **Auth providers kept**: `trusted_networks` for `192.168.1.0/24` and the built-in `homeassistant` login (a local backup login is also at `/?skip_oidc_redirect=true`). The LLDAP `command_line` provider and its script (`lldap-ha-auth.sh`) are no longer used; sessions that were created through it must sign in again.
+- **Account linking**: `features.automatic_user_linking: true` links existing Home Assistant users to OIDC logins by username. It is meant to be temporary: once everyone has signed in once, set it to `false` and restart.
+- Backups of the configuration before the change: `configuration.yaml.bak-oidc` and `secrets.yaml.bak-oidc` in `/config`.

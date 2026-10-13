@@ -18,7 +18,8 @@ This directory manages the homelab media stack. It aggregates media ingestion (`
 - **Node Co-location**: All components (`jellyfin`, `seerr`, and `download-agent`) are pinned to node `hades-01` via `nodeSelector`. This allows mounting a common local storage host path (`/mnt/huge/media`) without network overhead or latency.
 - **Resource Tuning**: Dotnet garbage collection (`DOTNET_GCDynamicAdaptationMode=1`) and Node.js garbage collection optimizations (`MALLOC_TRIM_THRESHOLD_=100000`) are applied to minimize inactive memory consumption.
 - **Low Idle Overhead**: Download Agent is configured with an explicit low CPU request (`30m`) so Kubernetes doesn't reserve excessive headroom on `hades-01` at rest.
-- **SSO for Download UI**: The download manager UI is gated behind oauth2-proxy + Authelia (`oauth2-proxy-kmnet-uk`), whereas Jellyfin relies on its native user credentials.
+- **Download Agent and Seerr are switched off**: neither is in use any more. `download-agent` has `replicas: 0` in [download-agent.yaml](download-agent.yaml), and the Seerr StatefulSet was scaled to 0 by hand (the chart has no replica setting; it persists unless the Helm chart is re-applied). Their manifests, ingress routes and volumes are kept so they can be brought back. The Seerr Authelia client was removed; re-add it if Seerr returns. Set `replicas: 1` (and scale the StatefulSet up) to restore.
+- **SSO**: Jellyfin signs in through Authelia using the SSO Authentication plugin (see [Jellyfin SSO](#jellyfin-sso)). The download manager UI (when running) is gated by oauth2-proxy + Authelia (`oauth2-proxy-kmnet-uk`).
 
 ## Dependencies
 
@@ -52,5 +53,14 @@ This directory manages the homelab media stack. It aggregates media ingestion (`
 
 ## Configs & Credentials
 
-- **Secret**: `registry-kmnet-creds` (registry access tokens).
+- **Secret**: `registry-kmnet-creds` (image-pull secret for `registry.vmd1.homelab`, holds the credentials of the pull-only lldap account `k3s-registry-pull`, a member of `registry-pull`).
 - Environmental configurations (`MALLOC_TRIM_THRESHOLD_`, `DOTNET_GCDynamicAdaptationMode`) are injected directly inside deployment charts.
+
+## Jellyfin SSO
+
+Jellyfin uses the SSO Authentication plugin (4.0.0.4, from the `https://raw.githubusercontent.com/9p4/jellyfin-plugin-sso/manifest-release/manifest.json` plugin repository) against the cluster-wide Authelia. The configuration is stored in the Jellyfin config volume, not in this repo:
+
+- **Provider `authelia`** (`/config/plugins/configurations/SSO-Auth.xml`): issuer `https://identity.vmd1.homelab`, client ID `jellyfin` (registered in Authelia with `client_secret_post`), role claim `groups`, allowed roles `jellyfin` and `jellyfin_admin`, admin role `jellyfin_admin`, scheme override `https`, pushed authorization disabled. The client secret is in that file (plaintext counterpart: `jellyfin_oidc_client_secret` in the Authelia Secret).
+- **Login button**: added through Dashboard > General > Branding (login disclaimer HTML plus a CSS line) with the Authelia logo; it links to `https://jellyfin.vmd1.homelab/sso/OID/start/authelia`.
+- **LDAP removed**: the LDAP-Auth plugin is disabled. Existing users created through LDAP keep their accounts; they sign in through Authelia, which matches by username. A local administrator (`vivaan_local`) remains as a fallback. Accounts that must use a password (for example shared TV devices) need a local password set under Dashboard > Users.
+- **Changing config**: edit the plugin's configuration and restart Jellyfin; the plugin reads it at startup.

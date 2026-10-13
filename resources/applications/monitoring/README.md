@@ -16,6 +16,7 @@ The monitoring namespace deploys log aggregation (`loki` + `promtail`), metrics 
 
 ## Design Decisions
 
+- **Grafana signs in through Authelia**: generic OAuth against `identity.vmd1.homelab` (client `grafana`, PKCE, `GF_AUTH_GENERIC_OAUTH_*` env vars in the Deployment). Roles come from the ID token `groups` claim: `grafana-admin` becomes Admin, `grafana-editor` Editor, `grafana-viewer` Viewer; anyone in none of those groups is refused (role mapping is strict, and the Authelia policy `grafana_users` also requires one of them plus two-factor). The password login form is hidden (`GF_AUTH_DISABLE_LOGIN_FORM=true`). Break-glass if Authelia is unavailable: remove that variable from the manifest and redeploy, then log in with the local `admin` account.
 - **PostgreSQL-backed Grafana**: Grafana is configured to use the high-availability CloudNativePG PostgreSQL database cluster instead of sqlite. This ensures dashboard edits and user profiles persist across restarts.
 - **Log Retention & Scrape Filtering**:
   - Loki retention is configured to `720h` (30 days) to bound disk growth.
@@ -59,4 +60,4 @@ The monitoring namespace deploys log aggregation (`loki` + `promtail`), metrics 
   - `loki-config`: Defines server configurations and compactor retention parameters.
   - `promtail-config`: Specifies the relabeling and discovery rules targeting only the `traefik` namespace.
   - `prometheus-config`: Dictates scraping jobs, metrics paths, and evaluation metrics.
-- **Secret**: `grafana-db-secret` (SOPS-encrypted in [secrets.sops.yaml](secrets.sops.yaml), stores Postgres credentials).
+- **Secret**: `grafana-db-secret` (SOPS-encrypted in [secrets.sops.yaml](secrets.sops.yaml), stores Postgres credentials as `password` and the Authelia OIDC client secret as `oidc_client_secret`; the hashed counterpart is in Authelia's config).

@@ -8,14 +8,14 @@ The [kustomization.yaml](kustomization.yaml) here is the Kustomize entrypoint th
 
 | Application | Description |
 | :--- | :--- |
-| [Authelia](authelia/README.md) | Cluster-wide OIDC provider (`identity.vmd1.homelab`) backed by lldap, CNPG and Redis. |
+| [Authelia](authelia/README.md) | Cluster-wide OIDC provider (`identity.vmd1.homelab`) backed by lldap, CNPG and Redis; native OIDC clients for Grafana, Nextcloud, Jellyfin, BookOrbit, Home Assistant, QEComp and Vaultwarden. |
 | [BookOrbit](bookorbit/README.md) | Digital library and reading platform (ebooks, audiobooks, comics, PDFs) with CNPG backend. |
 | [Cinepro](cinepro/README.md) | Media-aggregation API backend (`cinepro-core`) with Redis caching. |
 | [Gossip](gossip/README.md) | Gossip WebSocket relay and website (`gossip.vmd1.homelab`), single in-memory instance. |
 | [Headlamp](headlamp/README.md) | Kubernetes web UI dashboard with cluster-admin service account access. |
 | [Home Assistant](home-assistant/README.md) | Home automation core on the local subnet with a filebrowser sidecar. |
 | [Matrix](matrix/README.md) | Self-hosted Matrix stack: `continuwuity` homeserver, FluffyChat web client, and mautrix bridges. |
-| [Media](media/README.md) | Jellyfin streaming, Overseerr (`seerr`) requests, and a download agent. |
+| [Media](media/README.md) | Jellyfin streaming (Authelia SSO); Overseerr (`seerr`) and the download agent are currently scaled to zero. |
 | [Monitoring](monitoring/README.md) | Loki + Promtail logs, Prometheus + Node Exporter + Kube State Metrics, and Grafana. |
 | [MQTT](mqtt/README.md) | Eclipse Mosquitto broker for IoT/Home Assistant messaging. |
 | [Nextcloud](nextcloud/README.md) | Nextcloud + Collabora Online office suite with Backblaze B2 S3 primary storage. |
@@ -31,7 +31,7 @@ The [kustomization.yaml](kustomization.yaml) here is the Kustomize entrypoint th
 ## Common Patterns
 
 - **Ingress**: Applications are exposed via Traefik `IngressRoute` resources on `websecure` with the `cluster-wildcard-tls` certificate.
-- **Auth**: Many admin/status UIs are gated behind the per-domain `oauth2-proxy-<domain>` middlewares from the [oauth2-proxy](oauth2-proxy/README.md) namespace (Authelia SSO).
+- **Auth**: Grafana, Nextcloud, Jellyfin, BookOrbit, Home Assistant, QEComp and Vaultwarden sign in directly through Authelia (OIDC). Many other admin/status UIs (including LLDAP, UniFi and `status.vmd1.homelab`) are gated behind the per-domain `oauth2-proxy-<domain>` middlewares from the [oauth2-proxy](oauth2-proxy/README.md) namespace (Authelia SSO).
 - **Storage**: Stateful applications use `longhorn-single-replica` or `local-path` StorageClasses and pin to `region: uk-home` nodes.
 - **Secrets**: Credentials live in SOPS-encrypted `secrets.sops.yaml` files alongside each application.
 

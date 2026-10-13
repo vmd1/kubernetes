@@ -47,6 +47,10 @@ oauth2-proxy provides Traefik ForwardAuth for every protected domain, using [Aut
 | `vmd1.homelab` | `oauth2-proxy-010356-xyz` | `secure.vmd1.homelab` | `oauth2-proxy-010356-xyz` |
 | `vmd1.homelab` | `oauth2-proxy-848226-xyz` | `secure.vmd1.homelab` | `oauth2-proxy-848226-xyz` |
 
+## Protected Hosts
+
+Hosts currently gated by the `oauth2-proxy-kmnet-uk` middleware: `headlamp.vmd1.homelab`, `longhorn.vmd1.homelab`, `traefik.vmd1.homelab`, `edit-home.vmd1.homelab`, `matter.vmd1.homelab`, `download.vmd1.homelab`, `lldap.vmd1.homelab`, `unifi.vmd1.homelab` and `status.vmd1.homelab`. Access requires membership of the lldap group `Domain: vmd1.homelab` plus Authelia two-factor.
+
 ## Using the Middleware
 
 Reference the middleware for the route's domain from any `IngressRoute`:

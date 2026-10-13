@@ -24,7 +24,7 @@ Lldap is a simplified, lightweight LDAP server designed for user management. It 
 - **Kubernetes Services**:
   - `lldap` (ClusterIP, exposing port `17170` HTTP, `3890` LDAP, and `6360` LDAPS).
 - **Ingress Route**:
-  - Host `lldap.vmd1.homelab` on `websecure` entrypoint routing to service port `17170` (management console).
+  - Host `lldap.vmd1.homelab` on `websecure` entrypoint routing to service port `17170` (management console), gated by the `oauth2-proxy-kmnet-uk` forward-auth middleware (Authelia SSO). Because the UI is behind SSO, API clients can no longer call `/auth/simple/login` or the GraphQL API on this host from outside the cluster; in-cluster clients use the LDAP service directly.
 
 ## Storage
 
@@ -35,8 +35,8 @@ Lldap is a simplified, lightweight LDAP server designed for user management. It 
 
 - Runs 2 replicas with standard cluster scheduling policies.
 - **Resource Constraints**:
-  - Request: `50m` CPU, `128Mi` RAM.
-  - Limit: `300m` CPU, `384Mi` RAM.
+  - Request: `10m` CPU, `16Mi` RAM.
+  - Limit: `1000m` CPU, `64Mi` RAM. The CPU limit is deliberately generous: password binds are CPU-bound (about 1 s each when throttled at `100m`, about 150 ms now), and Authelia does several per sign-in.
 
 ## Configs & Credentials
 
@@ -47,3 +47,16 @@ Lldap is a simplified, lightweight LDAP server designed for user management. It 
   - `LLDAP_KEY_SEED`: key generation seed.
   - `LLDAP_DATABASE_URL`: URI detailing connection strings to the Postgres server.
 - **Configuration Variables**: Base DN configured to `dc=kmnet,dc=uk`, and system timezone mapped to `Europe/London`.
+
+## Groups used for access control
+
+Beyond the standard lldap groups, these groups gate access in other apps (create them in the lldap UI; membership is managed there):
+
+| Group | Used by |
+| :--- | :--- |
+| `Domain: <domain>` | oauth2-proxy forward-auth per domain (see [oauth2-proxy](../../applications/oauth2-proxy/README.md)) |
+| `grafana-admin`, `grafana-editor`, `grafana-viewer` | Grafana role mapping and access (see [monitoring](../../applications/monitoring/README.md)) |
+| `registry-admin`, `registry-pull` | Registry push/pull (see [registry](../registry/README.md)) |
+| `nextcloud_users`, `nextcloud_admins`, `jellyfin`, `jellyfin_admin`, `homeassistant_user`, `homeassistant_admin`, `family`, `qecomp-*`, `synapse-users` | Per-app Authelia authorization policies |
+
+Service accounts: `authelia` (Authelia's bind user), `registry` (docker-auth's read-only bind user), and `k3s-registry-pull` (pull-only registry account for the nodes and image-pull secrets).

@@ -33,3 +33,12 @@ Nextcloud uses native primary object storage (`\OC\Files\ObjectStore\S3`), bypas
 * **Forwarded Headers**: `HTTP_X_FORWARDED_FOR`
 * **Maintenance Window**: 01:00 UTC (`maintenance_window_start = 1`).
 * **In-Memory Cache**: APCu for local caching, Redis for distributed cache and transactional file locking.
+
+### Single Sign-On (Authelia)
+Nextcloud signs in through the cluster-wide Authelia using the `user_oidc` app. This configuration lives in Nextcloud's database, not in this repo, so it is recorded here:
+
+* **Provider**: `occ user_oidc:provider authelia` with client ID `nextcloud` (registered in Authelia with `client_secret_post` and PKCE), discovery URI `https://identity.vmd1.homelab/.well-known/openid-configuration`, scopes `openid profile email groups`.
+* **Mappings**: user ID from `preferred_username` (`--unique-uid=0`, so it matches the existing local usernames), display name from `name`, email from `email`, groups from `groups`; group provisioning is on and limited to groups matching `^nextcloud_`.
+* **Local login disabled**: `occ config:app:set user_oidc allow_multiple_user_backends --value=0` hides the password form and sends `/login` straight to Authelia. Break-glass: `https://cloud.vmd1.homelab/login?direct=1` still shows the local login. Re-enable the form by setting the value back to `1`.
+* **Admin rights**: the `nextcloud_admins` lldap group becomes a plain Nextcloud group and does **not** grant admin; admin remains the Nextcloud `admin` group (managed in Nextcloud).
+* **LDAP**: Nextcloud has no LDAP integration; the bundled `user_ldap` app is installed but disabled.
