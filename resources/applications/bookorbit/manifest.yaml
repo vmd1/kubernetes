@@ -94,6 +94,9 @@ spec:
               value: "true"
             - name: LIBRARY_BROWSE_ROOT
               value: "/books"
+            # Sign-in is delegated to Authelia (OIDC); password login is disabled.
+            - name: DISABLE_LOCAL_AUTH
+              value: "true"
             - name: NODE_MAX_OLD_SPACE_SIZE
               value: "2048"
           envFrom:

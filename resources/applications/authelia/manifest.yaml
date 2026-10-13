@@ -104,13 +104,6 @@ data:
                 subject:
                   - ["group:nextcloud_users"]
                   - ["group:nextcloud_admins"]
-          seerr_users:
-            default_policy: deny
-            rules:
-              - policy: one_factor
-                subject:
-                  - ["group:jellyfin"]
-                  - ["group:jellyfin_admin"]
           jellyfin_users:
             default_policy: deny
             rules:
@@ -271,21 +264,6 @@ data:
             response_types: [code]
             grant_types: [authorization_code]
             token_endpoint_auth_method: client_secret_post
-          - client_id: seerr
-            client_name: "Seerr"
-            client_secret: "$pbkdf2-sha512$310000$kSv7a3egyGCOXI4QnDfL7Q$HKW/0UaXQvj8Riv5yczPfgeQpjw.wKp8g/OrEE8fOTpZlHHVjeAdVbRMNHze.pP03FU6YZ1J2.PJWGprJn7hvg"
-            public: false
-            claims_policy: default
-            authorization_policy: seerr_users
-            consent_mode: implicit
-            require_pkce: true
-            pkce_challenge_method: S256
-            redirect_uris:
-              - "https://seerr.vmd1.homelab/login/oidc/callback"
-            scopes: [openid, profile, email, groups]
-            response_types: [code]
-            grant_types: [authorization_code]
-            token_endpoint_auth_method: client_secret_basic
           - client_id: jellyfin
             client_name: "Jellyfin"
             client_secret: "$pbkdf2-sha512$310000$s5CGBdo4Ea1pjfT/YiOq0Q$8FRfy8t.NIcJbhzIa1FOzPgHak3Dam4NwTtuZCpLMmlx8kY434WH7wY15U26bjg37963X5klBY7yPZuZRRMYZg"
