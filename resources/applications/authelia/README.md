@@ -10,6 +10,7 @@ Authelia is the cluster-wide OpenID Connect 1.0 provider, served at `identity.vm
 - [Services & Routers](#services--routers)
 - [Constraints & Scheduling](#constraints--scheduling)
 - [Configs & Credentials](#configs--credentials)
+- [Custom Theme](#custom-theme)
 - [OIDC Clients](#oidc-clients)
 - [Manual Setup Steps](#manual-setup-steps)
 
@@ -55,6 +56,16 @@ Authelia is the cluster-wide OpenID Connect 1.0 provider, served at `identity.vm
 
 - **ConfigMap `authelia-config`**: the full `configuration.yml`, including client definitions with pbkdf2 hashed secrets (hashes are not sensitive).
 - **Secret `authelia-secrets`**: `jwt_secret`, `session_secret`, `storage_encryption_key`, `oidc_hmac_secret`, `oidc_issuer_private_key.pem` (RSA 4096), `postgres_password`, `ldap_password`, `smtp_username`, `smtp_password`, and `<app>_oidc_client_secret` for `vaultwarden`, `nextcloud`, `jellyfin`, `bookorbit` and `home_assistant` (plaintext handoff for configuring each app; Authelia itself only stores the pbkdf2 hash in the ConfigMap). Grafana's plaintext secret lives in the monitoring Secret `grafana-db-secret` (`oidc_client_secret`).
+
+## Custom Theme
+
+The login UI is restyled to match vmd1.homelab (black background, frosted-glass cards, zinc palette, Inter). Authelia has no stylesheet setting and its CSP only allows same-origin resources, so a small nginx sidecar (`theme-proxy`, in the Authelia pods) does the work:
+
+- **[theme.yaml](theme.yaml)**: ConfigMap `authelia-theme` (`theme.css` and the `inter.woff2` font) and ConfigMap `authelia-nginx` (`nginx.conf`).
+- **How it works**: nginx listens on `:8080`, proxies everything to Authelia on `localhost:9091`, adds `<link rel="stylesheet" href="/custom/theme.css?v=1">` before `</head>` (`sub_filter`), and serves `/custom/*` from the ConfigMap. Forwarded headers from Traefik pass through unchanged.
+- **Routing**: Service `authelia-web` (`:8080`) is used only by the IngressRoute. The `authelia` Service (`:9091`) still goes straight to Authelia, so in-cluster clients are unaffected. To switch the theme off, point the IngressRoute back at `authelia:9091`.
+- **Editing the theme**: change `theme.css` in [theme.yaml](theme.yaml) and bump `?v=` in `nginx.conf` (browsers and the edge cache the stylesheet for an hour); the pods need a restart for the `nginx.conf` change. Authelia's UI is built on shadcn-style CSS variables (`--background`, `--card`, `--primary`, ...), so most restyling means changing those variables. Selectors that target Authelia's markup (cards, OTP boxes, the timer) may need adjusting after an Authelia upgrade.
+- **Font**: Inter (variable, latin) from `@fontsource-variable/inter`, SIL OFL 1.1.
 
 ## OIDC Clients
 

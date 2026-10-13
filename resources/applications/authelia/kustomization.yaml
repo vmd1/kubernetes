@@ -5,3 +5,4 @@ resources:
   - ingressroute.yaml
   - manifest.yaml
   - secrets.sops.yaml
+  - theme.yaml

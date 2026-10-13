@@ -417,11 +417,51 @@ spec:
             initialDelaySeconds: 30
             periodSeconds: 20
             failureThreshold: 6
+        # Sidecar that injects the custom stylesheet into Authelia's HTML (see theme.yaml).
+        # Only the IngressRoute talks to it; the `authelia` Service still points straight at Authelia.
+        - name: theme-proxy
+          image: nginxinc/nginx-unprivileged:1.27-alpine
+          ports:
+            - name: web
+              containerPort: 8080
+          securityContext:
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          resources:
+            requests:
+              cpu: 5m
+              memory: 16Mi
+            limits:
+              cpu: 200m
+              memory: 64Mi
+          volumeMounts:
+            - name: nginx-conf
+              mountPath: /etc/nginx/nginx.conf
+              subPath: nginx.conf
+              readOnly: true
+            - name: theme
+              mountPath: /theme
+              readOnly: true
+            - name: nginx-tmp
+              mountPath: /tmp
+          readinessProbe:
+            httpGet: { path: /api/health, port: web }
+            initialDelaySeconds: 3
+            periodSeconds: 10
       volumes:
         - name: config
           configMap: { name: authelia-config }
         - name: secrets
           secret: { secretName: authelia-secrets }
+        - name: nginx-conf
+          configMap: { name: authelia-nginx }
+        - name: theme
+          configMap: { name: authelia-theme }
+        - name: nginx-tmp
+          emptyDir: {}
 ---
 apiVersion: v1
 kind: Service
@@ -435,4 +475,19 @@ spec:
     - name: http
       port: 9091
       targetPort: 9091
+  type: ClusterIP
+---
+# Serves Authelia through the theme sidecar. Used by the IngressRoute only.
+apiVersion: v1
+kind: Service
+metadata:
+  name: authelia-web
+  namespace: authelia
+spec:
+  selector:
+    app: authelia
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
   type: ClusterIP
