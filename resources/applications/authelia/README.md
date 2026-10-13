@@ -49,7 +49,7 @@ Authelia is the cluster-wide OpenID Connect 1.0 provider, served at `identity.vm
 
 ## Constraints & Scheduling
 
-- 2 replicas, `RollingUpdate` (`maxUnavailable: 0`), `nodeSelector` `topology.kubernetes.io/zone: uk-home`, soft preference for `hades-02`, soft spread across hostnames.
+- 2 replicas, `RollingUpdate` (`maxUnavailable: 0`), `nodeSelector` `topology.kubernetes.io/zone: uk-home`, soft preference for `hades-02`, and a **hard** spread across hostnames (`DoNotSchedule`, `maxSkew: 1`, `matchLabelKeys: pod-template-hash`, `nodeTaintsPolicy: Honor`) so the replicas never share a node. If one node is down, the other node can still run both.
 - Requests `50m` / `64Mi`, limits `500m` / `256Mi`.
 
 ## Configs & Credentials

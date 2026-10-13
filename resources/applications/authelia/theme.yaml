@@ -243,7 +243,6 @@ data:
           proxy_set_header Accept-Encoding "";
 
           # Inject the stylesheet into Authelia's HTML shell. Bump ?v= when theme.css changes.
-          sub_filter_types text/html;
           sub_filter_once on;
           sub_filter '</head>' '<link rel="stylesheet" href="/custom/theme.css?v=1"></head>';
         }

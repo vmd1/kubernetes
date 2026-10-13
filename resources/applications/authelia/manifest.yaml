@@ -363,13 +363,19 @@ spec:
                     operator: In
                     values:
                       - hades-02
+      # Hard spread: the two replicas must run on different nodes (hades-01 / hades-02).
+      # matchLabelKeys scopes the count to the current ReplicaSet so rolling updates can still surge;
+      # nodeTaintsPolicy: Honor ignores a NotReady node, so the survivor can still run both replicas.
       topologySpreadConstraints:
         - maxSkew: 1
           topologyKey: kubernetes.io/hostname
-          whenUnsatisfiable: ScheduleAnyway
+          whenUnsatisfiable: DoNotSchedule
+          nodeTaintsPolicy: Honor
           labelSelector:
             matchLabels:
               app: authelia
+          matchLabelKeys:
+            - pod-template-hash
       containers:
         - name: authelia
           image: authelia/authelia:4.39.28
