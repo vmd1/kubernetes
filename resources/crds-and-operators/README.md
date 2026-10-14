@@ -12,6 +12,7 @@ The [kustomization.yaml](kustomization.yaml) here is the Kustomize entrypoint fo
 | [cnpg](cnpg/README.md) | CloudNativePG operator + `pg-cluster` high-availability PostgreSQL cluster. |
 | [kube-vip](kube-vip/README.md) | Kube-VIP load balancer providing virtual IPs on the `uk-home` zone. |
 | [longhorn](longhorn/README.md) | Longhorn operator chart, recurring backup jobs, and the S3 backup secret. (UI + BackupTarget live in [infrastructure/longhorn](../infrastructure/longhorn/README.md).) |
+| [edgesite](edgesite/README.md) | `EdgeSite` CRD for the edge-services platform. |
 | [multus](multus/README.md) | Multus CNI meta-plugin and the `storage-macvlan-eth0` network attachment for Longhorn. |
 | [oci-controller](oci-controller/README.md) | Shared SOPS secrets (`node-ssh-key`, `oci-credentials-<region>*`) for the `oci-controller` namespace. |
 | [oci-port-controller](oci-port-controller/README.md) | Controller + `OCIPortRule` CRD that opens ports on OCI security lists and host firewalls. |

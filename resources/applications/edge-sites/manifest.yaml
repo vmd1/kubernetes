@@ -1,0 +1,95 @@
+# Stateless nginx(+workerd) edge servers for EdgeSite resources (content synced by the edge-agent). Runs alongside (not instead of)
+# the legacy DaemonSet/edge-services in ../vmd1-dev until vmd1.homelab is migrated.
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: edge-sites
+  namespace: vmd1-web
+  labels:
+    app: edge-sites
+spec:
+  updateStrategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 2
+  selector:
+    matchLabels:
+      app: edge-sites
+  template:
+    metadata:
+      labels:
+        app: edge-sites
+    spec:
+      automountServiceAccountToken: false
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/arch
+                    operator: In
+                    values: [amd64]
+      tolerations:
+        - operator: Exists
+      containers:
+        - name: edge
+          # Fixed runtime image. Site content is synced at runtime by the edge-agent from the in-cluster
+          # registry (driven by ConfigMap/edge-manifest), so updating a site never pulls an image or restarts pods.
+          image: ghcr.io/vmd1/edge-runtime:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 80
+              protocol: TCP
+            - containerPort: 9100
+              name: agent
+              protocol: TCP
+          volumeMounts:
+            - name: edge-data
+              mountPath: /srv/edge
+            - name: edge-manifest
+              mountPath: /etc/edge-manifest
+              readOnly: true
+          envFrom:
+            - secretRef:
+                name: edge-worker-secrets
+                optional: true
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 80
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+      volumes:
+        # node-local scratch; refilled from the registry on pod start
+        - name: edge-data
+          emptyDir:
+            sizeLimit: 2Gi
+        - name: edge-manifest
+          configMap:
+            name: edge-manifest
+            optional: true
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: edge-sites
+  namespace: vmd1-web
+  labels:
+    app: edge-sites
+spec:
+  selector:
+    app: edge-sites
+  internalTrafficPolicy: Cluster
+  trafficDistribution: PreferSameZone
+  ports:
+    - name: http
+      port: 80
+      targetPort: 80
+      protocol: TCP

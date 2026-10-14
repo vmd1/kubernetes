@@ -5,6 +5,7 @@ resources:
   - authelia
   - bookorbit
   - cinepro
+  - edge-sites
   - gossip
   - headlamp
   - home-assistant

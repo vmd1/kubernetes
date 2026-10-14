@@ -26,6 +26,7 @@ The [kustomization.yaml](kustomization.yaml) here is the Kustomize entrypoint th
 | [UniFi](unifi/README.md) | UniFi Network Application for managing UniFi networking hardware. |
 | [Uptime Kuma](uptime-kuma/README.md) | Self-hosted uptime and latency monitoring. |
 | [Vaultwarden](vaultwarden/README.md) | Lightweight Bitwarden-compatible password vault (PostgreSQL + Authelia SSO). |
+| [Edge Sites](edge-sites/README.md) | CRD-driven edge serving platform (edge-operator + `edge-sites` DaemonSet) for static sites and Workers. |
 | [vmd1-dev](vmd1-dev/README.md) | Personal web/developer portal DaemonSet running on ingress edge nodes. |
 
 ## Common Patterns

@@ -1,0 +1,47 @@
+# Edge Sites (edge-services platform)
+
+Deploys the CRD-driven edge serving platform: the `edge-operator`, and the stateless `DaemonSet/edge-sites` that serves every `EdgeSite` (static sites and Workers) from the ingress edge nodes. Source and design live in [`edge-services/`](../../../../edge-services/README.md). It runs **alongside** the legacy [vmd1-dev](../vmd1-dev/README.md) DaemonSet; `vmd1.homelab` is migrated later.
+
+## Breakdown of Files
+
+| File | Description |
+| :--- | :--- |
+| [manifest.yaml](manifest.yaml) | `DaemonSet/edge-sites` (edge-agent + nginx + workerd, amd64 nodes, all taints tolerated, `emptyDir` content store, `edge-manifest` ConfigMap volume) and `Service/edge-sites` (`PreferSameZone`). |
+| [operator-rbac.yaml](operator-rbac.yaml) | ServiceAccount, namespaced Role and RoleBinding for the operator (EdgeSites, Jobs, CronJobs, ConfigMaps, Secrets, Pods, DaemonSet patch, IngressRoutes). |
+| [operator-deployment.yaml](operator-deployment.yaml) | `Deployment/edge-operator` (1 replica, pinned to `uk-home`). |
+
+## Design Decisions
+
+- **No image pulls on update:** the runtime image is fixed. The operator publishes `ConfigMap/edge-manifest` (site name, registry repo, image digest); the in-pod **edge-agent** downloads only the changed site's layer from the in-cluster registry Service over HTTP (verified by digest), validates the new nginx config, atomically swaps it in and reloads nginx. No pod restart, no kubelet pull, no bundle image. A failed update keeps serving the previous generation; the operator routes new sites only after every pod reports the new version on `:9100/status`.
+- **Operator-owned objects (not in git):** `ConfigMap/edge-manifest`, `ConfigMap/edge-bundle-state`, `IngressRoute/edge-sites`, `Secret/edge-worker-secrets`, per-site build Jobs and Worker `CronJob`s.
+- **Fast path:** plain static sites (no `install`/`command`) are built by the operator itself (clone, validate, one layer, push to the registry); no Job runs. Sites with commands, and Workers, use a build Job.
+- **Strict node isolation:** build Jobs are pinned to `topology.kubernetes.io/zone=uk-home` and `kubernetes.io/arch=amd64` (so currently `hades-02` only) and never tolerate the ingress taint; the operator asserts this before creating a Job.
+- **amd64 only:** the DaemonSet excludes arm64 `hades-01` (the legacy `edge-services` DaemonSet still runs on all 8 nodes).
+- **Registry:** Kaniko pushes to the unauthenticated in-cluster Service `registry.registry.svc.cluster.local:5000`, and the edge pods fetch from the same Service (pods resolve cluster DNS; no credentials, no Traefik, no TLS). Only the runtime image is pulled by the kubelet, from public ghcr.
+- **Hostnames/TLS:** hostnames must be covered by `cluster-wildcard-tls` and DNS (`dns/domains`). A hostname already routed by another IngressRoute (e.g. `vmd1.homelab`) must be removed there when its EdgeSite goes live.
+
+## Dependencies
+
+- `edgesite` CRD ([crds-and-operators/edgesite](../../crds-and-operators/edgesite/README.md)); Traefik CRDs and the `edge-retry`, `static-cache-headers` (vmd1-web), `compress` (traefik) middlewares and `edge-transport` ServersTransport.
+- The `registry` Service (reachable from pods), and images `ghcr.io/vmd1/edge-{operator,builder,runtime}` built by [`.github/workflows/edge-images.yaml`](../../../../.github/workflows/edge-images.yaml) (make the ghcr packages public).
+
+## Services & Routers
+
+- **Service:** `edge-sites` (ClusterIP, port `80`).
+- **IngressRoute:** `edge-sites` (created by the operator): one `Host(...)` rule per served `EdgeSite` -> `edge-sites:80`.
+
+## Storage
+
+None persistent. Edge pods keep a node-local `emptyDir` cache (content-addressed, garbage collected to the current and previous generation); the operator keeps state in a ConfigMap and EdgeSite `.status`.
+
+## Constraints & Scheduling
+
+- DaemonSet: RollingUpdate `maxUnavailable: 2`, requests `10m/32Mi`, limits `200m/128Mi`.
+- Edge pods: `emptyDir` `/srv/edge` capped at 2Gi, container limit `128Mi`.
+- Operator: `uk-home`, requests `20m/64Mi`, limits `500m/320Mi`, `/tmp` emptyDir (1Gi) for fast-path clones; set `EDGE_FAST_PATH=0` to force Jobs; at most `MAX_CONCURRENT_JOBS=1` build/bundle Job at a time (hades are ~77-79% memory).
+
+## Configs & Credentials
+
+- No manual secrets are required for the platform itself.
+- Repo allowlist: `EDGE_REPO_ALLOWLIST` (regex list, default `^https://github\.com/vmd1/`).
+- Optional per-site Secrets: `spec.repoSecretRef` (key `token`), `spec.secretRef` (Worker secrets).

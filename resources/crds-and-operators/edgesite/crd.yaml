@@ -1,0 +1,85 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: edgesites.edge.vmd1.homelab
+spec:
+  group: edge.vmd1.homelab
+  scope: Namespaced
+  names:
+    kind: EdgeSite
+    listKind: EdgeSiteList
+    plural: edgesites
+    singular: edgesite
+    shortNames:
+      - es
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      subresources:
+        status: {}
+      additionalPrinterColumns:
+        - name: Domain
+          type: string
+          jsonPath: .spec.domain
+        - name: Type
+          type: string
+          jsonPath: .status.type
+        - name: Phase
+          type: string
+          jsonPath: .status.phase
+        - name: SHA
+          type: string
+          jsonPath: .status.lastBuildSha
+        - name: Age
+          type: date
+          jsonPath: .metadata.creationTimestamp
+      schema:
+        openAPIV3Schema:
+          type: object
+          required: [spec]
+          properties:
+            spec:
+              type: object
+              required: [domain, repo]
+              properties:
+                domain:
+                  type: string
+                  description: Primary hostname served by this site.
+                  pattern: '^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$'
+                aliases:
+                  type: array
+                  description: Additional hostnames (e.g. www) served by this site.
+                  items:
+                    type: string
+                    pattern: '^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$'
+                repo:
+                  type: string
+                  description: Git repository URL (https) holding the site or Worker.
+                branch:
+                  type: string
+                  default: main
+                path:
+                  type: string
+                  description: Optional sub-directory of the repo that holds the site.
+                  default: ""
+                schedule:
+                  type: string
+                  description: Optional cron expression (UTC) for periodic rebuilds.
+                type:
+                  type: string
+                  description: auto detects edge-serve.yml (static) or wrangler config (worker).
+                  enum: [auto, static, worker]
+                  default: auto
+                env:
+                  type: string
+                  description: Wrangler environment ([env.<name>]) to use for workers.
+                repoSecretRef:
+                  type: string
+                  description: Name of a Secret (key "token") with a Git token for private repos.
+                secretRef:
+                  type: string
+                  description: Name of a Secret in this namespace whose keys become Worker secrets.
+            status:
+              type: object
+              x-kubernetes-preserve-unknown-fields: true

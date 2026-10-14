@@ -4,6 +4,7 @@ kind: Kustomization
 resources:
   - cert-manager
   - cnpg
+  - edgesite
   - kube-vip
   - longhorn
   - multus
