@@ -20,11 +20,11 @@ spec:
 
     serving:
       error_pages:
-        404: /404.html
-        500: /500/index.html
-        502: /500/index.html
-        503: /500/index.html
-        504: /500/index.html
+        "404": /404.html
+        "500": /500/index.html
+        "502": /500/index.html
+        "503": /500/index.html
+        "504": /500/index.html
       headers:
         - pattern: "\\.(css|js|mjs|woff2?|svg|png|jpe?g|gif|ico|webp|avif|map|wasm)$"
           headers:
