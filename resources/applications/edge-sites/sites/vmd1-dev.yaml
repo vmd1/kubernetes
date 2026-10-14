@@ -1,0 +1,11 @@
+# Hugo site from vmd1/vmd1.homelab, served at new.vmd1.homelab as a preview of the migration. At cutover change `domain`
+# to vmd1.homelab (and aliases) and remove those hosts from the legacy ../vmd1-dev IngressRoute in the same PR.
+apiVersion: edge.vmd1.homelab/v1alpha1
+kind: EdgeSite
+metadata:
+  name: vmd1-dev
+  namespace: vmd1-web
+spec:
+  domain: new.vmd1.homelab
+  repo: https://github.com/vmd1/vmd1.homelab
+  branch: main
