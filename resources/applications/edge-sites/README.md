@@ -1,11 +1,12 @@
 # Edge Sites (edge-services platform)
 
-Deploys the CRD-driven edge serving platform: the `edge-operator`, and the stateless `DaemonSet/edge-sites` that serves every `EdgeSite` (static sites and Workers) from the ingress edge nodes. Source and design live in [`edge-services/`](../../../../edge-services/README.md). It runs **alongside** the legacy [vmd1-dev](../vmd1-dev/README.md) DaemonSet; `vmd1.homelab` is migrated later.
+Deploys the CRD-driven edge serving platform: the `edge-operator`, and the stateless `DaemonSet/edge-sites` that serves every `EdgeSite` (static sites and Workers) from the ingress edge nodes. Source and design live in [`edge-services/`](../../../../edge-services/README.md). It replaced the old `vmd1-dev` DaemonSet (a single baked image of `vmd1.homelab`); `vmd1.homelab` is now the `vmd1-dev` EdgeSite.
 
 ## Breakdown of Files
 
 | File | Description |
 | :--- | :--- |
+| [shared.yaml](shared.yaml) | Namespace `vmd1-web`, `ServersTransport/edge-transport` and the `edge-retry` / `static-cache-headers` Middlewares that most apps' IngressRoutes reference. |
 | [manifest.yaml](manifest.yaml) | `DaemonSet/edge-sites` (edge-agent + nginx + workerd, amd64 nodes, all taints tolerated, `emptyDir` content store, `edge-manifest` ConfigMap volume) and `Service/edge-sites` (`PreferSameZone`). |
 | [operator-rbac.yaml](operator-rbac.yaml) | ServiceAccount, namespaced Role and RoleBinding for the operator (EdgeSites, Jobs, CronJobs, ConfigMaps, Secrets, Pods, DaemonSet patch, IngressRoutes). |
 | [sites/](sites) | One `EdgeSite` manifest per hosted site (listed in `kustomization.yaml`); the serve config lives inline under `spec.serve`. See [`edge-services/SITE-SETUP.md`](../../../../edge-services/SITE-SETUP.md). |
@@ -18,9 +19,9 @@ Deploys the CRD-driven edge serving platform: the `edge-operator`, and the state
 - **Operator-owned objects (not in git):** `ConfigMap/edge-manifest`, `ConfigMap/edge-bundle-state`, `IngressRoute/edge-sites`, `Secret/edge-worker-secrets`, per-site build Jobs and Worker `CronJob`s.
 - **Fast path:** plain static sites (no `install`/`command`) are built by the operator itself (clone, validate, one layer, push to the registry); no Job runs. Sites with commands, and Workers, use a build Job.
 - **Strict node isolation:** build Jobs are pinned to `topology.kubernetes.io/zone=uk-home` and `kubernetes.io/arch=amd64` (so currently `hades-02` only) and never tolerate the ingress taint; the operator asserts this before creating a Job.
-- **amd64 only:** the DaemonSet excludes arm64 `hades-01` (the legacy `edge-services` DaemonSet still runs on all 8 nodes).
+- **amd64 only:** the DaemonSet excludes arm64 `hades-01`.
 - **Registry:** everything uses `registry.vmd1.homelab` (token auth against lldap, see [registry](../../infrastructure/registry/README.md)). Kaniko and the operator's fast path push `edge/site-<name>`; the edge agents pull from it. The URL is configured once, in the operator's env (`REGISTRY_HOST`, `REGISTRY_URL` in [operator-deployment.yaml](operator-deployment.yaml)), and reaches the edge pods through the `registry` field of `ConfigMap/edge-manifest`. Only the runtime image is pulled by the kubelet, from public ghcr.
-- **Hostnames/TLS:** hostnames must be covered by `cluster-wildcard-tls` and DNS (`dns/domains`). A hostname already routed by another IngressRoute (e.g. `vmd1.homelab`) must be removed there when its EdgeSite goes live.
+- **Hostnames/TLS:** hostnames must be covered by `cluster-wildcard-tls` and DNS (`dns/domains`). A hostname must not also be routed by another IngressRoute (Traefik picks by rule length, so a longer rule elsewhere would shadow the edge route).
 
 ## Dependencies
 

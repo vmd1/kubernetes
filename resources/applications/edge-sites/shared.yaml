@@ -1,0 +1,38 @@
+# Objects in vmd1-web shared by the edge platform and by other apps' IngressRoutes (edge-retry is referenced from
+# most apps). They used to live in the legacy vmd1-dev folder (Namespace, ServersTransport) or were created by
+# hand (the two Middlewares, now adopted into git with the exact spec they had in the cluster).
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: vmd1-web
+---
+apiVersion: traefik.io/v1alpha1
+kind: ServersTransport
+metadata:
+  name: edge-transport
+  namespace: vmd1-web
+spec:
+  forwardingTimeouts:
+    dialTimeout: 10s
+    responseHeaderTimeout: 10s
+    idleConnTimeout: 30s
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: edge-retry
+  namespace: vmd1-web
+spec:
+  retry:
+    attempts: 3
+    initialInterval: 100ms
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: static-cache-headers
+  namespace: vmd1-web
+spec:
+  headers:
+    customResponseHeaders:
+      Cache-Control: "public, max-age=3600, must-revalidate"

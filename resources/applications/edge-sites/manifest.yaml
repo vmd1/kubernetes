@@ -1,5 +1,4 @@
-# Stateless nginx(+workerd) edge servers for EdgeSite resources (content synced by the edge-agent). Runs alongside (not instead of)
-# the legacy DaemonSet/edge-services in ../vmd1-dev until vmd1.homelab is migrated.
+# Stateless nginx(+workerd) edge servers for EdgeSite resources (content synced by the edge-agent).
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:

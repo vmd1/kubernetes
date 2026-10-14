@@ -1,7 +1,5 @@
 # The vmd1.homelab Hugo site (vmd1/vmd1.homelab). The serve config is NOT inline: it lives in the repo's edge-serve.yml
 # (the fallback source of the serve config), so the site's config changes with the site.
-# Until the legacy ../vmd1-dev IngressRoute stops matching vmd1.homelab, its (longer) rules win in Traefik and this
-# route receives no traffic; removing those rules is what flips vmd1.homelab over.
 apiVersion: edge.vmd1.homelab/v1alpha1
 kind: EdgeSite
 metadata:
