@@ -49,6 +49,14 @@ spec:
             - name: edge-manifest
               mountPath: /etc/edge-manifest
               readOnly: true
+          env:
+            # pull access to registry.vmd1.homelab (the registry URL comes from ConfigMap/edge-manifest)
+            - name: EDGE_REGISTRY_USERNAME
+              valueFrom:
+                secretKeyRef: {name: edge-registry-creds, key: username}
+            - name: EDGE_REGISTRY_PASSWORD
+              valueFrom:
+                secretKeyRef: {name: edge-registry-creds, key: password}
           envFrom:
             - secretRef:
                 name: edge-worker-secrets

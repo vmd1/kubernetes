@@ -9,6 +9,7 @@ Deploys the CRD-driven edge serving platform: the `edge-operator`, and the state
 | [manifest.yaml](manifest.yaml) | `DaemonSet/edge-sites` (edge-agent + nginx + workerd, amd64 nodes, all taints tolerated, `emptyDir` content store, `edge-manifest` ConfigMap volume) and `Service/edge-sites` (`PreferSameZone`). |
 | [operator-rbac.yaml](operator-rbac.yaml) | ServiceAccount, namespaced Role and RoleBinding for the operator (EdgeSites, Jobs, CronJobs, ConfigMaps, Secrets, Pods, DaemonSet patch, IngressRoutes). |
 | [sites/](sites) | One `EdgeSite` manifest per hosted site (listed in `kustomization.yaml`). See [`edge-services/SITE-SETUP.md`](../../../../edge-services/SITE-SETUP.md). |
+| [secrets.sops.yaml](secrets.sops.yaml) | SOPS-encrypted `Secret/edge-registry-creds` (registry login for the operator, Kaniko and the edge agents). |
 | [operator-deployment.yaml](operator-deployment.yaml) | `Deployment/edge-operator` (1 replica, pinned to `uk-home`). |
 
 ## Design Decisions
@@ -18,13 +19,13 @@ Deploys the CRD-driven edge serving platform: the `edge-operator`, and the state
 - **Fast path:** plain static sites (no `install`/`command`) are built by the operator itself (clone, validate, one layer, push to the registry); no Job runs. Sites with commands, and Workers, use a build Job.
 - **Strict node isolation:** build Jobs are pinned to `topology.kubernetes.io/zone=uk-home` and `kubernetes.io/arch=amd64` (so currently `hades-02` only) and never tolerate the ingress taint; the operator asserts this before creating a Job.
 - **amd64 only:** the DaemonSet excludes arm64 `hades-01` (the legacy `edge-services` DaemonSet still runs on all 8 nodes).
-- **Registry:** Kaniko pushes to the unauthenticated in-cluster Service `registry.registry.svc.cluster.local:5000`, and the edge pods fetch from the same Service (pods resolve cluster DNS; no credentials, no Traefik, no TLS). Only the runtime image is pulled by the kubelet, from public ghcr.
+- **Registry:** everything uses `registry.vmd1.homelab` (token auth against lldap, see [registry](../../infrastructure/registry/README.md)). Kaniko and the operator's fast path push `edge/site-<name>`; the edge agents pull from it. The URL is configured once, in the operator's env (`REGISTRY_HOST`, `REGISTRY_URL` in [operator-deployment.yaml](operator-deployment.yaml)), and reaches the edge pods through the `registry` field of `ConfigMap/edge-manifest`. Only the runtime image is pulled by the kubelet, from public ghcr.
 - **Hostnames/TLS:** hostnames must be covered by `cluster-wildcard-tls` and DNS (`dns/domains`). A hostname already routed by another IngressRoute (e.g. `vmd1.homelab`) must be removed there when its EdgeSite goes live.
 
 ## Dependencies
 
 - `edgesite` CRD ([crds-and-operators/edgesite](../../crds-and-operators/edgesite/README.md)); Traefik CRDs and the `edge-retry`, `static-cache-headers` (vmd1-web), `compress` (traefik) middlewares and `edge-transport` ServersTransport.
-- The `registry` Service (reachable from pods), and images `ghcr.io/vmd1/edge-{operator,builder,runtime}` built by [`.github/workflows/edge-images.yaml`](../../../../.github/workflows/edge-images.yaml) (make the ghcr packages public).
+- The `registry` and `docker-auth` apps (infrastructure), and images `ghcr.io/vmd1/edge-{operator,builder,runtime}` built by [`.github/workflows/edge-images.yaml`](../../../../.github/workflows/edge-images.yaml) (make the ghcr packages public).
 
 ## Services & Routers
 
@@ -43,6 +44,6 @@ None persistent. Edge pods keep a node-local `emptyDir` cache (content-addressed
 
 ## Configs & Credentials
 
-- No manual secrets are required for the platform itself.
+- [secrets.sops.yaml](secrets.sops.yaml): `Secret/edge-registry-creds` (SOPS), the lldap account `edge-services` (member of `registry-admin`: push + pull). Keys: `username`, `password`, and `config.json` (docker auth file mounted by Kaniko). Used by the operator (env `REGISTRY_USERNAME/PASSWORD`), build Jobs (Kaniko) and the edge pods (env `EDGE_REGISTRY_USERNAME/PASSWORD`). The edge pods only need pull access, so a separate `registry-pull` account would be a safer split.
 - Repo allowlist: `EDGE_REPO_ALLOWLIST` (regex list, default `^https://github\.com/vmd1/`).
 - Optional per-site Secrets: `spec.repoSecretRef` (key `token`), `spec.secretRef` (Worker secrets).

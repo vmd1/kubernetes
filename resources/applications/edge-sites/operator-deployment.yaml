@@ -29,10 +29,17 @@ spec:
               value: ghcr.io/vmd1/edge-builder:latest
             - name: RUNTIME_IMAGE
               value: ghcr.io/vmd1/edge-runtime:latest
-            - name: REGISTRY_INTERNAL
-              value: registry.registry.svc.cluster.local:5000
-            - name: REGISTRY_PUBLIC
+            # The one registry for builds (Kaniko, fast path) and for the edge pods' pulls (token auth).
+            - name: REGISTRY_HOST
               value: registry.vmd1.homelab
+            - name: REGISTRY_URL
+              value: https://registry.vmd1.homelab
+            - name: REGISTRY_USERNAME
+              valueFrom:
+                secretKeyRef: {name: edge-registry-creds, key: username}
+            - name: REGISTRY_PASSWORD
+              valueFrom:
+                secretKeyRef: {name: edge-registry-creds, key: password}
             - name: EDGE_REPO_ALLOWLIST
               value: '^https://github\.com/vmd1/'
             - name: MAX_CONCURRENT_JOBS
