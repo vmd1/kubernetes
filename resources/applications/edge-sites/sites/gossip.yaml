@@ -1,0 +1,12 @@
+# Static website for gossip.vmd1.homelab (the `site/` folder of vmd1/gossip, no build).
+# The relay keeps /connect, /healthz, /abuse and /.well-known/security.txt (see ../../gossip/ingressroute.yaml);
+# this site serves everything else on the host.
+apiVersion: edge.vmd1.homelab/v1alpha1
+kind: EdgeSite
+metadata:
+  name: gossip
+  namespace: vmd1-web
+spec:
+  domain: gossip.vmd1.homelab
+  repo: https://github.com/vmd1/gossip
+  branch: main

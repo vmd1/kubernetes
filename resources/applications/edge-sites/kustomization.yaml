@@ -5,3 +5,4 @@ resources:
   - manifest.yaml
   - operator-rbac.yaml
   - operator-deployment.yaml
+  - sites/gossip.yaml

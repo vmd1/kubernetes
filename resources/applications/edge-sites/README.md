@@ -8,6 +8,7 @@ Deploys the CRD-driven edge serving platform: the `edge-operator`, and the state
 | :--- | :--- |
 | [manifest.yaml](manifest.yaml) | `DaemonSet/edge-sites` (edge-agent + nginx + workerd, amd64 nodes, all taints tolerated, `emptyDir` content store, `edge-manifest` ConfigMap volume) and `Service/edge-sites` (`PreferSameZone`). |
 | [operator-rbac.yaml](operator-rbac.yaml) | ServiceAccount, namespaced Role and RoleBinding for the operator (EdgeSites, Jobs, CronJobs, ConfigMaps, Secrets, Pods, DaemonSet patch, IngressRoutes). |
+| [sites/](sites) | One `EdgeSite` manifest per hosted site (listed in `kustomization.yaml`). See [`edge-services/SITE-SETUP.md`](../../../../edge-services/SITE-SETUP.md). |
 | [operator-deployment.yaml](operator-deployment.yaml) | `Deployment/edge-operator` (1 replica, pinned to `uk-home`). |
 
 ## Design Decisions

@@ -1,13 +1,13 @@
 # Gossip Relay
 
-WebSocket relay for the Gossip apps, served at `wss://gossip.vmd1.homelab` (website at `/`).
+WebSocket relay for the Gossip apps, served at `wss://gossip.vmd1.homelab`. The website at `/` is served separately by the [edge-sites](../edge-sites/README.md) platform (`EdgeSite/gossip`, built from `site/` of `vmd1/gossip`); this app only handles the relay endpoints below.
 
 ## Breakdown of Files
 
 | File | Description |
 | :--- | :--- |
 | [manifest.yaml](manifest.yaml) | Namespace `gossip`, Deployment `gossip-relay` (`ghcr.io/vmd1/gossip/relay`, pinned tag, nodeSelector zone `uk-home`, read-only root FS) and ClusterIP Service on `:8080`. |
-| [ingressroute.yaml](ingressroute.yaml) | Traefik `IngressRoute` for `gossip.vmd1.homelab` (TLS from the `*.vmd1.homelab` wildcard). |
+| [ingressroute.yaml](ingressroute.yaml) | Traefik `IngressRoute` for the relay paths of `gossip.vmd1.homelab` (`/connect`, `/healthz`, `/abuse`, `/.well-known/security.txt`; priority 100; TLS from the `*.vmd1.homelab` wildcard). |
 
 ## Design Decisions
 
@@ -18,7 +18,7 @@ WebSocket relay for the Gossip apps, served at `wss://gossip.vmd1.homelab` (webs
 
 ## Endpoints
 
-`/connect` WebSocket, `/` website, `/healthz`, `/abuse`, `/.well-known/security.txt`.
+`/connect` WebSocket, `/healthz`, `/abuse`, `/.well-known/security.txt` (relay, via this IngressRoute); `/` and all other paths are the static website from the EdgeSite.
 
 ## Constraints & Scheduling
 
