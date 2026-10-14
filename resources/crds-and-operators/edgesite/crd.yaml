@@ -77,6 +77,21 @@ spec:
                 repoSecretRef:
                   type: string
                   description: Name of a Secret (key "token") with a Git token for private repos.
+                auth:
+                  type: object
+                  description: >-
+                    Require an Authelia login (the oauth2-proxy of the site's domain; access needs the lldap group
+                    "Domain: <domain>"). With no paths the whole site is gated; with paths only those prefixes are,
+                    through separate very-high-priority routes. Responses are never cacheable. Supported domains are
+                    those with an oauth2-proxy; any other domain makes the site Invalid and unrouted.
+                  properties:
+                    paths:
+                      type: array
+                      maxItems: 20
+                      description: Path prefixes to gate (e.g. /admin). Omit or use "/" to gate the whole site.
+                      items:
+                        type: string
+                        pattern: '^/[A-Za-z0-9._~/-]*$'
                 serve:
                   type: object
                   x-kubernetes-preserve-unknown-fields: true

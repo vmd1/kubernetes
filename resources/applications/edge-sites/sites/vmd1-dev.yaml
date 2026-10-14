@@ -9,3 +9,5 @@ spec:
   domain: vmd1.homelab
   repo: https://github.com/vmd1/vmd1.homelab
   branch: main
+  auth:
+    paths: ["/white-hat"]   # Authelia login for vmd1.homelab/white-hat/*
