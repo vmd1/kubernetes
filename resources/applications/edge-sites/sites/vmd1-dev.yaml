@@ -1,87 +1,13 @@
-# Hugo site from vmd1/vmd1.homelab, served at new.vmd1.homelab as a preview of the migration. At cutover change `domain`
-# to vmd1.homelab (and aliases) and remove those hosts from the legacy ../vmd1-dev IngressRoute in the same PR.
-# The serve config below is spec.serve (the default source); the repo's edge-serve.yml is only a fallback.
+# The vmd1.homelab Hugo site (vmd1/vmd1.homelab). The serve config is NOT inline: it lives in the repo's edge-serve.yml
+# (the fallback source of the serve config), so the site's config changes with the site.
+# Until the legacy ../vmd1-dev IngressRoute stops matching vmd1.homelab, its (longer) rules win in Traefik and this
+# route receives no traffic; removing those rules is what flips vmd1.homelab over.
 apiVersion: edge.vmd1.homelab/v1alpha1
 kind: EdgeSite
 metadata:
   name: vmd1-dev
   namespace: vmd1-web
 spec:
-  domain: new.vmd1.homelab
+  domain: vmd1.homelab
   repo: https://github.com/vmd1/vmd1.homelab
   branch: main
-  serve:
-    version: "1"
-
-    build:
-      engine: hugo
-      command: "hugo --gc --minify"
-      output_dir: public
-
-    serving:
-      error_pages:
-        "404": /404.html
-        "500": /500/index.html
-        "502": /500/index.html
-        "503": /500/index.html
-        "504": /500/index.html
-      headers:
-        - pattern: "\\.(css|js|mjs|woff2?|svg|png|jpe?g|gif|ico|webp|avif|map|wasm)$"
-          headers:
-            Cache-Control: "public, max-age=2592000, immutable"
-      routes:
-        - path: = /.well-known/webfinger
-          content_type: application/jrd+json
-          cors: true
-          return:
-            status: 200
-            body:
-              subject: "acct:viv@vmd1.homelab"
-              links:
-                - rel: "http://openid.net/specs/connect/1.0/issuer"
-                  href: "https://authentik.vmd1.homelab/application/o/tailscale-vmd1-dev/"
-        - path: = /.well-known/matrix/client
-          content_type: application/json
-          cors: true
-          return:
-            status: 200
-            body:
-              m.homeserver:
-                base_url: "https://matrix.vmd1.homelab"
-              org.matrix.msc4143.rtc_foci:
-                - type: livekit
-                  livekit_service_url: "https://call.vmd1.homelab"
-        - path: = /.well-known/matrix/server
-          content_type: application/json
-          cors: true
-          return:
-            status: 200
-            body:
-              m.server: "federation.vmd1.homelab:443"
-        - path: = /.well-known/matrix/support
-          content_type: application/json
-          cors: true
-          return:
-            status: 200
-            body:
-              contacts:
-                - email_address: "me@vmd1.homelab"
-                  matrix_id: "@admin:vmd1.homelab"
-                  role: m.role.admin
-        - path: = /.well-known/matrix/mautrix
-          content_type: application/json
-          cors: true
-          return:
-            status: 200
-            body:
-              fi.mau.bridges:
-                - "https://api.vmd1.homelab/v1/bridges/slack"
-                - "https://api.vmd1.homelab/v1/bridges/signal"
-                - "https://api.vmd1.homelab/v1/bridges/telegram"
-                - "https://api.vmd1.homelab/v1/bridges/whatsapp"
-                - "https://api.vmd1.homelab/v1/bridges/twitter"
-                - "https://api.vmd1.homelab/v1/bridges/gmessages"
-                - "https://api.vmd1.homelab/v1/bridges/discord"
-                - "https://api.vmd1.homelab/v1/bridges/linkedin"
-                - "https://api.vmd1.homelab/v1/bridges/meta"
-                - "https://api.vmd1.homelab/v1/bridges/googlechat"
