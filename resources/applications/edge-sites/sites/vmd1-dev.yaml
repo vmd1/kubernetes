@@ -10,4 +10,4 @@ spec:
   repo: https://github.com/vmd1/vmd1.homelab
   branch: main
   auth:
-    paths: ["/white-hat"]   # Authelia login for vmd1.homelab/white-hat/*
+    paths: ["/white-hat"]   # Authelia login for vmd1.homelab/white-hat/* (the operator generates the route)

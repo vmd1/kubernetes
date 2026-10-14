@@ -3,7 +3,6 @@ kind: Kustomization
 
 resources:
   - shared.yaml
-  - protected-routes.yaml
   - redirects.yaml
   - manifest.yaml
   - operator-rbac.yaml
