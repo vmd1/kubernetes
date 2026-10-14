@@ -1,0 +1,29 @@
+# www.vmd1.homelab -> vmd1.homelab (permanent). The wildcard DNS record and certificate already cover www, but nothing
+# routed it, so it returned a 404. A real 301 (path and query preserved) keeps search engines on one canonical host.
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: www-vmd1-dev-redirect
+  namespace: vmd1-web
+spec:
+  redirectRegex:
+    regex: "^https?://www\\.vmd1\\.dev/(.*)"
+    replacement: "https://vmd1.homelab/${1}"
+    permanent: true
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: vmd1-dev-www-redirect
+  namespace: vmd1-web
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`www.vmd1.homelab`)
+      kind: Rule
+      services:
+        - name: noop@internal # never reached: the redirect middleware answers first
+          kind: TraefikService
+      middlewares:
+        - name: www-vmd1-dev-redirect

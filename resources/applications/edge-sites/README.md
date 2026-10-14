@@ -8,6 +8,7 @@ Deploys the CRD-driven edge serving platform: the `edge-operator`, and the state
 | :--- | :--- |
 | [shared.yaml](shared.yaml) | Namespace `vmd1-web`, `ServersTransport/edge-transport` and the `edge-retry` / `static-cache-headers` Middlewares that most apps' IngressRoutes reference. |
 | [protected-routes.yaml](protected-routes.yaml) | `IngressRoute/vmd1-dev-white-hat` (`vmd1.homelab/white-hat/*`, priority 10000) behind the `oauth2-proxy-vmd1-dev` Authelia middleware, plus `Middleware/edge-no-store`. |
+| [redirects.yaml](redirects.yaml) | `www.vmd1.homelab` -> `vmd1.homelab` permanent redirect (`Middleware/www-vmd1-dev-redirect` + `IngressRoute/vmd1-dev-www-redirect`). |
 | [manifest.yaml](manifest.yaml) | `DaemonSet/edge-sites` (edge-agent + nginx + workerd, amd64 nodes, all taints tolerated, `emptyDir` content store, `edge-manifest` ConfigMap volume) and `Service/edge-sites` (`PreferSameZone`). |
 | [operator-rbac.yaml](operator-rbac.yaml) | ServiceAccount, namespaced Role and RoleBinding for the operator (EdgeSites, Jobs, CronJobs, ConfigMaps, Secrets, Pods, DaemonSet patch, IngressRoutes). |
 | [sites/](sites) | One `EdgeSite` manifest per hosted site (listed in `kustomization.yaml`); the serve config lives inline under `spec.serve`. See [`edge-services/SITE-SETUP.md`](../../../../edge-services/SITE-SETUP.md). |
