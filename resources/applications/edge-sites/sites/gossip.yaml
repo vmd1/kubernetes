@@ -1,6 +1,7 @@
-# Static website for gossip.vmd1.homelab (the `site/` folder of vmd1/gossip, no build).
+# Website for gossip.vmd1.homelab (the `site/` folder of vmd1/gossip, no build).
 # The relay keeps /connect, /healthz, /abuse and /.well-known/security.txt (see ../../gossip/ingressroute.yaml);
-# this site serves everything else on the host.
+# this site serves everything else on the host. The serve config below is spec.serve (the default source);
+# the repo's edge-serve.yml is only a fallback.
 apiVersion: edge.vmd1.homelab/v1alpha1
 kind: EdgeSite
 metadata:
@@ -10,3 +11,15 @@ spec:
   domain: gossip.vmd1.homelab
   repo: https://github.com/vmd1/gossip
   branch: main
+  serve:
+    version: "1"
+
+    build:
+      engine: static
+      output_dir: site
+
+    serving:
+      headers:
+        - pattern: "^/img/"
+          headers:
+            Cache-Control: "public, max-age=86400"

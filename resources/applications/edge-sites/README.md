@@ -8,7 +8,7 @@ Deploys the CRD-driven edge serving platform: the `edge-operator`, and the state
 | :--- | :--- |
 | [manifest.yaml](manifest.yaml) | `DaemonSet/edge-sites` (edge-agent + nginx + workerd, amd64 nodes, all taints tolerated, `emptyDir` content store, `edge-manifest` ConfigMap volume) and `Service/edge-sites` (`PreferSameZone`). |
 | [operator-rbac.yaml](operator-rbac.yaml) | ServiceAccount, namespaced Role and RoleBinding for the operator (EdgeSites, Jobs, CronJobs, ConfigMaps, Secrets, Pods, DaemonSet patch, IngressRoutes). |
-| [sites/](sites) | One `EdgeSite` manifest per hosted site (listed in `kustomization.yaml`). See [`edge-services/SITE-SETUP.md`](../../../../edge-services/SITE-SETUP.md). |
+| [sites/](sites) | One `EdgeSite` manifest per hosted site (listed in `kustomization.yaml`); the serve config lives inline under `spec.serve`. See [`edge-services/SITE-SETUP.md`](../../../../edge-services/SITE-SETUP.md). |
 | [secrets.sops.yaml](secrets.sops.yaml) | SOPS-encrypted `Secret/edge-registry-creds` (registry login for the operator, Kaniko and the edge agents). |
 | [operator-deployment.yaml](operator-deployment.yaml) | `Deployment/edge-operator` (1 replica, pinned to `uk-home`). |
 

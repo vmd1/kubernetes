@@ -77,6 +77,13 @@ spec:
                 repoSecretRef:
                   type: string
                   description: Name of a Secret (key "token") with a Git token for private repos.
+                serve:
+                  type: object
+                  x-kubernetes-preserve-unknown-fields: true
+                  description: >-
+                    The serve config (same schema as edge-serve.yml: version, build, serving). The default source:
+                    when set it is used as is; when absent the builder falls back to edge-serve.yml in the repo.
+                    Static sites only.
                 secretRef:
                   type: string
                   description: Name of a Secret in this namespace whose keys become Worker secrets.
