@@ -7,6 +7,7 @@ Deploys the CRD-driven edge serving platform: the `edge-operator`, and the state
 | File | Description |
 | :--- | :--- |
 | [shared.yaml](shared.yaml) | Namespace `vmd1-web`, `ServersTransport/edge-transport` and the `edge-retry` / `static-cache-headers` Middlewares that most apps' IngressRoutes reference. |
+| [protected-routes.yaml](protected-routes.yaml) | `IngressRoute/vmd1-dev-white-hat` (`vmd1.homelab/white-hat/*`, priority 10000) behind the `oauth2-proxy-vmd1-dev` Authelia middleware, plus `Middleware/edge-no-store`. |
 | [manifest.yaml](manifest.yaml) | `DaemonSet/edge-sites` (edge-agent + nginx + workerd, amd64 nodes, all taints tolerated, `emptyDir` content store, `edge-manifest` ConfigMap volume) and `Service/edge-sites` (`PreferSameZone`). |
 | [operator-rbac.yaml](operator-rbac.yaml) | ServiceAccount, namespaced Role and RoleBinding for the operator (EdgeSites, Jobs, CronJobs, ConfigMaps, Secrets, Pods, DaemonSet patch, IngressRoutes). |
 | [sites/](sites) | One `EdgeSite` manifest per hosted site (listed in `kustomization.yaml`); the serve config lives inline under `spec.serve`. See [`edge-services/SITE-SETUP.md`](../../../../edge-services/SITE-SETUP.md). |
@@ -21,6 +22,7 @@ Deploys the CRD-driven edge serving platform: the `edge-operator`, and the state
 - **Strict node isolation:** build Jobs are pinned to `topology.kubernetes.io/zone=uk-home` and `kubernetes.io/arch=amd64` (so currently `hades-02` only) and never tolerate the ingress taint; the operator asserts this before creating a Job.
 - **amd64 only:** the DaemonSet excludes arm64 `hades-01`.
 - **Registry:** everything uses `registry.vmd1.homelab` (token auth against lldap, see [registry](../../infrastructure/registry/README.md)). Kaniko and the operator's fast path push `edge/site-<name>`; the edge agents pull from it. The URL is configured once, in the operator's env (`REGISTRY_HOST`, `REGISTRY_URL` in [operator-deployment.yaml](operator-deployment.yaml)), and reaches the edge pods through the `registry` field of `ConfigMap/edge-manifest`. Only the runtime image is pulled by the kubelet, from public ghcr.
+- **Protecting part of a site:** the operator's `IngressRoute/edge-sites` only knows hostnames. To gate a path, add a separate IngressRoute in [protected-routes.yaml](protected-routes.yaml) for the same Service with a high explicit `priority`, the domain's `oauth2-proxy-<domain>` middleware first and `edge-no-store` (so Cloudflare never caches protected responses and skips the login). Access then needs the lldap group `Domain: <domain>`.
 - **Hostnames/TLS:** hostnames must be covered by `cluster-wildcard-tls` and DNS (`dns/domains`). A hostname must not also be routed by another IngressRoute (Traefik picks by rule length, so a longer rule elsewhere would shadow the edge route).
 
 ## Dependencies

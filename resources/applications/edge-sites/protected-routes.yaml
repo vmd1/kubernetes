@@ -1,0 +1,47 @@
+# Routes that put Authelia in front of part of a site served by the edge platform.
+#
+# vmd1.homelab/white-hat/*: a separate IngressRoute with a very high explicit priority, so it always wins over the
+# operator-generated `Host(vmd1.homelab)` catch-all in IngressRoute/edge-sites (which only has its rule length as
+# priority). The backend is the same edge-sites Service, so the content still comes from the vmd1.homelab EdgeSite;
+# the only difference is the oauth2-proxy-vmd1-dev forwardAuth middleware (Authelia login, group "Domain: vmd1.homelab").
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: vmd1-dev-white-hat
+  namespace: vmd1-web
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`vmd1.homelab`) && (Path(`/white-hat`) || PathPrefix(`/white-hat/`))
+      kind: Rule
+      priority: 10000
+      services:
+        - name: edge-sites
+          port: 80
+          serversTransport: edge-transport
+          nativeLB: true
+      middlewares:
+        - name: rate-limit
+          namespace: traefik
+        # authentication runs before anything is fetched from the backend
+        - name: oauth2-proxy-vmd1-dev
+          namespace: oauth2-proxy
+        - name: edge-no-store
+        - name: edge-retry
+        - name: compress
+          namespace: traefik
+        - name: security-headers
+          namespace: traefik
+---
+# Protected responses must never be stored by Cloudflare or browsers' shared caches: Cloudflare caches static file
+# types (images, css, js) regardless of auth, and a cache hit would skip the forwardAuth check entirely.
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: edge-no-store
+  namespace: vmd1-web
+spec:
+  headers:
+    customResponseHeaders:
+      Cache-Control: "private, no-store"
