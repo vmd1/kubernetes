@@ -6,7 +6,7 @@ Defines `edgesites.edge.vmd1.homelab` (`EdgeSite`, `edge.vmd1.homelab/v1alpha1`)
 
 | File | Description |
 | :--- | :--- |
-| [crd.yaml](crd.yaml) | The CustomResourceDefinition (namespaced, status subresource, printer columns). Source of truth is [`edge-services/crd/edgesite-crd.yaml`](../../../../edge-services/crd/edgesite-crd.yaml); keep the two identical. |
+| [crd.yaml](crd.yaml) | The CustomResourceDefinition (namespaced, status subresource, printer columns). This is the single source of the CRD; nothing under `edge-services/` duplicates it. |
 
 ## Design Decisions
 
