@@ -4,3 +4,4 @@ kind: Kustomization
 resources:
   - ingressroute.yaml
   - manifest.yaml
+  - allow-prometheus.yaml

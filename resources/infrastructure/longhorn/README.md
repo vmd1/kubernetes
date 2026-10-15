@@ -14,6 +14,7 @@ This folder complements the [Longhorn operator](../../crds-and-operators/longhor
 
 | File | Description |
 | :--- | :--- |
+| [allow-prometheus.yaml](allow-prometheus.yaml) | `NetworkPolicy` letting the monitoring `prometheus` pod reach `longhorn-manager` on `:9500` (Longhorn 1.12 NetworkPolicies otherwise refuse the metrics scrape). |
 | [manifest.yaml](manifest.yaml) | `IngressRoute` for the Longhorn UI (`longhorn.vmd1.homelab`) and the `BackupTarget` (`default`) pointing at Backblaze B2 S3. |
 | [kustomization.yaml](kustomization.yaml) | Kustomize entrypoint for this folder. |
 
