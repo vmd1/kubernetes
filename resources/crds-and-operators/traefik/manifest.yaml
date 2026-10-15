@@ -117,6 +117,157 @@ spec:
       - "--serverstransport.forwardingtimeouts.responseheadertimeout=15s"
       - "--serverstransport.forwardingtimeouts.idleconntimeout=90s"
 
+    # Local (inline) plugin serving /.vmd1/trace, see infrastructure/traefik/trace.yaml
+    env:
+      - name: NODE_NAME
+        valueFrom:
+          fieldRef:
+            fieldPath: spec.nodeName
+
+    experimental:
+      localPlugins:
+        vmd1trace:
+          moduleName: github.com/vmd1/traefik-trace
+          mountPath: /plugins-local/src/github.com/vmd1/traefik-trace
+          type: inlinePlugin
+          source:
+            .traefik.yml: |
+              displayName: vmd1 trace
+              type: middleware
+              import: github.com/vmd1/traefik-trace
+              summary: Answers /.vmd1/trace with connection info (host, ip, tls, http, node, region).
+              testData:
+                regions:
+                  zeus-01: uk-cloud
+            go.mod: |
+              module github.com/vmd1/traefik-trace
+
+              go 1.22
+            plugin.go: |
+              // Package traefiktrace answers requests with a plain-text description of the connection.
+              package traefiktrace
+
+              import (
+              	"context"
+              	"fmt"
+              	"net"
+              	"net/http"
+              	"os"
+              	"strings"
+              )
+
+              // Config maps node names to the region label reported as resp-reg.
+              type Config struct {
+              	Regions map[string]string `json:"regions,omitempty"`
+              }
+
+              // CreateConfig creates the default plugin configuration.
+              func CreateConfig() *Config {
+              	return &Config{Regions: map[string]string{}}
+              }
+
+              type trace struct {
+              	regions map[string]string
+              	node    string
+              }
+
+              // New creates the trace middleware. It never calls next: it is the response.
+              func New(_ context.Context, _ http.Handler, config *Config, _ string) (http.Handler, error) {
+              	return &trace{regions: config.Regions, node: os.Getenv("NODE_NAME")}, nil
+              }
+
+              func (t *trace) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
+              	region := t.regions[t.node]
+              	if region == "" {
+              		region = "unknown"
+              	}
+
+              	scheme := req.Header.Get("X-Forwarded-Proto")
+              	if scheme == "" {
+              		scheme = "http"
+              		if req.TLS != nil {
+              			scheme = "https"
+              		}
+              	}
+
+              	tlsVersion, sni := "none", "none"
+              	if req.TLS != nil {
+              		tlsVersion = tlsName(req.TLS.Version)
+              		if req.TLS.ServerName != "" {
+              			sni = "plaintext"
+              		}
+              	}
+
+              	country := req.Header.Get("CF-IPCountry")
+              	if country == "" {
+              		country = "unknown"
+              	}
+
+              	var b strings.Builder
+              	fmt.Fprintf(&b, "h=%s\n", req.Host)
+              	fmt.Fprintf(&b, "ip=%s\n", clientIP(req))
+              	fmt.Fprintf(&b, "visit_scheme=%s\n", scheme)
+              	fmt.Fprintf(&b, "uag=%s\n", clean(req.UserAgent()))
+              	fmt.Fprintf(&b, "resp-reg=%s\n", region)
+              	fmt.Fprintf(&b, "http=%s\n", httpName(req.Proto))
+              	fmt.Fprintf(&b, "req-reg=%s\n", country)
+              	fmt.Fprintf(&b, "tls=%s\n", tlsVersion)
+              	fmt.Fprintf(&b, "sni=%s\n", sni)
+              	fmt.Fprintf(&b, "node-name=%s\n", t.node)
+
+              	rw.Header().Set("Content-Type", "text/plain; charset=utf-8")
+              	rw.Header().Set("Cache-Control", "no-store")
+              	rw.Header().Set("X-Content-Type-Options", "nosniff")
+              	rw.WriteHeader(http.StatusOK)
+              	if req.Method != http.MethodHead {
+              		_, _ = rw.Write([]byte(b.String()))
+              	}
+              }
+
+              // clientIP returns the first X-Forwarded-For entry (Traefik already overwrites it for untrusted
+              // sources) and falls back to the socket peer.
+              func clientIP(req *http.Request) string {
+              	if xff := req.Header.Get("X-Forwarded-For"); xff != "" {
+              		return strings.TrimSpace(strings.Split(xff, ",")[0])
+              	}
+              	host, _, err := net.SplitHostPort(req.RemoteAddr)
+              	if err != nil {
+              		return req.RemoteAddr
+              	}
+              	return host
+              }
+
+              // clean strips newlines so a client cannot inject extra key=value lines.
+              func clean(s string) string {
+              	return strings.NewReplacer("\r", "", "\n", "").Replace(s)
+              }
+
+              func httpName(proto string) string {
+              	switch proto {
+              	case "HTTP/3.0":
+              		return "http/3"
+              	case "HTTP/2.0":
+              		return "http/2"
+              	default:
+              		return strings.ToLower(proto)
+              	}
+              }
+
+              func tlsName(v uint16) string {
+              	switch v {
+              	case 0x0304:
+              		return "TLSv1.3"
+              	case 0x0303:
+              		return "TLSv1.2"
+              	case 0x0302:
+              		return "TLSv1.1"
+              	case 0x0301:
+              		return "TLSv1.0"
+              	default:
+              		return fmt.Sprintf("0x%04x", v)
+              	}
+              }
+
     tlsStore:
       default:
         defaultCertificate:

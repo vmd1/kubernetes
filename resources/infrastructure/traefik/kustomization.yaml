@@ -9,3 +9,4 @@ resources:
   - rate-limit.yaml
   - tls-option.yaml
   - lb-uk-home.yaml
+  - trace.yaml

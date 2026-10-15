@@ -27,6 +27,7 @@ This folder contains only the **controller HelmChart**. The Traefik custom resou
 - **Cloudflare Forwarded Headers & Trusted Proxies**: Official Cloudflare IPv4/IPv6 CIDRs are configured as `forwardedHeaders.trustedIPs` on `web`/`websecure` entrypoints so real client IPs are preserved behind the CDN.
 - **HTTP/3 & JSON Logs**: HTTP/3 enabled on `websecure`; access logs emitted in JSON for Promtail/Loki parsing.
 - **Entrypoint Redirection**: `web` (80) permanently redirects to `websecure` (443).
+- **Trace Plugin**: the `vmd1trace` local plugin (`experimental.localPlugins`, `inlinePlugin` ConfigMap, Go source embedded in the HelmChart values) backs `/.vmd1/trace`; the `NODE_NAME` env var (downward API) feeds `node-name`. The route and middleware live in [infrastructure/traefik/](../../infrastructure/traefik/README.md).
 - **Server Transport Timeouts**: Dial/response-header timeouts set to 15s and idle connection timeout to 90s.
 
 ## Dependencies

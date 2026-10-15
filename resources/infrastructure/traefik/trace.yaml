@@ -1,0 +1,39 @@
+# GET https://<any domain>/.vmd1/trace -> plain-text connection info (answered by the vmd1trace
+# local plugin, see crds-and-operators/traefik/manifest.yaml). resp-reg is looked up by node name.
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: vmd1-trace
+  namespace: traefik
+spec:
+  plugin:
+    vmd1trace:
+      regions:
+        hades-01: uk-home
+        hades-02: uk-home
+        zeus-01: uk-cloud
+        zeus-02: uk-cloud
+        ares-01: in-cloud
+        ares-02: in-cloud
+        hera-01: eu-cloud
+        hera-02: eu-cloud
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: vmd1-trace
+  namespace: traefik
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    # No Host() on purpose: matches every domain. The priority keeps it above every site route.
+    - match: Path(`/.vmd1/trace`)
+      kind: Rule
+      priority: 1000000
+      services:
+        - name: noop@internal
+          kind: TraefikService
+      middlewares:
+        - name: rate-limit
+        - name: vmd1-trace
