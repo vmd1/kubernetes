@@ -12,7 +12,7 @@ Tailscale integrates the local Kubernetes cluster with a secure Tailscale overla
 ## Design Decisions
 
 - **Region-Aware Network Orchestration**:
-  - The custom controller (`watcher.py`) scans Kubernetes node objects for the `region` label (e.g. `region=uk-home`, `region=uk-cloud`).
+  - The custom controller (`watcher.py`) scans Kubernetes node objects for the `region` label (e.g. `region=uk-home`, `region=uk-london-cloud`).
   - It automatically generates Tailscale `Connector` and `ProxyClass` custom resources for each distinct region.
   - Dynamically configures connection parameters, such as a custom MTU value (`1130`) to resolve OCI overlay packet fragmentation.
 - **Failover Logic**:

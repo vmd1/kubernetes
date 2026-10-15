@@ -138,7 +138,7 @@ spec:
               summary: Answers /.vmd1/trace with connection info (host, ip, tls, http, node, region).
               testData:
                 regions:
-                  zeus-01: uk-cloud
+                  zeus-01: uk-london-cloud
             go.mod: |
               module github.com/vmd1/traefik-trace
 
