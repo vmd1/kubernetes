@@ -419,6 +419,10 @@ data:
             separator: '/'
             action: keep
             regex: longhorn-system/longhorn-backend
+          # longhorn-backend also exposes the webhook ports; only :9500 serves /metrics
+          - source_labels: [__meta_kubernetes_endpoint_port_number]
+            action: keep
+            regex: "9500"
 
       - job_name: 'cnpg'
         kubernetes_sd_configs:
