@@ -144,8 +144,8 @@ spec:
 
               go 1.22
             plugin.go: |
-              // Package traefiktrace answers requests with a plain-text description of the connection.
-              package traefiktrace
+              // Package traefik_trace answers requests with a plain-text description of the connection.
+              package traefik_trace
 
               import (
               	"context"
