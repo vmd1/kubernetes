@@ -197,7 +197,8 @@ spec:
       nativeLB: true
 ---
 # Lowest-priority catch-alls (Traefik's built-in 404 for unmatched requests bypasses entrypoint middlewares).
-# 1) The request names no hostname, only a bare IP address (IPv4 or [IPv6]) or has no Host at all: 404 + direct-IP page.
+# 1) The request names no hostname, only a bare IP address (IPv4 or [IPv6]): 404 + direct-IP page.
+#    (HostRegexp(`^$`) for a missing Host matches every request in Traefik v3.7, so it is not used.)
 #    Unknown *domains* are not matched here; they fall through to the generic 404 below.
 apiVersion: traefik.io/v1alpha1
 kind: IngressRoute
@@ -210,8 +211,7 @@ spec:
   routes:
     - match: >-
         HostRegexp(`^(\d{1,3}\.){3}\d{1,3}$`) ||
-        HostRegexp(`^\[[0-9a-fA-F:.]+\]$`) ||
-        HostRegexp(`^$`)
+        HostRegexp(`^\[[0-9a-fA-F:.]+\]$`)
       kind: Rule
       priority: 2
       services:
