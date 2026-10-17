@@ -5,12 +5,17 @@ metadata:
   namespace: traefik
 spec:
   headers:
-    browserXssFilter: true
     contentTypeNosniff: true
     forceSTSHeader: true
     stsSeconds: 31536000
     stsIncludeSubdomains: true
     stsPreload: true
+    # X-Frame-Options: DENY (frameDeny wins over customFrameOptionsValue, which was dead config)
     frameDeny: true
-    customFrameOptionsValue: "SAMEORIGIN"
     referrerPolicy: "same-origin"
+    # Only features no app here needs; camera/microphone/geolocation are left alone (Home Assistant, Collabora).
+    permissionsPolicy: "payment=(), usb=(), serial=(), bluetooth=(), interest-cohort=()"
+    customResponseHeaders:
+      # The legacy XSS auditor is removed from browsers and can itself introduce bugs: OWASP says send 0.
+      X-XSS-Protection: "0"
+      X-Permitted-Cross-Domain-Policies: "none"

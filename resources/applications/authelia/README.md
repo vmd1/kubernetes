@@ -45,7 +45,7 @@ Authelia is the cluster-wide OpenID Connect 1.0 provider, served at `identity.vm
 ## Services & Routers
 
 - **Service**: `authelia` (ClusterIP, `9091`).
-- **IngressRoute**: `identity.vmd1.homelab` with `rate-limit`, `edge-retry` (`vmd1-web`), `compress`, `security-headers`, `nativeLB: true`.
+- **IngressRoute**: `identity.vmd1.homelab` with `rate-limit-auth`, `edge-retry` (`vmd1-web`), `compress`, `security-headers`, `nativeLB: true`.
 
 ## Constraints & Scheduling
 

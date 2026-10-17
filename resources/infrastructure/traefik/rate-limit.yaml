@@ -7,3 +7,17 @@ spec:
   rateLimit:
     average: 300
     burst: 150
+---
+# Stricter tier for login/SSO endpoints (identity.vmd1.homelab, secure.<domain>/oauth2/). Normal page loads are well
+# under this; credential stuffing is not. Like `rate-limit`, requests are bucketed by the connecting address, which
+# for Cloudflare-proxied hosts is the Cloudflare edge IP (setting sourceCriterion.ipStrategy.excludedIPs was tried
+# and makes every direct client share one bucket, so it is deliberately not used).
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: rate-limit-auth
+  namespace: traefik
+spec:
+  rateLimit:
+    average: 30
+    burst: 60
