@@ -113,6 +113,12 @@ spec:
       - "--accesslog=true"
       - "--accesslog.format=json"
       - "--providers.kubernetescrd.allowCrossNamespace=true"
+      # Replace Traefik-generated 429/502/503/504 with the branded pages (Middleware error-pages, infrastructure/traefik).
+      # The middleware must exist before this rolls out: merge the infrastructure change first.
+      - "--entrypoints.websecure.http.middlewares=traefik-error-pages@kubernetescrd"
+      # Header and HTTP/2 limits (defaults: 1 MiB headers, 250 streams per connection)
+      - "--entrypoints.websecure.http.maxHeaderBytes=65536"
+      - "--entrypoints.websecure.http2.maxConcurrentStreams=100"
       - "--serverstransport.forwardingtimeouts.dialtimeout=15s"
       - "--serverstransport.forwardingtimeouts.responseheadertimeout=15s"
       - "--serverstransport.forwardingtimeouts.idleconntimeout=90s"

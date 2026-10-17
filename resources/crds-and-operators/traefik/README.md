@@ -28,6 +28,7 @@ This folder contains only the **controller HelmChart**. The Traefik custom resou
 - **HTTP/3 & JSON Logs**: HTTP/3 enabled on `websecure`; access logs emitted in JSON for Promtail/Loki parsing.
 - **Entrypoint Redirection**: `web` (80) permanently redirects to `websecure` (443).
 - **Trace Plugin**: the `vmd1trace` local plugin (`experimental.localPlugins`, `inlinePlugin` ConfigMap, Go source embedded in the HelmChart values) backs `/.vmd1/trace`; the `NODE_NAME` env var (downward API) feeds `node-name`. The route and middleware live in [infrastructure/traefik/](../../infrastructure/traefik/README.md).
+- **Entrypoint Limits & Error Pages**: `websecure` has `http.maxHeaderBytes=65536` (default 1 MiB), `http2.maxConcurrentStreams=100` (default 250) and the entrypoint-level middleware `traefik-error-pages@kubernetescrd` (defined in [infrastructure/traefik](../../infrastructure/traefik/README.md); that folder must be applied before this argument rolls out). Read/idle timeouts keep Traefik's defaults (60s read, 180s idle, no write timeout).
 - **Server Transport Timeouts**: Dial/response-header timeouts set to 15s and idle connection timeout to 90s.
 
 ## Dependencies
