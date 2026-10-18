@@ -23,6 +23,14 @@ data:
     add_header X-Robots-Tag "noindex, nofollow" always;
     add_header Content-Security-Policy "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'" always;
 
+    # Visitor IP for the "click to view IP" footer toggle (nginx SSI fills <!--# echo var="client_ip" -->).
+    # First X-Forwarded-For entry, restricted to IP characters so it is safe to print unescaped.
+    map $http_x_forwarded_for $client_ip {
+        default "unknown";
+        "~^\s*(?<first>[0-9A-Fa-f:.]+)" $first;
+    }
+    ssi on;
+
     # Error pages for Middleware error-pages: GET /<status>.html
     server {
         listen 8080 default_server;
@@ -103,7 +111,7 @@ spec:
           image: alpine:3.22
           env:
             - name: ERROR_PAGES_REF
-              value: 51c6ddb8a41a4f5f89c1f50d9822d779c302e2fe
+              value: 750c38a9616b5c5f28b4434cee9432b42c96a959
           command:
             - sh
             - -ec
