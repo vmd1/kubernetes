@@ -167,19 +167,53 @@ spec:
               	"strings"
               )
 
-              // Config maps node names to the region label reported as resp-reg.
+              // Config maps node names to the region label reported as resp-reg, and lists the Cloudflare IP ranges (default: Cloudflare's published list): the
+              // CF-IPCountry header is only believed when the TCP peer is inside one of them (anyone can send that header on a
+              // direct request to a node).
               type Config struct {
-              	Regions map[string]string `json:"regions,omitempty"`
+              	Regions         map[string]string `json:"regions,omitempty"`
+              	CloudflareCIDRs []string          `json:"cloudflareCIDRs,omitempty"`
+              }
+
+              // defaultCloudflareCIDRs is Cloudflare's published edge address list, the same one as the forwardedHeaders.trustedIPs
+              // of the Traefik entrypoints (crds-and-operators/traefik/manifest.yaml): keep the two in sync. The middleware config
+              // key cloudflareCIDRs replaces it when set.
+              var defaultCloudflareCIDRs = []string{
+              	"173.245.48.0/20",
+              	"103.21.244.0/22",
+              	"103.22.200.0/22",
+              	"103.31.4.0/22",
+              	"141.101.64.0/18",
+              	"108.162.192.0/18",
+              	"190.93.240.0/20",
+              	"188.114.96.0/20",
+              	"197.234.240.0/22",
+              	"198.41.128.0/17",
+              	"162.158.0.0/15",
+              	"104.16.0.0/13",
+              	"104.24.0.0/14",
+              	"172.64.0.0/13",
+              	"131.0.72.0/22",
+              	"2400:cb00::/32",
+              	"2606:4700::/32",
+              	"2803:f800::/32",
+              	"2405:b500::/32",
+              	"2405:8100::/32",
+              	"2a06:98c0::/29",
+              	"2c0f:f248::/32",
               }
 
               // CreateConfig creates the default plugin configuration.
               func CreateConfig() *Config {
-              	return &Config{Regions: map[string]string{}}
+              	cidrs := make([]string, len(defaultCloudflareCIDRs))
+              	copy(cidrs, defaultCloudflareCIDRs)
+              	return &Config{Regions: map[string]string{}, CloudflareCIDRs: cidrs}
               }
 
               type trace struct {
               	regions map[string]string
               	node    string
+              	cf      []*net.IPNet
               }
 
               // info is the connection description; the json tags are the key names of the text and JSON formats.
@@ -198,7 +232,48 @@ spec:
 
               // New creates the trace middleware. It never calls next: it is the response.
               func New(_ context.Context, _ http.Handler, config *Config, _ string) (http.Handler, error) {
-              	return &trace{regions: config.Regions, node: os.Getenv("NODE_NAME")}, nil
+              	var nets []*net.IPNet
+              	for _, c := range config.CloudflareCIDRs {
+              		_, n, err := net.ParseCIDR(strings.TrimSpace(c))
+              		if err != nil {
+              			return nil, fmt.Errorf("cloudflareCIDRs: %v", err)
+              		}
+              		nets = append(nets, n)
+              	}
+              	// An empty list trusts nobody: the country is then always "unknown" (fail closed).
+              	return &trace{regions: config.Regions, node: os.Getenv("NODE_NAME"), cf: nets}, nil
+              }
+
+              // fromCloudflare reports whether the TCP peer is a Cloudflare address.
+              func (t *trace) fromCloudflare(req *http.Request) bool {
+              	host, _, err := net.SplitHostPort(req.RemoteAddr)
+              	if err != nil {
+              		host = req.RemoteAddr
+              	}
+              	ip := net.ParseIP(host)
+              	if ip == nil {
+              		return false
+              	}
+              	for _, n := range t.cf {
+              		if n.Contains(ip) {
+              			return true
+              		}
+              	}
+              	return false
+              }
+
+              // validCountry accepts the two-character codes Cloudflare sends (ISO 3166 letters, "XX", "T1" for Tor).
+              func validCountry(c string) bool {
+              	if len(c) != 2 {
+              		return false
+              	}
+              	for i := 0; i < 2; i++ {
+              		ch := c[i]
+              		if !((ch >= 'A' && ch <= 'Z') || (ch >= '0' && ch <= '9')) {
+              			return false
+              		}
+              	}
+              	return true
               }
 
               func (t *trace) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
@@ -223,9 +298,14 @@ spec:
               		}
               	}
 
-              	country := req.Header.Get("CF-IPCountry")
-              	if country == "" {
-              		country = "unknown"
+              	// CF-IPCountry is set by Cloudflare, but any client can send it to a node directly, so it is only used when the
+              	// request really came through Cloudflare; otherwise the country is unknown (a GeoIP lookup can fill it in later).
+              	country := "unknown"
+              	if t.fromCloudflare(req) {
+              		c := strings.ToUpper(strings.TrimSpace(req.Header.Get("CF-IPCountry")))
+              		if validCountry(c) {
+              			country = c
+              		}
               	}
 
               	i := info{
