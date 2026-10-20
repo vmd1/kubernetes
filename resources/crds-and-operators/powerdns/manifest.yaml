@@ -28,9 +28,11 @@ spec:
       tolerations:
         - operator: Exists
       initContainers:
-        # Downloads GeoLite2-City.mmdb required for pickclosest geo distance.
-        - name: fetch-geoip-db
-          image: curlimages/curl:latest@sha256:a134550be58ab783810e613ae96fd253c38f7bdd16d9bf9be350700c7a29ac06
+        # GeoLite2-City.mmdb (needed for pickclosest geo distance) is kept fresh by the geoip-updater DaemonSet in
+        # /var/lib/geoip. Wait for it; if MaxMind is unreachable and the file never shows up, fall back to this
+        # node's old per-node cache so DNS can still start.
+        - name: wait-geoip-db
+          image: ghcr.io/maxmind/geoipupdate:v8.0.0@sha256:51e70dd6f16cd3e4d845ac02d09940b10772a75b9d741427d235a78570923c1d
           securityContext:
             runAsUser: 0
             runAsGroup: 0
@@ -39,25 +41,33 @@ spec:
             - -c
             - |
               DB=/geoip/GeoLite2-City.mmdb
-              if [ -f "$DB" ]; then
-                echo "GeoLite2-City.mmdb already cached on this node, skipping download"
+              i=0
+              while [ "$i" -lt 120 ]; do
+                if [ -s "$DB" ]; then echo "GeoLite2-City.mmdb is present ($(stat -c %s "$DB") bytes)"; exit 0; fi
+                echo "waiting for geoip-updater to provide $DB..."
+                i=$((i + 1))
+                sleep 5
+              done
+              if [ -s /legacy/GeoLite2-City.mmdb ]; then
+                echo "falling back to the old per-node cache"
+                cp /legacy/GeoLite2-City.mmdb "$DB.tmp" && mv "$DB.tmp" "$DB"
                 exit 0
               fi
-              echo "Downloading GeoLite2-City.mmdb..."
-              curl -sL "https://download.maxmind.com/app/geoip_download?edition_id=GeoLite2-City&license_key=${MAXMIND_LICENSE_KEY}&suffix=tar.gz" \
-                -o /tmp/geolite.tar.gz
-              tar -xzf /tmp/geolite.tar.gz -C /tmp
-              find /tmp -name "GeoLite2-City.mmdb" -exec cp {} "$DB" \;
-              echo "Cached GeoLite2-City.mmdb to $DB"
-          env:
-            - name: MAXMIND_LICENSE_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: maxmind-license
-                  key: license-key
+              echo "no GeoIP database available"
+              exit 1
+          resources:
+            requests:
+              cpu: 5m
+              memory: 8Mi
+            limits:
+              cpu: 50m
+              memory: 32Mi
           volumeMounts:
             - name: geoip
               mountPath: /geoip
+            - name: geoip-legacy
+              mountPath: /legacy
+              readOnly: true
 
       containers:
         - name: pdns
@@ -70,7 +80,7 @@ spec:
             - name: PDNS_launch
               value: "geoip"
             - name: PDNS_geoip_database_files
-              value: "/usr/share/GeoIP/GeoLite2-City.mmdb"
+              value: "/geoip/GeoLite2-City.mmdb"
             - name: PDNS_geoip_zones_file
               value: "/etc/powerdns/zones/geoip-zones.yaml"
             - name: PDNS_enable_lua_records
@@ -119,9 +129,11 @@ spec:
               name: dns-udp
 
           volumeMounts:
+            # The directory, not a single file: geoipupdate replaces the file atomically (new inode), which a subPath
+            # mount would never see.
             - name: geoip
-              mountPath: /usr/share/GeoIP/GeoLite2-City.mmdb
-              subPath: GeoLite2-City.mmdb
+              mountPath: /geoip
+              readOnly: true
             - name: config-volume
               mountPath: /etc/powerdns/zones
             - name: run-volume
@@ -143,8 +155,10 @@ spec:
             - sh
             - -c
             - |
-              echo "[config-watcher] Starting ConfigMap symlink watcher..."
+              echo "[config-watcher] Starting ConfigMap symlink and GeoIP database watcher..."
               last_target=""
+              db=/geoip/GeoLite2-City.mmdb
+              last_db=$(stat -c '%i-%Y-%s' "$db" 2>/dev/null || echo none)
               while true; do
                 if [ -L /etc/powerdns/zones/geoip-zones.yaml ]; then
                   current_target=$(readlink -f /etc/powerdns/zones/geoip-zones.yaml)
@@ -157,6 +171,13 @@ spec:
                     last_target="$current_target"
                   fi
                 fi
+                # geoipupdate replaces the database with a new file; pdns keeps the old one mapped until reloaded
+                # (verified: pdns_control reload re-opens it). Retry every 10 s until the reload succeeds.
+                cur_db=$(stat -c '%i-%Y-%s' "$db" 2>/dev/null || echo none)
+                if [ "$cur_db" != "none" ] && [ "$cur_db" != "$last_db" ]; then
+                  echo "[config-watcher] GeoIP database changed ($last_db -> $cur_db), running pdns_control reload..."
+                  if pdns_control --socket-dir=/var/run reload; then last_db="$cur_db"; fi
+                fi
                 sleep 10
               done
           volumeMounts:
@@ -164,6 +185,9 @@ spec:
               mountPath: /etc/powerdns/zones
             - name: run-volume
               mountPath: /var/run
+            - name: geoip
+              mountPath: /geoip
+              readOnly: true
           resources:
             requests:
               cpu: 10m
@@ -175,7 +199,11 @@ spec:
       volumes:
         - name: geoip
           hostPath:
-            path: /var/lib/powerdns/geoip
+            path: /var/lib/geoip # written by the geoip-updater DaemonSet
+            type: DirectoryOrCreate
+        - name: geoip-legacy
+          hostPath:
+            path: /var/lib/powerdns/geoip # the old per-node cache, only used as a fallback by wait-geoip-db
             type: DirectoryOrCreate
         - name: config-volume
           configMap:

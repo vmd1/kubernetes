@@ -27,7 +27,7 @@ Keeps the MaxMind **GeoLite2** databases up to date on every node, in one shared
 - **Official tool, conditional downloads:** `geoipupdate` asks MaxMind whether an edition changed (md5) and only downloads when it did (verified: a second run reports "up to date" without downloading), so the 12-hourly checks do not use MaxMind's daily download allowance. GeoLite2 is released on Tuesdays and Fridays. Needs the MaxMind **account ID** as well as the license key.
 - **Two editions:** `GeoLite2-City` (~51 MB, PowerDNS needs latitude/longitude for `pickclosest`) and `GeoLite2-Country` (~3.4 MB, small enough to hold inside the Traefik plugin).
 - **Shared hostPath, directory mounts:** files are written to `/var/lib/geoip` on the node (world-readable). Consumers must mount the **directory** read-only, not a single file with `subPath`: `geoipupdate` replaces files atomically, and a `subPath` mount would keep pointing at the old file.
-- **Previously** PowerDNS only downloaded its database if the file was missing (the node copy was never refreshed; it was 4 months old). Moving PowerDNS onto this directory is a follow-up change.
+- **PowerDNS** reads `/var/lib/geoip` (previously it only downloaded its own copy when the file was missing, so the node copy was 4 months old) and reloads itself when the file is replaced; see the [powerdns README](../powerdns/README.md).
 
 ## Dependencies
 
