@@ -15,7 +15,7 @@ Homelable is a self-hosted homelab diagram app with live status monitoring and a
 
 - **Prebuilt images pinned by digest** (`ghcr.io/vmd1/homelable-{backend,frontend}`; the registry only publishes `main` and `latest`, so the `main` multi-arch index digests are pinned). Bump by updating the digests.
 - **Single backend replica**: SQLite is single-writer, so the backend is 1 replica with strategy `Recreate`. The frontend (nginx) is stateless and proxies `/api/`, WebSockets, `/docs` to `backend.homelable.svc:8000`.
-- **SSO through Authelia**: `AUTH_MODE=oidc`, client `homelable` (`client_secret_post`, PKCE S256), callback `https://lab.vmd1.homelab/api/v1/auth/oidc/callback`. Policy `homelable_users` allows lldap group `admin` (`one_factor`). Local password login is not used; the plaintext client secret lives only in `homelable-secrets`, the pbkdf2 hash in the Authelia ConfigMap.
+- **SSO through Authelia**: `AUTH_MODE=oidc`, client `homelable` (`client_secret_basic`, PKCE S256), callback `https://lab.vmd1.homelab/api/v1/auth/oidc/callback`. Policy `homelable_users` allows lldap group `admin` (`one_factor`). Local password login is not used; the plaintext client secret lives only in `homelable-secrets`, the pbkdf2 hash in the Authelia ConfigMap.
 - **Kubernetes import** uses in-cluster config: the backend pod's ServiceAccount token and CA. RBAC is get/list on nodes, pods, services, namespaces and deployments, statefulsets, daemonsets only. No `KUBERNETES_*` env vars are set.
 - **Scanner off**: `SCANNER_RANGES=[]` (pod network cannot ARP-scan the LAN, no `hostNetwork`). The backend has `NET_RAW` for ping checks.
 - Runs as root in the image; no `runAsNonRoot`.
