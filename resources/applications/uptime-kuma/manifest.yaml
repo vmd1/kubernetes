@@ -72,7 +72,7 @@ spec:
           tolerationSeconds: 60
       containers:
         - name: uptime-kuma
-          image: louislam/uptime-kuma:2
+          image: louislam/uptime-kuma:2@sha256:9912da7d7d9b6ddc0c2d904beb84d24689c1ed9c33b81419eb9008663a92a329
           env:
             - name: MALLOC_TRIM_THRESHOLD_
               value: "100000"

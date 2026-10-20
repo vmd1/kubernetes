@@ -30,7 +30,7 @@ spec:
       initContainers:
         # Downloads GeoLite2-City.mmdb required for pickclosest geo distance.
         - name: fetch-geoip-db
-          image: curlimages/curl:latest
+          image: curlimages/curl:latest@sha256:a134550be58ab783810e613ae96fd253c38f7bdd16d9bf9be350700c7a29ac06
           securityContext:
             runAsUser: 0
             runAsGroup: 0
@@ -61,7 +61,7 @@ spec:
 
       containers:
         - name: pdns
-          image: dl010/powerdns-auth:5.0.5
+          image: dl010/powerdns-auth:5.0.5@sha256:1a1b824e9ee1c6442ee5942099d752efaa1fd78d0ce854a149d78086e1c83cce
           imagePullPolicy: Always
           securityContext:
             runAsUser: 0
@@ -135,7 +135,7 @@ spec:
               memory: 256Mi
 
         - name: config-watcher
-          image: dl010/powerdns-auth:5.0.5
+          image: dl010/powerdns-auth:5.0.5@sha256:1a1b824e9ee1c6442ee5942099d752efaa1fd78d0ce854a149d78086e1c83cce
           securityContext:
             runAsUser: 0
             runAsGroup: 0

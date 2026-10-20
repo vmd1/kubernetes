@@ -7,7 +7,7 @@ This directory hosts the self-hosted Matrix federation setup, utilizing the high
 | File | Description |
 | :--- | :--- |
 | [manifest.yaml](manifest.yaml) | Contains the deployments for `continuwuity`, `fluffychat`, and 6 `mautrix` bridge containers, along with ConfigMaps (continuwuity and fluffychat configs), services, and IngressRoutes. |
-| [secrets.sops.yaml](secrets.sops.yaml) | SOPS-encrypted Secret `matrix-db-secret` and ConfigMaps for each mautrix bridge (`mautrix-whatsapp-config`, `mautrix-discord-config`, `mautrix-googlechat-config`, `mautrix-gmessages-config`, `mautrix-linkedin-config`, `mautrix-meta-config`). |
+| [secrets.sops.yaml](secrets.sops.yaml) | SOPS-encrypted Secret `matrix-db-secret` and ConfigMaps for each mautrix bridge (`mautrix-whatsapp-config`, `mautrix-discord-config`, `mautrix-googlechat-config`, `mautrix-gmessages-config`, `mautrix-linkedin-config`). |
 | [migrate.ps1](migrate.ps1) | A migration automation script to copy files from local directories into the cluster's Persistent Volumes via `kubectl cp` and then trigger the application of `manifest.yaml`. |
 
 ## Design Decisions

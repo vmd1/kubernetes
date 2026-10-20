@@ -11,6 +11,7 @@ metadata:
 spec:
   repo: https://charts.longhorn.io
   chart: longhorn
+  version: 1.12.1
   targetNamespace: longhorn-system
   valuesContent: |-
     global:

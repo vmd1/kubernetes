@@ -3,8 +3,5 @@ kind: Kustomization
 
 resources:
   - 00-namespace-and-storage.yaml
-  - download-agent.yaml
   - jellyfin.yaml
-  - seerr.yaml
   - ingressroute.yaml
-  - secrets.sops.yaml

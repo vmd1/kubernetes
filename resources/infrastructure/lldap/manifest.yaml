@@ -60,7 +60,7 @@ spec:
           tolerationSeconds: 60
       containers:
         - name: lldap
-          image: lldap/lldap:latest
+          image: lldap/lldap:latest@sha256:bb6e509b4a44e8e9985acfd95d83a85e252ed81879254d9751b9926e3ac26c62
           ports:
             - name: ldap
               containerPort: 3890

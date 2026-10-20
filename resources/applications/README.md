@@ -16,7 +16,7 @@ The [kustomization.yaml](kustomization.yaml) here is the Kustomize entrypoint th
 | [Home Assistant](home-assistant/README.md) | Home automation core on the local subnet with a filebrowser sidecar. |
 | [Homelable](homelable/README.md) | Homelab diagram app with live status monitoring and read-only Kubernetes import (`lab.vmd1.homelab`), signing in through Authelia (OIDC). |
 | [Matrix](matrix/README.md) | Self-hosted Matrix stack: `continuwuity` homeserver, FluffyChat web client, and mautrix bridges. |
-| [Media](media/README.md) | Jellyfin streaming (Authelia SSO); Overseerr (`seerr`) and the download agent are currently scaled to zero. |
+| [Media](media/README.md) | Jellyfin streaming (Authelia SSO). |
 | [Monitoring](monitoring/README.md) | Loki + Promtail logs, Prometheus + Node Exporter + Kube State Metrics, and Grafana. |
 | [MQTT](mqtt/README.md) | Eclipse Mosquitto broker for IoT/Home Assistant messaging. |
 | [Nextcloud](nextcloud/README.md) | Nextcloud + Collabora Online office suite with Backblaze B2 S3 primary storage. |

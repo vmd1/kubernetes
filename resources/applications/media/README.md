@@ -1,6 +1,6 @@
-# Media Stack (Jellyfin, Seerr, Download Agent)
+# Media Stack (Jellyfin)
 
-This directory manages the homelab media stack. It aggregates media ingestion (`download-agent`), request management (`seerr`), and streaming playback (`jellyfin`).
+This directory manages Jellyfin, the homelab streaming server. Seerr (request management) and the download agent were removed; they can be restored from git history.
 
 ## Breakdown of Files
 
@@ -8,53 +8,29 @@ This directory manages the homelab media stack. It aggregates media ingestion (`
 | :--- | :--- |
 | [00-namespace-and-storage.yaml](00-namespace-and-storage.yaml) | Declares the namespace `media`. |
 | [jellyfin.yaml](jellyfin.yaml) | Deploys Jellyfin via a K3s HelmChart CRD, defining config paths, resources, and dotnet runtime properties. |
-| [jellyfin-ingressroute.yaml](jellyfin-ingressroute.yaml) | Traefik `IngressRoute` configuration for public media access. |
-| [seerr.yaml](seerr.yaml) | Deploys Overseerr (`seerr`) via an OCI-sourced HelmChart CRD, managing media request pipelines. |
-| [seerr-ingressroute.yaml](seerr-ingressroute.yaml) | Traefik `IngressRoute` configuration for request management endpoints. |
-| [download-agent.yaml](download-agent.yaml) | Deployment, Service, and IngressRoute resources for a custom download service. |
+| [ingressroute.yaml](ingressroute.yaml) | Traefik `IngressRoute` for `jellyfin.vmd1.homelab`. |
 
 ## Design Decisions
 
-- **Node Co-location**: All components (`jellyfin`, `seerr`, and `download-agent`) are pinned to node `hades-01` via `nodeSelector`. This allows mounting a common local storage host path (`/mnt/huge/media`) without network overhead or latency.
-- **Resource Tuning**: Dotnet garbage collection (`DOTNET_GCDynamicAdaptationMode=1`) and Node.js garbage collection optimizations (`MALLOC_TRIM_THRESHOLD_=100000`) are applied to minimize inactive memory consumption.
-- **Low Idle Overhead**: Download Agent is configured with an explicit low CPU request (`30m`) so Kubernetes doesn't reserve excessive headroom on `hades-01` at rest.
-- **Download Agent and Seerr are switched off**: neither is in use any more. `download-agent` has `replicas: 0` in [download-agent.yaml](download-agent.yaml), and the Seerr StatefulSet was scaled to 0 by hand (the chart has no replica setting; it persists unless the Helm chart is re-applied). Their manifests, ingress routes and volumes are kept so they can be brought back. The Seerr Authelia client was removed; re-add it if Seerr returns. Set `replicas: 1` (and scale the StatefulSet up) to restore.
-- **SSO**: Jellyfin signs in through Authelia using the SSO Authentication plugin (see [Jellyfin SSO](#jellyfin-sso)). The download manager UI (when running) is gated by oauth2-proxy + Authelia (`oauth2-proxy-kmnet-uk`).
-
-## Dependencies
-
-- **oauth2-proxy**: oauth2-proxy namespace middleware `oauth2-proxy-kmnet-uk` is required to protect the `download-agent` UI route.
-- **Private Image Registry**: The `download-agent` uses an image pull secret `registry-kmnet-creds` to retrieve the container from the local registry.
+- **Node Co-location**: Jellyfin is pinned to node `hades-01` via `nodeSelector` so it can mount the local media host path (`/mnt/huge/media`) without network overhead.
+- **Resource Tuning**: Dotnet garbage collection (`DOTNET_GCDynamicAdaptationMode=1`, `MALLOC_TRIM_THRESHOLD_=100000`) is tuned to minimize inactive memory consumption.
+- **SSO**: Jellyfin signs in through Authelia using the SSO Authentication plugin (see [Jellyfin SSO](#jellyfin-sso)).
+- **Removed workloads**: Seerr (`seerr.vmd1.homelab`) and the download agent (`download.vmd1.homelab`) are gone, along with the `registry-kmnet-creds` pull secret. The `seerr-config` PVC is not deleted by Flux and must be removed by hand if the data is no longer wanted.
 
 ## Services & Routers
 
-- **Services**:
-  - `jellyfin` (ClusterIP: `8096`).
-  - `seerr` (ClusterIP: `80` targeting port `5055`).
-  - `download-agent` (ClusterIP: `5000`).
-- **Ingress Routes**:
-  - `jellyfin.vmd1.homelab` -> routes to `jellyfin` on port `8096`.
-  - `seerr.vmd1.homelab` -> routes to `seerr` on port `80`.
-  - `download.vmd1.homelab` -> routes to `download-agent` on port `5000` (gated by oauth2-proxy (Authelia)).
+- **Services**: `jellyfin` (ClusterIP: `8096`).
+- **Ingress Routes**: `jellyfin.vmd1.homelab` -> `jellyfin` on port `8096`.
 
 ## Storage
 
-- **Core Media Storage**: Direct host path mapping (`/mnt/huge/media`) is used by both `jellyfin` and `download-agent` to eliminate virtualization disk overhead when processing multi-gigabyte media streams.
-- **Jellyfin Config Storage**: PVC mapping to `local-path` class (size `5Gi`) to keep server metadata, images, and user progress databases intact.
-- **Overseerr Config Storage**: PVC `seerr-config` (size `2Gi`, StorageClass `longhorn-single-replica`) to persist requesting histories, caches, and sync configs.
+- **Core Media Storage**: direct host path mapping (`/mnt/huge/media`) to eliminate virtualization disk overhead when streaming multi-gigabyte media.
+- **Jellyfin Config Storage**: PVC on the `local-path` class (size `5Gi`) holding server metadata, images, and user progress databases.
 
 ## Constraints & Scheduling
 
-- **Node Selectors**: Pinned to node `hades-01` via `kubernetes.io/hostname: hades-01`.
-- **Resource Limits**:
-  - **Jellyfin**: Request `250m` CPU, `512Mi` RAM. Limit `2` CPU, `4Gi` RAM.
-  - **Seerr**: Request `100m` CPU, `256Mi` RAM. Limit `512Mi` RAM.
-  - **Download-agent**: Request `30m` CPU. Limit `1.5` CPU.
-
-## Configs & Credentials
-
-- **Secret**: `registry-kmnet-creds` (image-pull secret for `registry.vmd1.homelab`, holds the credentials of the pull-only lldap account `k3s-registry-pull`, a member of `registry-pull`).
-- Environmental configurations (`MALLOC_TRIM_THRESHOLD_`, `DOTNET_GCDynamicAdaptationMode`) are injected directly inside deployment charts.
+- **Node Selectors**: pinned to node `hades-01` via `kubernetes.io/hostname: hades-01`.
+- **Resource Limits**: request `250m` CPU, `512Mi` RAM; limit `2` CPU, `4Gi` RAM.
 
 ## Jellyfin SSO
 

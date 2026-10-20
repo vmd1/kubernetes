@@ -51,7 +51,7 @@ spec:
           tolerationSeconds: 30
       containers:
         - name: home-assistant
-          image: ghcr.io/home-assistant/home-assistant:stable
+          image: ghcr.io/home-assistant/home-assistant:stable@sha256:33afb0659d786213264c2211f8d91c5fe87461c56eba6a3a546eb05fc71e89f4
           ports:
             - name: http
               containerPort: 8123
@@ -77,7 +77,7 @@ spec:
             - name: config-volume
               mountPath: /config
         - name: matter-server
-          image: ghcr.io/matter-js/matterjs-server:stable
+          image: ghcr.io/matter-js/matterjs-server:stable@sha256:b051f3f5bcc8df0f582773055d18e68136332135587d7bfc8b6c1bb8eacb75c7
           securityContext:
             runAsUser: 0
           env:
@@ -99,7 +99,7 @@ spec:
               subPath: matter-server-data
               mountPath: /data
         - name: filebrowser
-          image: filebrowser/filebrowser:v2
+          image: filebrowser/filebrowser:v2@sha256:a469ea076d4a1b4b1d86a41d130f2f536cd9da996a2b1fb39c0d7635f9d89b9a
           securityContext:
             runAsUser: 0
           args:

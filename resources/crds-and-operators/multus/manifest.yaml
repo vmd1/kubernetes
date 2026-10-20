@@ -6,6 +6,7 @@ metadata:
 spec:
   repo: https://rke2-charts.rancher.io
   chart: rke2-multus
+  version: v4.3.011
   targetNamespace: kube-system
   valuesContent: |-
     # Restrict DaemonSet to uk-home zone nodes only (hades-01)

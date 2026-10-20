@@ -15,9 +15,9 @@ spec:
     storage.vmd1.homelab/redis-server: "true"
   redisExporter:
     enabled: true
-    image: oliver006/redis_exporter:v1.67.0
+    image: oliver006/redis_exporter:v1.67.0@sha256:120f7ec77293459ccfdad66bb1db75ab72e8bfeab99f58b1cc2564cadcd7a9e7
   kubernetesConfig:
-    image: quay.io/opstree/redis:v7.0.12
+    image: quay.io/opstree/redis:v7.0.12@sha256:22061f566331bbe3dc7c42cfe79fbf5e1ed318e5ee63648ec6ebd79f0ebe4fbe
     imagePullPolicy: IfNotPresent
     resources:
       requests:
@@ -39,11 +39,11 @@ spec:
     storage.vmd1.homelab/redis-sentinel: "true"
   redisExporter:
     enabled: true
-    image: oliver006/redis_exporter:v1.67.0
+    image: oliver006/redis_exporter:v1.67.0@sha256:120f7ec77293459ccfdad66bb1db75ab72e8bfeab99f58b1cc2564cadcd7a9e7
   redisSentinelConfig:
     redisReplicationName: redis
   kubernetesConfig:
-    image: quay.io/opstree/redis-sentinel:v7.0.12
+    image: quay.io/opstree/redis-sentinel:v7.0.12@sha256:cb2b039352fc6d311fd4c6f2af5f9b0e022b2ac65ea90423f0d3cfabffc78b23
     imagePullPolicy: IfNotPresent
     resources:
       requests:
@@ -142,7 +142,7 @@ spec:
         - operator: Exists
       containers:
         - name: haproxy
-          image: haproxy:2.8-alpine
+          image: haproxy:2.8-alpine@sha256:094401c230b9bf01a6a4dc96e455795e261483f3bd2f42f19d0e6f259bd43837
           ports:
             - containerPort: 6379
               name: redis

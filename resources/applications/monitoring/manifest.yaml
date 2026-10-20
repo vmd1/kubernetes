@@ -103,7 +103,7 @@ spec:
         runAsGroup: 0
       containers:
         - name: loki
-          image: grafana/loki:3.0.0
+          image: grafana/loki:3.0.0@sha256:757b5fadf816a1396f1fea598152947421fa49cb8b2db1ddd2a6e30fae003253
           args:
             - -config.file=/etc/loki/loki.yaml
           ports:
@@ -218,7 +218,7 @@ spec:
                       - hades-02
       containers:
         - name: grafana
-          image: grafana/grafana:11.1.0
+          image: grafana/grafana:11.1.0@sha256:079600c9517b678c10cda6006b4487d3174512fd4c6cface37df7822756ed7a5
           ports:
             - name: http
               containerPort: 3000
@@ -582,7 +582,7 @@ spec:
         runAsGroup: 0
       containers:
         - name: prometheus
-          image: prom/prometheus:v3.0.0
+          image: prom/prometheus:v3.0.0@sha256:3b9b2a15d376334da8c286d995777d3b9315aa666d2311170ada6059a517b74f
           args:
             - --config.file=/etc/prometheus/prometheus.yml
             - --storage.tsdb.path=/prometheus
@@ -613,7 +613,7 @@ spec:
             - name: storage-volume
               mountPath: /prometheus
         - name: config-reloader
-          image: jimmidyson/configmap-reload:v0.9.0
+          image: jimmidyson/configmap-reload:v0.9.0@sha256:f34fe394b1dab3982025c4107df5526ca773bc245adac7dbef877ccb5f5d5df5
           args:
             - -volume-dir=/etc/prometheus
             - -webhook-url=http://127.0.0.1:9090/-/reload
@@ -710,7 +710,7 @@ spec:
           effect: NoExecute
       containers:
         - name: node-exporter
-          image: prom/node-exporter:v1.8.1
+          image: prom/node-exporter:v1.8.1@sha256:fa7fa12a57eff607176d5c363d8bb08dfbf636b36ac3cb5613a202f3c61a6631
           args:
             - --path.procfs=/host/proc
             - --path.sysfs=/host/sys
@@ -873,7 +873,7 @@ spec:
           effect: NoExecute
       containers:
         - name: promtail
-          image: grafana/promtail:3.0.0
+          image: grafana/promtail:3.0.0@sha256:d3de3da9431cfbe74a6a94555050df5257f357e827be8e63f8998d509c37af8b
           args:
             - -config.file=/etc/promtail/promtail.yaml
             - -config.expand-env=true

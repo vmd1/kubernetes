@@ -69,7 +69,7 @@ spec:
           tolerationSeconds: 60
       containers:
         - name: mosquitto
-          image: eclipse-mosquitto:2.0.18
+          image: eclipse-mosquitto:2.0.18@sha256:d12c8f80dfc65b768bb9acecc7ef182b976f71fb681640b66358e5e0cf94e9e9
           ports:
             - name: mqtt
               containerPort: 1883

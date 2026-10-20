@@ -49,4 +49,4 @@ This folder deploys a private self-hosted Docker registry (`registry:2`). It pro
 - **Secret**: `docker-auth-secrets`
   - `token.key` / `token.crt`: key pair `docker-auth` signs tokens with; the registry mounts only `token.crt`.
   - `ldap_password`: password of the lldap `registry` bind account.
-- **Clients**: pulls from the cluster use a pull-only lldap account (`k3s-registry-pull`, member of `registry-pull`); the media namespace's `registry-kmnet-creds` image-pull secret and each node's k3s `registries.yaml` must carry its credentials. Pushers need an account in `registry-admin`.
+- **Clients**: pulls from the cluster use a pull-only lldap account (`k3s-registry-pull`, member of `registry-pull`); each node's k3s `registries.yaml` must carry its credentials. Pushers need an account in `registry-admin`.

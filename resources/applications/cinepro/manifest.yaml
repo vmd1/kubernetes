@@ -43,7 +43,7 @@ spec:
           tolerationSeconds: 60
       containers:
         - name: cinepro-core
-          image: ghcr.io/cinepro-org/core:latest
+          image: ghcr.io/cinepro-org/core:latest@sha256:47af79dc6a91e98221a4ac64914a2d4138e11a07a6bf23f577794d68e67ce381
           ports:
             - containerPort: 3000
               protocol: TCP

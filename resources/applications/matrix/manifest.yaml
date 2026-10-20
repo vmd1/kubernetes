@@ -68,7 +68,7 @@ spec:
       automountServiceAccountToken: false
       containers:
         - name: continuwuity
-          image: forgejo.ellis.link/continuwuation/continuwuity:latest-maxperf
+          image: forgejo.ellis.link/continuwuation/continuwuity:latest-maxperf@sha256:14689dfb874405bd72e3b84bf5d394d2ab6a1bb959ff9d458af0ca5a373dafed
           command: ["/sbin/conduwuit"]
           envFrom:
             - configMapRef:
@@ -128,7 +128,7 @@ spec:
               app: mautrix-whatsapp
       containers:
         - name: bridge
-          image: dock.mau.dev/mautrix/whatsapp:latest
+          image: dock.mau.dev/mautrix/whatsapp:latest@sha256:95cb382e0def52750b193401515d7df06278b99083dd5337b5ba401f27a8b26f
           ports:
             - containerPort: 29318
           resources:
@@ -182,7 +182,7 @@ spec:
               app: mautrix-discord
       containers:
         - name: bridge
-          image: dock.mau.dev/mautrix/discord:v0.7.6
+          image: dock.mau.dev/mautrix/discord:v0.7.6@sha256:e4946b0df6a2786c88ed490e0d2692e352f1b79b9ff0e821a33764bd8bd1fffd
           ports:
             - containerPort: 29334
           resources:
@@ -236,7 +236,7 @@ spec:
               app: mautrix-googlechat
       containers:
         - name: bridge
-          image: dock.mau.dev/mautrix/googlechat:latest
+          image: dock.mau.dev/mautrix/googlechat:latest@sha256:4399580bb2ff89b74b6d3fb7013860ebe3fd1a057f698fefe66101720e21c18e
           ports:
             - containerPort: 29320
           resources:
@@ -290,7 +290,7 @@ spec:
               app: mautrix-gmessages
       containers:
         - name: bridge
-          image: dock.mau.dev/mautrix/gmessages:latest
+          image: dock.mau.dev/mautrix/gmessages:latest@sha256:e515c691f5d32dde87bec3268a46bec9c9068138dca83c4f6aded71521417a86
           ports:
             - containerPort: 29336
           resources:
@@ -344,7 +344,7 @@ spec:
               app: mautrix-linkedin
       containers:
         - name: bridge
-          image: dock.mau.dev/mautrix/linkedin:latest
+          image: dock.mau.dev/mautrix/linkedin:latest@sha256:73bb3e220ff3486c79b7056828b49e2161d2991959168ffd53c5054c8f74f37f
           ports:
             - containerPort: 29341
           resources:
@@ -371,53 +371,6 @@ spec:
         - name: config
           configMap:
             name: mautrix-linkedin-config
----
-# --- mautrix-meta ---
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: mautrix-meta
-  namespace: matrix
-spec:
-  replicas: 0
-  selector:
-    matchLabels:
-      app: mautrix-meta
-  template:
-    metadata:
-      labels:
-        app: mautrix-meta
-    spec:
-      automountServiceAccountToken: false
-      containers:
-        - name: bridge
-          image: dock.mau.dev/mautrix/meta:v0.3.4
-          ports:
-            - containerPort: 29319
-          resources:
-            limits:
-              cpu: "100m"
-              memory: 128Mi
-            requests:
-              cpu: "10m"
-              memory: 64Mi
-          volumeMounts:
-            - name: data
-              mountPath: /data
-            - name: config
-              mountPath: /data/config.yaml
-              subPath: config.yaml
-              readOnly: true
-            - name: config
-              mountPath: /data/registration.yaml
-              subPath: registration.yaml
-              readOnly: true
-      volumes:
-        - name: data
-          emptyDir: {}
-        - name: config
-          configMap:
-            name: mautrix-meta-config
 ---
 # =============================================================================
 # SERVICES
@@ -494,18 +447,6 @@ spec:
     - port: 29341
       targetPort: 29341
 ---
-apiVersion: v1
-kind: Service
-metadata:
-  name: mautrix-meta
-  namespace: matrix
-spec:
-  selector:
-    app: mautrix-meta
-  ports:
-    - port: 29319
-      targetPort: 29319
----
 # =============================================================================
 # TRAEFIK MIDDLEWARES - StripPrefix per bridge (copied from compose labels)
 # =============================================================================
@@ -558,16 +499,6 @@ spec:
   stripPrefix:
     prefixes:
       - /v1/bridges/linkedin
----
-apiVersion: traefik.io/v1alpha1
-kind: Middleware
-metadata:
-  name: meta-strip
-  namespace: matrix
-spec:
-  stripPrefix:
-    prefixes:
-      - /v1/bridges/meta
 ---
 # =============================================================================
 # CONFIGMAP: fluffychat (vmd1.homelab)
@@ -636,7 +567,7 @@ spec:
           effect: "NoSchedule"
       containers:
         - name: fluffychat
-          image: ghcr.io/krille-chan/fluffychat:latest
+          image: ghcr.io/krille-chan/fluffychat:latest@sha256:52a9201d7397dd3e888f3a7986b8ef0fb9a49033b89a2dbd38f662869c138b12
           ports:
             - containerPort: 80
           resources:

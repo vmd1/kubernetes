@@ -49,7 +49,7 @@ spec:
           tolerationSeconds: 60
       containers:
         - name: nextcloud
-          image: nextcloud:30-apache
+          image: nextcloud:30-apache@sha256:fb966733647ea03f0446b0c22eac9733c8eb616d37b960caca9d4c3010e14a08
           ports:
             - name: http
               containerPort: 80
@@ -110,7 +110,7 @@ spec:
             - name: nextcloud-data
               mountPath: /var/www/html
         - name: nextcloud-cron
-          image: nextcloud:30-apache
+          image: nextcloud:30-apache@sha256:fb966733647ea03f0446b0c22eac9733c8eb616d37b960caca9d4c3010e14a08
           command: ["/cron.sh"]
           envFrom:
             - secretRef:
@@ -190,7 +190,7 @@ spec:
           tolerationSeconds: 60
       containers:
         - name: collabora
-          image: collabora/code:latest
+          image: collabora/code:latest@sha256:bb8f3c9c5c9016045f25fccb5f0649be94469ebc7c7cc379f3576e470cccf33d
           ports:
             - name: http
               containerPort: 9980

@@ -399,7 +399,7 @@ spec:
             - pod-template-hash
       containers:
         - name: authelia
-          image: authelia/authelia:4.39.28
+          image: authelia/authelia:4.39.28@sha256:bd97cff4fcbf715b5ff1f9ae286afbe6033afce385302520b0368122d43a6f54
           ports:
             - name: http
               containerPort: 9091
@@ -447,7 +447,7 @@ spec:
         # Sidecar that injects the custom stylesheet into Authelia's HTML (see theme.yaml).
         # Only the IngressRoute talks to it; the `authelia` Service still points straight at Authelia.
         - name: theme-proxy
-          image: nginxinc/nginx-unprivileged:1.27-alpine
+          image: nginxinc/nginx-unprivileged:1.27-alpine@sha256:65e3e85dbaed8ba248841d9d58a899b6197106c23cb0ff1a132b7bfe0547e4c0
           ports:
             - name: web
               containerPort: 8080

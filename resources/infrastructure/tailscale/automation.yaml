@@ -546,7 +546,7 @@ spec:
       serviceAccountName: tailscale-region-controller
       containers:
         - name: controller
-          image: ghcr.io/vmd1/k8s-operator:edge
+          image: ghcr.io/vmd1/k8s-operator:edge@sha256:d81ac3b35264e694eafe0badabda7f12c0925946865be9c76deda4e11ddf2066
           command:
             - python
             - /app/watcher.py

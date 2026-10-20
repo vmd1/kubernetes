@@ -63,7 +63,7 @@ spec:
           tolerationSeconds: 60
       containers:
         - name: mongo
-          image: mongo:7.0
+          image: mongo:7.0@sha256:c53852c00c23ca9f23fc39690350ffa9a80e3642fe8f96879726d8da0abe80a7
           args:
             - "--wiredTigerCacheSizeGB=0.25"
           ports:
@@ -141,7 +141,7 @@ spec:
           tolerationSeconds: 60
       containers:
         - name: unifi
-          image: lscr.io/linuxserver/unifi-network-application:latest
+          image: lscr.io/linuxserver/unifi-network-application:latest@sha256:4d5fc889c2f2c2cecc6b35d4d641780cbedbe90d3a51b8f03283261b137af468
           env:
             - name: PUID
               value: "1000"
