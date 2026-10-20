@@ -392,7 +392,7 @@ spec:
       serviceAccountName: oci-port-controller
       containers:
         - name: controller
-          image: python:3.11-slim@sha256:e88e9763f943ec1834f992a4b51e0f24500486803e8bc534e5767af9ea65f6ce
+          image: python:3.11-slim@sha256:9c900dea9e8fb7e16277c179b555cc72d29a352dbc33cff48ad5a0412fd5bfc7
           command:
             - sh
             - -c
