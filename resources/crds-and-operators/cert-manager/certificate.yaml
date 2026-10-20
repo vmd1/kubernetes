@@ -12,7 +12,6 @@ spec:
   dnsNames:
     - vmd1.homelab
     - "*.vmd1.homelab"
-    - "*.ingress.vmd1.homelab"
     - vmd1.homelab
     - "*.vmd1.homelab"
     - vmd1.homelab
