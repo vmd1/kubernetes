@@ -7,7 +7,7 @@ Tailscale integrates the local Kubernetes cluster with a secure Tailscale overla
 | File | Description |
 | :--- | :--- |
 | [operator.yaml](operator.yaml) | Defines the HelmChart custom resource to deploy `tailscale-operator` version `1.102.3` into the `tailscale` namespace. |
-| [automation.yaml](automation.yaml) | Deploys a custom controller (`tailscale-region-controller`) including RBAC ServiceAccount, ConfigMap containing the watcher Python code, and deployment resources. |
+| [automation.yaml](automation.yaml) | Deploys a custom controller (`tailscale-region-controller`) including RBAC ServiceAccount and the Deployment. The controller runs the image `ghcr.io/vmd1/tailscale-region-controller` (pinned by digest, built from [`controllers/tailscale-region-controller`](../../../../controllers/tailscale-region-controller)). |
 
 ## Design Decisions
 
@@ -30,7 +30,7 @@ This controller itself does not expose public services or ingress routes. The Ta
 
 ## Storage
 
-No persistent volume claims are used. The automation scripts are mounted dynamically from the `tailscale-region-controller-code` ConfigMap.
+No persistent volume claims are used. The controller code is baked into the container image; nothing is mounted.
 
 ## Constraints & Scheduling
 
@@ -41,8 +41,7 @@ No persistent volume claims are used. The automation scripts are mounted dynamic
 
 ## Configs & Credentials
 
-- **ConfigMap**: `tailscale-region-controller-code`
-  - Houses `watcher.py` python script managing Tailscale connector objects.
+- **Image**: `ghcr.io/vmd1/tailscale-region-controller` (runs `watcher.py`, which manages the Tailscale connector objects; non-root, UID 65532).
 - **Env**:
   - `RECONCILE_INTERVAL`: reconciliation frequency (default `30s`).
   - `TAILSCALE_MTU`: MTU configuration (default `1130`).

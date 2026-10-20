@@ -7,6 +7,7 @@ PowerDNS is configured as an Authoritative DNS server running on the ingress nod
 | File | Description |
 | :--- | :--- |
 | [manifest.yaml](manifest.yaml) | Defines the Namespace `powerdns`, ConfigMap (`powerdns-config`) containing python zone-generators and configurations, DaemonSet running PowerDNS (`dl010/powerdns-auth:5.0.5`), and internal volumes. |
+| [operator.yaml](operator.yaml) | ServiceAccount, RBAC and Deployment for `powerdns-operator`, which turns the nodes' `node.vmd1.homelab/public-ip` and zone labels into the `geoip-zones.yaml` ConfigMap PowerDNS reads. Runs the image `ghcr.io/vmd1/powerdns-operator` (pinned by digest, built from [`controllers/powerdns-operator`](../../../../controllers/powerdns-operator)). |
 
 ## Design Decisions
 
