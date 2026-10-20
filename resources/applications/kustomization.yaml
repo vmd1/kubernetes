@@ -9,6 +9,7 @@ resources:
   - gossip
   - headlamp
   - home-assistant
+  - homelable
   - matrix
   - media
   - monitoring

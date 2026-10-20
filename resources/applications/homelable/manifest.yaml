@@ -1,0 +1,235 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: homelable
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: homelable
+  namespace: homelable
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: homelable-readonly
+rules:
+  - apiGroups: [""]
+    resources: [nodes, pods, services, namespaces]
+    verbs: [get, list]
+  - apiGroups: [apps]
+    resources: [deployments, statefulsets, daemonsets]
+    verbs: [get, list]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: homelable-readonly
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: homelable-readonly
+subjects:
+  - kind: ServiceAccount
+    name: homelable
+    namespace: homelable
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: homelable-data-pvc
+  namespace: homelable
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: longhorn-single-replica
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: homelable-backend
+  namespace: homelable
+  labels:
+    app: homelable-backend
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: homelable-backend
+  template:
+    metadata:
+      labels:
+        app: homelable-backend
+    spec:
+      serviceAccountName: homelable
+      nodeSelector:
+        topology.kubernetes.io/zone: uk-home
+      tolerations:
+        - key: "node.kubernetes.io/not-ready"
+          operator: "Exists"
+          effect: "NoExecute"
+          tolerationSeconds: 60
+        - key: "node.kubernetes.io/unreachable"
+          operator: "Exists"
+          effect: "NoExecute"
+          tolerationSeconds: 60
+      containers:
+        - name: backend
+          image: ghcr.io/vmd1/homelable-backend@sha256:dfd7114fa3bb1b2188facb966f014f6cc9e22cfa152532ca722042b3a1664676
+          ports:
+            - name: http
+              containerPort: 8000
+              protocol: TCP
+          env:
+            - name: SQLITE_PATH
+              value: /app/data/homelab.db
+            - name: CORS_ORIGINS
+              value: '["https://lab.vmd1.homelab"]'
+            - name: SCANNER_RANGES
+              value: "[]"
+            - name: STATUS_CHECKER_INTERVAL
+              value: "60"
+            - name: AUTH_MODE
+              value: oidc
+            - name: OIDC_DISCOVERY_URL
+              value: https://identity.vmd1.homelab/.well-known/openid-configuration
+            - name: OIDC_CLIENT_ID
+              value: homelable
+            - name: OIDC_REDIRECT_URI
+              value: https://lab.vmd1.homelab/api/v1/auth/oidc/callback
+            - name: OIDC_SCOPES
+              value: openid profile email groups
+            - name: OIDC_COOKIE_SECURE
+              value: "true"
+          envFrom:
+            - secretRef:
+                name: homelable-secrets
+          securityContext:
+            capabilities:
+              add: [NET_RAW]
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          startupProbe:
+            httpGet:
+              path: /api/v1/health
+              port: http
+            periodSeconds: 5
+            failureThreshold: 6
+          readinessProbe:
+            httpGet:
+              path: /api/v1/health
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /api/v1/health
+              port: http
+            periodSeconds: 20
+            timeoutSeconds: 5
+          volumeMounts:
+            - name: data
+              mountPath: /app/data
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: homelable-data-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend
+  namespace: homelable
+  labels:
+    app: homelable-backend
+spec:
+  selector:
+    app: homelable-backend
+  ports:
+    - name: http
+      port: 8000
+      targetPort: http
+      protocol: TCP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: homelable-frontend
+  namespace: homelable
+  labels:
+    app: homelable-frontend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: homelable-frontend
+  template:
+    metadata:
+      labels:
+        app: homelable-frontend
+    spec:
+      automountServiceAccountToken: false
+      nodeSelector:
+        topology.kubernetes.io/zone: uk-home
+      tolerations:
+        - key: "node.kubernetes.io/not-ready"
+          operator: "Exists"
+          effect: "NoExecute"
+          tolerationSeconds: 60
+        - key: "node.kubernetes.io/unreachable"
+          operator: "Exists"
+          effect: "NoExecute"
+          tolerationSeconds: 60
+      containers:
+        - name: frontend
+          image: ghcr.io/vmd1/homelable-frontend@sha256:94a50d0711d1e1d0e8a8627889b76bf89ba851de03904502e3b69dfc78af5ffc
+          ports:
+            - name: http
+              containerPort: 80
+              protocol: TCP
+          env:
+            - name: BACKEND_UPSTREAM
+              value: backend.homelable.svc:8000
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+            periodSeconds: 20
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: homelable
+  namespace: homelable
+  labels:
+    app: homelable-frontend
+spec:
+  selector:
+    app: homelable-frontend
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+      protocol: TCP

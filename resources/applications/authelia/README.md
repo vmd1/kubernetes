@@ -81,6 +81,7 @@ The login UI is restyled to match vmd1.homelab (black background, frosted-glass 
 | `nextcloud` | `https://cloud.vmd1.homelab/apps/user_oidc/code` | `nextcloud_users` (lldap `nextcloud_users`, `nextcloud_admins`) |
 | `jellyfin` | `https://jellyfin.vmd1.homelab/sso/OID/redirect/authelia` | `jellyfin_users` (lldap `jellyfin`, `jellyfin_admin`) |
 | `bookorbit` | `https://read.vmd1.homelab/oauth2-callback` and `bookorbit://oauth2-callback` | `bookorbit_users` (lldap `family`) |
+| `homelable` | `https://lab.vmd1.homelab/api/v1/auth/oidc/callback` | `homelable_users` (lldap `admin`) |
 | `home-assistant` | `https://home.vmd1.homelab/auth/oidc/callback` | `home_assistant_users` (lldap `homeassistant_user`, `homeassistant_admin`) |
 | `continuwuity` | `https://matrix.vmd1.homelab/_continuwuity/oidc/complete` | `continuwuity_users` (lldap `synapse-users`). **Not in use yet**: Matrix has not been switched to OIDC. |
 

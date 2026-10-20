@@ -14,6 +14,7 @@ The [kustomization.yaml](kustomization.yaml) here is the Kustomize entrypoint th
 | [Gossip](gossip/README.md) | Gossip WebSocket relay and website (`gossip.vmd1.homelab`), single in-memory instance. |
 | [Headlamp](headlamp/README.md) | Kubernetes web UI dashboard with cluster-admin service account access. |
 | [Home Assistant](home-assistant/README.md) | Home automation core on the local subnet with a filebrowser sidecar. |
+| [Homelable](homelable/README.md) | Homelab diagram app with live status monitoring and read-only Kubernetes import (`lab.vmd1.homelab`), signing in through Authelia (OIDC). |
 | [Matrix](matrix/README.md) | Self-hosted Matrix stack: `continuwuity` homeserver, FluffyChat web client, and mautrix bridges. |
 | [Media](media/README.md) | Jellyfin streaming (Authelia SSO); Overseerr (`seerr`) and the download agent are currently scaled to zero. |
 | [Monitoring](monitoring/README.md) | Loki + Promtail logs, Prometheus + Node Exporter + Kube State Metrics, and Grafana. |
