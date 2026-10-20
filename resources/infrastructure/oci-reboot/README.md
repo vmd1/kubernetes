@@ -9,7 +9,7 @@ The OCI Reboot Controller is a Python-based custom Kubernetes controller. It mon
 
 | File | Description |
 | :--- | :--- |
-| [manifest.yaml](manifest.yaml) | Defines the `oci-controller` namespace, ServiceAccount, ClusterRole/Binding for node access, Secrets containing OCI credentials, ConfigMap containing the controller code (`controller.py`), and the deployment. |
+| [manifest.yaml](manifest.yaml) | Defines the `oci-controller` namespace, ServiceAccount, ClusterRole/Binding for node access, Secrets containing OCI credentials, and the deployment, which runs the image `ghcr.io/vmd1/oci-reboot-controller` (pinned by digest, built from [`controllers/oci-reboot-controller`](../../../../controllers/oci-reboot-controller); non-root, UID 65532). |
 
 ## Design Decisions
 
@@ -28,7 +28,7 @@ This service has no listening endpoints, services, or ingress routes. It is an e
 
 ## Storage
 
-No persistent volume claims are used. The application configuration and source code is loaded dynamically from configmaps and secrets.
+No persistent volume claims are used. The controller code is baked into the container image; configuration comes from environment variables and the OCI credentials Secrets.
 
 ## Constraints & Scheduling
 
@@ -39,8 +39,7 @@ No persistent volume claims are used. The application configuration and source c
 
 ## Configs & Credentials
 
-- **ConfigMap**: `oci-reboot-controller-code`
-  - Houses the `controller.py` execution script.
+- **Image**: `ghcr.io/vmd1/oci-reboot-controller` (runs `controller.py`).
 - **Secrets**: `oci-credentials-<region><account-name>`
   - `OCI_USER_OCID`: OCI user ID.
   - `OCI_TENANCY_OCID`: tenancy ID.

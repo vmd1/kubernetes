@@ -35,7 +35,7 @@ The `oci-port-controller` automates opening specified TCP/UDP ports across OCI C
 
 | File | Description |
 | :--- | :--- |
-| [manifest.yaml](manifest.yaml) | CustomResourceDefinition (`ociportrules.network.vmd1.homelab`), ServiceAccount, ClusterRole & Binding, `oci-port-controller-code` ConfigMap (controller.py), and Deployment. |
+| [manifest.yaml](manifest.yaml) | CustomResourceDefinition (`ociportrules.network.vmd1.homelab`), ServiceAccount, ClusterRole & Binding, and the Deployment, which runs the image `ghcr.io/vmd1/oci-port-controller` (pinned by digest, built from [`controllers/oci-port-controller`](../../../../controllers/oci-port-controller); runs as root because it reads the 0600 SSH key; `openssh-client`, `oci` and `kubernetes` are baked in, so a pod start no longer runs `apt-get`/`pip`). |
 | [kustomization.yaml](kustomization.yaml) | Kustomize entrypoint for this folder. |
 | [secrets.sops.yaml](../oci-controller/secrets.sops.yaml) | Shared SOPS-encrypted secrets (`node-ssh-key`, `oci-credentials-<region>*`) — see [oci-controller/](../oci-controller/README.md). |
 
