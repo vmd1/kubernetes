@@ -16,6 +16,7 @@ The [kustomization.yaml](kustomization.yaml) here is the Kustomize entrypoint fo
 | [multus](multus/README.md) | Multus CNI meta-plugin and the `storage-macvlan-eth0` network attachment for Longhorn. |
 | [oci-controller](oci-controller/README.md) | Shared SOPS secrets (`node-ssh-key`, `oci-credentials-<region>*`) for the `oci-controller` namespace. |
 | [oci-port-controller](oci-port-controller/README.md) | Controller + `OCIPortRule` CRD that opens ports on OCI security lists and host firewalls. |
+| [geoip-updater](geoip-updater/README.md) | DaemonSet that keeps the MaxMind GeoLite2 City/Country databases up to date on every node (shared hostPath `/var/lib/geoip`) |
 | [powerdns](powerdns/README.md) | PowerDNS authoritative DNS with GeoIP-backed routing to the closest healthy edge node. |
 | [redis](redis/README.md) | Redis operator, master-replica replication, Sentinel, and HAProxy load balancer. |
 | [traefik](traefik/README.md) | Traefik ingress controller HelmChart (DaemonSet, host network). (Middlewares/LB live in [infrastructure/traefik](../infrastructure/traefik/README.md).) |

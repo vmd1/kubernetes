@@ -5,6 +5,7 @@ resources:
   - cert-manager
   - cnpg
   - edgesite
+  - geoip-updater
   - kube-vip
   - longhorn
   - multus
