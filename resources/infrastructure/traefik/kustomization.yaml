@@ -11,3 +11,4 @@ resources:
   - lb-uk-home.yaml
   - trace.yaml
   - error-pages.yaml
+  - geo-country.yaml

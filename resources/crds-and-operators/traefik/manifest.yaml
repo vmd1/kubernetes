@@ -12,6 +12,17 @@ spec:
     deployment:
       kind: DaemonSet
       dnsPolicy: ClusterFirstWithHostNet
+      additionalVolumes:
+        # GeoLite2 databases kept fresh by the geoip-updater DaemonSet (crds-and-operators/geoip-updater)
+        - name: geoip
+          hostPath:
+            path: /var/lib/geoip
+            type: DirectoryOrCreate
+
+    additionalVolumeMounts:
+      - name: geoip
+        mountPath: /geoip
+        readOnly: true
 
     resources:
       requests:
@@ -225,6 +236,7 @@ spec:
               	RespReg     string `json:"resp-reg"`
               	HTTP        string `json:"http"`
               	ReqReg      string `json:"req-reg"`
+              	ReqRegSrc   string `json:"req-reg-src"`
               	TLS         string `json:"tls"`
               	SNI         string `json:"sni"`
               	Node        string `json:"node-name"`
@@ -298,13 +310,24 @@ spec:
               		}
               	}
 
-              	// CF-IPCountry is set by Cloudflare, but any client can send it to a node directly, so it is only used when the
-              	// request really came through Cloudflare; otherwise the country is unknown (a GeoIP lookup can fill it in later).
+              	// CF-IPCountry is set by Cloudflare, but any client can send it to a node directly. The geo-country middleware
+              	// (entrypoint level) overwrites the header on every request and says where it came from in X-Vmd1-Geo-Source
+              	// ("cloudflare" or "geoip", always set by it, so a client cannot forge it). Without that middleware the header is
+              	// only believed when the TCP peer is a Cloudflare address; otherwise the country is "unknown".
               	country := "unknown"
-              	if t.fromCloudflare(req) {
+              	source := "none"
+              	gs := req.Header.Get("X-Vmd1-Geo-Source")
+              	if gs == "cloudflare" || gs == "geoip" {
               		c := strings.ToUpper(strings.TrimSpace(req.Header.Get("CF-IPCountry")))
               		if validCountry(c) {
               			country = c
+              			source = gs
+              		}
+              	} else if t.fromCloudflare(req) {
+              		c := strings.ToUpper(strings.TrimSpace(req.Header.Get("CF-IPCountry")))
+              		if validCountry(c) {
+              			country = c
+              			source = "cloudflare"
               		}
               	}
 
@@ -316,6 +339,7 @@ spec:
               		RespReg:     region,
               		HTTP:        httpName(req.Proto),
               		ReqReg:      clean(country),
+              		ReqRegSrc:   source,
               		TLS:         tlsVersion,
               		SNI:         sni,
               		Node:        t.node,
@@ -377,6 +401,7 @@ spec:
               	fmt.Fprintf(&b, "tls=%s\n", i.TLS)
               	fmt.Fprintf(&b, "sni=%s\n", i.SNI)
               	fmt.Fprintf(&b, "node-name=%s\n", i.Node)
+              	fmt.Fprintf(&b, "req-reg-src=%s\n", i.ReqRegSrc)
               	return b.String()
               }
 
@@ -716,6 +741,7 @@ spec:
               	b.WriteString("<h2>You</h2>\n<dl class=\"kv\">\n")
               	b.WriteString(row("IP address", i.IP))
               	b.WriteString(row("Country", i.ReqReg))
+              	b.WriteString(row("Country source", i.ReqRegSrc))
               	b.WriteString(row("User agent", i.UserAgent))
               	b.WriteString("</dl>\n<h2>Request</h2>\n<dl class=\"kv\">\n")
               	b.WriteString(row("Host", i.Host))
@@ -776,6 +802,736 @@ spec:
               	default:
               		return fmt.Sprintf("0x%04x", v)
               	}
+              }
+
+        vmd1geo:
+          moduleName: github.com/vmd1/traefik-geo
+          mountPath: /plugins-local/src/github.com/vmd1/traefik-geo
+          type: inlinePlugin
+          source:
+            .traefik.yml: |
+              displayName: vmd1 geo country
+              type: middleware
+              import: github.com/vmd1/traefik-geo
+              summary: Makes CF-IPCountry trustworthy on every route; direct requests get a GeoLite2-Country lookup in Cloudflare's format.
+              testData:
+                dbPath: /geoip/GeoLite2-Country.mmdb
+            go.mod: |
+              module github.com/vmd1/traefik-geo
+
+              go 1.22
+            mmdb.go: |
+              package traefik_geo
+
+              import (
+              	"bytes"
+              	"encoding/binary"
+              	"errors"
+              	"net"
+              	"sync"
+              )
+
+              // A minimal MaxMind DB (.mmdb) reader using only the standard library: no mmap, no unsafe, no dependencies, so it
+              // runs inside Traefik's plugin interpreter. It decodes just enough to read a record by IP address.
+              // Format: https://maxmind.github.io/MaxMind-DB/
+
+              var metadataMarker = []byte("\xab\xcd\xefMaxMind.com")
+
+              const maxDepth = 16
+
+              type mmdb struct {
+              	buf        []byte
+              	nodeCount  uint
+              	recordSize uint
+              	nodeBytes  uint
+              	treeSize   uint // bytes of the search tree
+              	dataStart  uint // treeSize + 16-byte separator
+              	ipv4Start  uint
+              	ipVersion  uint
+
+              	// The answer per data record (the tree's leaf value). The database has a few hundred distinct records for
+              	// over a million networks, so after warm-up a lookup is just the tree walk.
+              	mu    sync.RWMutex
+              	codes map[uint]string
+              }
+
+              var errCorrupt = errors.New("mmdb: corrupt database")
+
+              func openMMDB(buf []byte) (*mmdb, error) {
+              	idx := bytes.LastIndex(buf, metadataMarker)
+              	if idx < 0 {
+              		return nil, errors.New("mmdb: metadata marker not found")
+              	}
+              	metaStart := uint(idx + len(metadataMarker))
+              	d := &decoder{buf: buf, base: metaStart}
+              	v, _, err := d.decode(metaStart, 0)
+              	if err != nil {
+              		return nil, err
+              	}
+              	meta, ok := v.(map[string]interface{})
+              	if !ok {
+              		return nil, errCorrupt
+              	}
+              	m := &mmdb{buf: buf, codes: map[uint]string{}}
+              	m.nodeCount = asUint(meta["node_count"])
+              	m.recordSize = asUint(meta["record_size"])
+              	m.ipVersion = asUint(meta["ip_version"])
+              	if m.nodeCount == 0 || (m.recordSize != 24 && m.recordSize != 28 && m.recordSize != 32) || (m.ipVersion != 4 && m.ipVersion != 6) {
+              		return nil, errCorrupt
+              	}
+              	m.nodeBytes = m.recordSize * 2 / 8
+              	m.treeSize = m.nodeCount * m.nodeBytes
+              	m.dataStart = m.treeSize + 16
+              	if m.dataStart > uint(idx) {
+              		return nil, errCorrupt
+              	}
+              	// for an IPv6 tree, IPv4 addresses live under ::/96
+              	if m.ipVersion == 6 {
+              		node := uint(0)
+              		for i := 0; i < 96 && node < m.nodeCount; i++ {
+              			node = m.readRecord(node, 0)
+              		}
+              		m.ipv4Start = node
+              	}
+              	return m, nil
+              }
+
+              func asUint(v interface{}) uint {
+              	if u, ok := v.(uint64); ok {
+              		return uint(u)
+              	}
+              	return 0
+              }
+
+              func (m *mmdb) readRecord(node uint, bit byte) uint {
+              	base := node * m.nodeBytes
+              	if base+m.nodeBytes > m.treeSize {
+              		return m.nodeCount // treated as "not found"
+              	}
+              	b := m.buf
+              	if m.recordSize == 24 {
+              		o := base + uint(bit)*3
+              		return uint(b[o])<<16 | uint(b[o+1])<<8 | uint(b[o+2])
+              	}
+              	if m.recordSize == 28 {
+              		mid := uint(b[base+3])
+              		if bit == 0 {
+              			return (mid&0xF0)<<20 | uint(b[base])<<16 | uint(b[base+1])<<8 | uint(b[base+2])
+              		}
+              		return (mid&0x0F)<<24 | uint(b[base+4])<<16 | uint(b[base+5])<<8 | uint(b[base+6])
+              	}
+              	o := base + uint(bit)*4
+              	return uint(b[o])<<24 | uint(b[o+1])<<16 | uint(b[o+2])<<8 | uint(b[o+3])
+              }
+
+              // lookupCountry returns country.iso_code for ip, or "" (no record, no country, or not two upper-case letters).
+              // It does not decode the record: it walks the data section and reads only the two values it needs, which keeps it
+              // cheap when run by Traefik's plugin interpreter.
+              func (m *mmdb) lookupCountry(ip net.IP) string {
+              	var addr []byte
+              	node := uint(0)
+              	if v4 := ip.To4(); v4 != nil {
+              		addr = v4
+              		if m.ipVersion == 6 {
+              			node = m.ipv4Start
+              		}
+              	} else if v6 := ip.To16(); v6 != nil {
+              		if m.ipVersion == 4 {
+              			return ""
+              		}
+              		addr = v6
+              	} else {
+              		return ""
+              	}
+              	bits := len(addr) * 8
+              	if m.recordSize == 24 {
+              		// the common case, inlined: this loop runs up to 128 times per lookup
+              		b := m.buf
+              		for i := 0; i < bits && node < m.nodeCount; i++ {
+              			o := node*6 + uint((addr[i>>3]>>(7-uint(i&7)))&1)*3
+              			if o+3 > m.treeSize {
+              				return ""
+              			}
+              			node = uint(b[o])<<16 | uint(b[o+1])<<8 | uint(b[o+2])
+              		}
+              	} else {
+              		for i := 0; i < bits && node < m.nodeCount; i++ {
+              			node = m.readRecord(node, (addr[i>>3]>>(7-uint(i&7)))&1)
+              		}
+              	}
+              	if node <= m.nodeCount {
+              		return ""
+              	}
+              	m.mu.RLock()
+              	c, cached := m.codes[node]
+              	m.mu.RUnlock()
+              	if cached {
+              		return c
+              	}
+              	c = m.readCountry(m.dataStart + (node - m.nodeCount - 16))
+              	m.mu.Lock()
+              	m.codes[node] = c
+              	m.mu.Unlock()
+              	return c
+              }
+
+              // readCountry reads country.iso_code of the record at off.
+              func (m *mmdb) readCountry(off uint) string {
+              	d := &decoder{buf: m.buf, base: m.dataStart}
+              	v, ok := d.findKey(off, "country")
+              	if !ok {
+              		return ""
+              	}
+              	v, ok = d.findKey(v, "iso_code")
+              	if !ok {
+              		return ""
+              	}
+              	s, ok := d.stringAt(v)
+              	if !ok || len(s) != 2 || s[0] < 'A' || s[0] > 'Z' || s[1] < 'A' || s[1] > 'Z' {
+              		return ""
+              	}
+              	return s
+              }
+
+              type decoder struct {
+              	buf  []byte
+              	base uint // start of the section pointers are relative to
+              }
+
+              // decode reads one value at offset and returns it with the offset of the next value.
+              func (d *decoder) decode(offset uint, depth int) (interface{}, uint, error) {
+              	if depth > maxDepth || offset >= uint(len(d.buf)) {
+              		return nil, 0, errCorrupt
+              	}
+              	ctrl := d.buf[offset]
+              	offset++
+              	typ := uint(ctrl >> 5)
+
+              	if typ == 1 { // pointer
+              		ss := uint(ctrl>>3) & 3
+              		vvv := uint(ctrl & 7)
+              		if offset+ss+1 > uint(len(d.buf)) {
+              			return nil, 0, errCorrupt
+              		}
+              		var p uint
+              		switch ss {
+              		case 0:
+              			p = vvv<<8 | uint(d.buf[offset])
+              		case 1:
+              			p = (vvv<<16 | uint(d.buf[offset])<<8 | uint(d.buf[offset+1])) + 2048
+              		case 2:
+              			p = (vvv<<24 | uint(d.buf[offset])<<16 | uint(d.buf[offset+1])<<8 | uint(d.buf[offset+2])) + 526336
+              		default:
+              			p = uint(d.buf[offset])<<24 | uint(d.buf[offset+1])<<16 | uint(d.buf[offset+2])<<8 | uint(d.buf[offset+3])
+              		}
+              		next := offset + ss + 1
+              		v, _, err := d.decode(d.base+p, depth+1)
+              		return v, next, err
+              	}
+
+              	if typ == 0 { // extended type
+              		if offset >= uint(len(d.buf)) {
+              			return nil, 0, errCorrupt
+              		}
+              		typ = 7 + uint(d.buf[offset])
+              		offset++
+              	}
+
+              	size := uint(ctrl & 31)
+              	if size >= 29 {
+              		n := size - 28 // 1, 2 or 3 extra bytes
+              		if offset+n > uint(len(d.buf)) {
+              			return nil, 0, errCorrupt
+              		}
+              		var x uint
+              		for i := uint(0); i < n; i++ {
+              			x = x<<8 | uint(d.buf[offset+i])
+              		}
+              		offset += n
+              		if size == 29 {
+              			size = 29 + x
+              		} else if size == 30 {
+              			size = 285 + x
+              		} else {
+              			size = 65821 + x
+              		}
+              	}
+
+              	switch typ {
+              	case 7: // map
+              		out := make(map[string]interface{}, size)
+              		for i := uint(0); i < size; i++ {
+              			k, n1, err := d.decode(offset, depth+1)
+              			if err != nil {
+              				return nil, 0, err
+              			}
+              			key, ok := k.(string)
+              			if !ok {
+              				return nil, 0, errCorrupt
+              			}
+              			v, n2, err := d.decode(n1, depth+1)
+              			if err != nil {
+              				return nil, 0, err
+              			}
+              			out[key] = v
+              			offset = n2
+              		}
+              		return out, offset, nil
+              	case 11: // array
+              		out := make([]interface{}, 0, size)
+              		for i := uint(0); i < size; i++ {
+              			v, n, err := d.decode(offset, depth+1)
+              			if err != nil {
+              				return nil, 0, err
+              			}
+              			out = append(out, v)
+              			offset = n
+              		}
+              		return out, offset, nil
+              	case 14: // boolean: the value is the size field
+              		// (assigned to an interface variable first: Yaegi panics on returning a comparison as interface{})
+              		var b interface{}
+              		if size != 0 {
+              			b = true
+              		} else {
+              			b = false
+              		}
+              		return b, offset, nil
+              	}
+
+              	if offset+size > uint(len(d.buf)) {
+              		return nil, 0, errCorrupt
+              	}
+              	data := d.buf[offset : offset+size]
+              	next := offset + size
+              	switch typ {
+              	case 2: // utf8 string
+              		return string(data), next, nil
+              	case 5, 6, 9: // uint16, uint32, uint64
+              		var x uint64
+              		for _, b := range data {
+              			x = x<<8 | uint64(b)
+              		}
+              		return x, next, nil
+              	case 8: // int32
+              		if len(data) == 4 {
+              			return int64(int32(binary.BigEndian.Uint32(data))), next, nil
+              		}
+              		var x uint64
+              		for _, b := range data {
+              			x = x<<8 | uint64(b)
+              		}
+              		return int64(x), next, nil
+              	case 3, 4, 10, 15: // double, bytes, uint128, float: not needed here
+              		return nil, next, nil
+              	}
+              	return nil, 0, errCorrupt
+              }
+
+              // item is the parsed control byte of one value.
+              type item struct {
+              	typ     uint
+              	size    uint // payload bytes (strings, ints), or entry count (maps, arrays)
+              	payload uint // offset of the first payload byte (pointers: of the pointer's own bytes)
+              	isPtr   bool
+              	target  uint // pointers: the absolute offset it points to
+              	next    uint // offset right after this value's own bytes (for pointers: after the pointer, not its target)
+              }
+
+              // head parses the control byte at offset.
+              func (d *decoder) head(offset uint) (item, bool) {
+              	var it item
+              	if offset >= uint(len(d.buf)) {
+              		return it, false
+              	}
+              	ctrl := d.buf[offset]
+              	offset++
+              	typ := uint(ctrl >> 5)
+              	if typ == 1 {
+              		ss := uint(ctrl>>3) & 3
+              		vvv := uint(ctrl & 7)
+              		if offset+ss+1 > uint(len(d.buf)) {
+              			return it, false
+              		}
+              		var p uint
+              		switch ss {
+              		case 0:
+              			p = vvv<<8 | uint(d.buf[offset])
+              		case 1:
+              			p = (vvv<<16 | uint(d.buf[offset])<<8 | uint(d.buf[offset+1])) + 2048
+              		case 2:
+              			p = (vvv<<24 | uint(d.buf[offset])<<16 | uint(d.buf[offset+1])<<8 | uint(d.buf[offset+2])) + 526336
+              		default:
+              			p = uint(d.buf[offset])<<24 | uint(d.buf[offset+1])<<16 | uint(d.buf[offset+2])<<8 | uint(d.buf[offset+3])
+              		}
+              		it.typ = 1
+              		it.isPtr = true
+              		it.payload = offset
+              		it.target = d.base + p
+              		it.next = offset + ss + 1
+              		return it, true
+              	}
+              	if typ == 0 {
+              		if offset >= uint(len(d.buf)) {
+              			return it, false
+              		}
+              		typ = 7 + uint(d.buf[offset])
+              		offset++
+              	}
+              	size := uint(ctrl & 31)
+              	if size >= 29 {
+              		n := size - 28
+              		if offset+n > uint(len(d.buf)) {
+              			return it, false
+              		}
+              		var x uint
+              		for i := uint(0); i < n; i++ {
+              			x = x<<8 | uint(d.buf[offset+i])
+              		}
+              		offset += n
+              		if size == 29 {
+              			size = 29 + x
+              		} else if size == 30 {
+              			size = 285 + x
+              		} else {
+              			size = 65821 + x
+              		}
+              	}
+              	it.typ = typ
+              	it.size = size
+              	it.payload = offset
+              	if typ == 7 || typ == 11 || typ == 14 {
+              		it.next = offset // containers/bools: contents (if any) follow
+              	} else {
+              		it.next = offset + size
+              	}
+              	return it, true
+              }
+
+              // resolve follows pointers to the real value.
+              func (d *decoder) resolve(offset uint) (item, bool) {
+              	for depth := 0; depth < maxDepth; depth++ {
+              		it, ok := d.head(offset)
+              		if !ok {
+              			return it, false
+              		}
+              		if !it.isPtr {
+              			return it, true
+              		}
+              		offset = it.target
+              	}
+              	return item{}, false
+              }
+
+              // skip returns the offset after the value at offset without reading it (a pointer is skipped, not followed).
+              func (d *decoder) skip(offset uint, depth int) (uint, bool) {
+              	if depth > maxDepth {
+              		return 0, false
+              	}
+              	it, ok := d.head(offset)
+              	if !ok {
+              		return 0, false
+              	}
+              	if it.typ == 7 || it.typ == 11 {
+              		n := it.size
+              		if it.typ == 7 {
+              			n = it.size * 2
+              		}
+              		pos := it.payload
+              		for i := uint(0); i < n; i++ {
+              			pos, ok = d.skip(pos, depth+1)
+              			if !ok {
+              				return 0, false
+              			}
+              		}
+              		return pos, true
+              	}
+              	return it.next, true
+              }
+
+              // stringAt reads the (possibly pointed-to) string at offset.
+              func (d *decoder) stringAt(offset uint) (string, bool) {
+              	it, ok := d.resolve(offset)
+              	if !ok || it.typ != 2 || it.payload+it.size > uint(len(d.buf)) {
+              		return "", false
+              	}
+              	return string(d.buf[it.payload : it.payload+it.size]), true
+              }
+
+              // findKey returns the offset of the value stored under key in the (possibly pointed-to) map at offset.
+              func (d *decoder) findKey(offset uint, want string) (uint, bool) {
+              	it, ok := d.resolve(offset)
+              	if !ok || it.typ != 7 {
+              		return 0, false
+              	}
+              	pos := it.payload
+              	for i := uint(0); i < it.size; i++ {
+              		keyAt := pos
+              		valAt, ok := d.skip(pos, 0)
+              		if !ok {
+              			return 0, false
+              		}
+              		if k, ok := d.stringAt(keyAt); ok && k == want {
+              			return valAt, true
+              		}
+              		pos, ok = d.skip(valAt, 0)
+              		if !ok {
+              			return 0, false
+              		}
+              	}
+              	return 0, false
+              }
+
+            plugin.go: |
+              // Package traefik_geo makes the CF-IPCountry request header trustworthy on every route.
+              //
+              //   - Request from a Cloudflare address: Cloudflare set the header; it is kept if it is a valid two-character code
+              //     and replaced by "XX" otherwise.
+              //   - Any other (direct) request: whatever the client sent is discarded and the header is set from a GeoLite2-Country
+              //     lookup of the client address, in Cloudflare's format: an upper-case ISO 3166-1 alpha-2 code, or "XX" when the
+              //     country is unknown (private/unrouted address, no database).
+              //
+              // The header X-Vmd1-Geo-Source says which: "cloudflare", "geoip" or "none" (no database available). It is always
+              // overwritten here, so a client cannot forge it. The plugin fails open: a missing or broken database only means "XX".
+              package traefik_geo
+
+              import (
+              	"context"
+              	"fmt"
+              	"net"
+              	"net/http"
+              	"os"
+              	"strings"
+              	"sync"
+              	"time"
+              )
+
+              const (
+              	countryHeader = "CF-IPCountry"
+              	sourceHeader  = "X-Vmd1-Geo-Source"
+              	unknown       = "XX"
+              )
+
+              // defaultCloudflareCIDRs is Cloudflare's published edge address list, the same one as the forwardedHeaders.trustedIPs
+              // of the Traefik entrypoints (crds-and-operators/traefik/manifest.yaml) and the trace plugin: keep them in sync.
+              var defaultCloudflareCIDRs = []string{
+              	"173.245.48.0/20",
+              	"103.21.244.0/22",
+              	"103.22.200.0/22",
+              	"103.31.4.0/22",
+              	"141.101.64.0/18",
+              	"108.162.192.0/18",
+              	"190.93.240.0/20",
+              	"188.114.96.0/20",
+              	"197.234.240.0/22",
+              	"198.41.128.0/17",
+              	"162.158.0.0/15",
+              	"104.16.0.0/13",
+              	"104.24.0.0/14",
+              	"172.64.0.0/13",
+              	"131.0.72.0/22",
+              	"2400:cb00::/32",
+              	"2606:4700::/32",
+              	"2803:f800::/32",
+              	"2405:b500::/32",
+              	"2405:8100::/32",
+              	"2a06:98c0::/29",
+              	"2c0f:f248::/32",
+              }
+
+              // Config of the middleware.
+              type Config struct {
+              	DBPath          string   `json:"dbPath,omitempty"`
+              	CloudflareCIDRs []string `json:"cloudflareCIDRs,omitempty"`
+              	CheckSeconds    int      `json:"checkSeconds,omitempty"`
+              	CacheSize       int      `json:"cacheSize,omitempty"`
+              }
+
+              // CreateConfig creates the default plugin configuration.
+              func CreateConfig() *Config {
+              	cidrs := make([]string, len(defaultCloudflareCIDRs))
+              	copy(cidrs, defaultCloudflareCIDRs)
+              	return &Config{DBPath: "/geoip/GeoLite2-Country.mmdb", CloudflareCIDRs: cidrs, CheckSeconds: 60, CacheSize: 4096}
+              }
+
+              // result of classifying one peer address.
+              type result struct {
+              	code   string
+              	source string
+              	cf     bool
+              }
+
+              // state is shared by every middleware instance in the process: Traefik builds one instance per router, and the
+              // database must be loaded (and watched) once, not once per router.
+              type state struct {
+              	path      string
+              	cidrs     []*net.IPNet
+              	cacheSize int
+
+              	mu      sync.RWMutex
+              	db      *mmdb
+              	sig     string
+              	cache   map[string]result
+              	reloads int
+              }
+
+              var (
+              	statesMu sync.Mutex
+              	states   = map[string]*state{}
+              )
+
+              func getState(cfg *Config) (*state, error) {
+              	key := cfg.DBPath + "|" + strings.Join(cfg.CloudflareCIDRs, ",")
+              	statesMu.Lock()
+              	defer statesMu.Unlock()
+              	if s, ok := states[key]; ok {
+              		return s, nil
+              	}
+              	var nets []*net.IPNet
+              	for _, c := range cfg.CloudflareCIDRs {
+              		_, n, err := net.ParseCIDR(strings.TrimSpace(c))
+              		if err != nil {
+              			return nil, fmt.Errorf("cloudflareCIDRs: %v", err)
+              		}
+              		nets = append(nets, n)
+              	}
+              	size := cfg.CacheSize
+              	if size <= 0 {
+              		size = 4096
+              	}
+              	s := &state{path: cfg.DBPath, cidrs: nets, cacheSize: size, cache: map[string]result{}}
+              	s.reload()
+              	secs := cfg.CheckSeconds
+              	if secs <= 0 {
+              		secs = 60
+              	}
+              	go func() {
+              		t := time.NewTicker(time.Duration(secs) * time.Second)
+              		for range t.C {
+              			s.reload()
+              		}
+              	}()
+              	states[key] = s
+              	return s, nil
+              }
+
+              // reload re-reads the database file when it changed (the geoip-updater replaces it atomically). A file that cannot be
+              // parsed is ignored and the old database stays in use.
+              func (s *state) reload() {
+              	fi, err := os.Stat(s.path)
+              	if err != nil {
+              		return
+              	}
+              	sig := fmt.Sprintf("%d-%d", fi.Size(), fi.ModTime().UnixNano())
+              	s.mu.RLock()
+              	same := sig == s.sig
+              	s.mu.RUnlock()
+              	if same {
+              		return
+              	}
+              	buf, err := os.ReadFile(s.path)
+              	if err != nil {
+              		return
+              	}
+              	db, err := openMMDB(buf)
+              	if err != nil {
+              		return
+              	}
+              	s.mu.Lock()
+              	s.db = db
+              	s.sig = sig
+              	s.cache = map[string]result{}
+              	s.reloads++
+              	s.mu.Unlock()
+              }
+
+              func (s *state) isCloudflare(ip net.IP) bool {
+              	for _, n := range s.cidrs {
+              		if n.Contains(ip) {
+              			return true
+              		}
+              	}
+              	return false
+              }
+
+              // classify decides how to treat a peer address; results are cached until the database is swapped.
+              func (s *state) classify(peer string) result {
+              	s.mu.RLock()
+              	r, ok := s.cache[peer]
+              	db := s.db
+              	s.mu.RUnlock()
+              	if ok {
+              		return r
+              	}
+              	r = result{code: unknown, source: "none"}
+              	ip := net.ParseIP(peer)
+              	if ip != nil {
+              		if s.isCloudflare(ip) {
+              			r = result{cf: true, source: "cloudflare"}
+              		} else if db != nil {
+              			r.source = "geoip"
+              			if c := db.lookupCountry(ip); c != "" {
+              				r.code = c
+              			}
+              		}
+              	}
+              	s.mu.Lock()
+              	if len(s.cache) >= s.cacheSize {
+              		s.cache = map[string]result{}
+              	}
+              	s.cache[peer] = r
+              	s.mu.Unlock()
+              	return r
+              }
+
+              type geo struct {
+              	next  http.Handler
+              	state *state
+              }
+
+              // New creates the middleware.
+              func New(_ context.Context, next http.Handler, config *Config, _ string) (http.Handler, error) {
+              	s, err := getState(config)
+              	if err != nil {
+              		return nil, err
+              	}
+              	return &geo{next: next, state: s}, nil
+              }
+
+              func peerAddr(req *http.Request) string {
+              	host, _, err := net.SplitHostPort(req.RemoteAddr)
+              	if err != nil {
+              		return req.RemoteAddr
+              	}
+              	return host
+              }
+
+              // validCode accepts the two-character codes Cloudflare sends (ISO letters, "XX", "T1" for Tor).
+              func validCode(c string) bool {
+              	if len(c) != 2 {
+              		return false
+              	}
+              	for i := 0; i < 2; i++ {
+              		ch := c[i]
+              		if !((ch >= 'A' && ch <= 'Z') || (ch >= '0' && ch <= '9')) {
+              			return false
+              		}
+              	}
+              	return true
+              }
+
+              func (g *geo) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
+              	r := g.state.classify(peerAddr(req))
+              	code := r.code
+              	if r.cf {
+              		code = strings.ToUpper(strings.TrimSpace(req.Header.Get(countryHeader)))
+              		if !validCode(code) {
+              			code = unknown
+              		}
+              	}
+              	req.Header.Set(countryHeader, code)
+              	req.Header.Set(sourceHeader, r.source)
+              	g.next.ServeHTTP(rw, req)
               }
 
     tlsStore:
