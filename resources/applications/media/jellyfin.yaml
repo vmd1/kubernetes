@@ -6,7 +6,7 @@ metadata:
 spec:
   repo: https://jellyfin.github.io/jellyfin-helm
   chart: jellyfin
-  version: 3.2.0
+  version: 3.4.0
   targetNamespace: media
   valuesContent: |-
     extraEnvVars:
