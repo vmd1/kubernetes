@@ -4,4 +4,3 @@ kind: Kustomization
 resources:
   - manifest.yaml
   - operator.yaml
-  - secrets.sops.yaml

@@ -31,7 +31,7 @@ Keeps the MaxMind **GeoLite2** databases up to date on every node, in one shared
 
 ## Dependencies
 
-- A MaxMind account with a GeoLite2 license key (`maxmind-credentials`; the license key is the same one as in the `powerdns` namespace's `maxmind-license`).
+- A MaxMind account with a GeoLite2 license key (`maxmind-credentials`).
 - Outbound HTTPS to MaxMind from every node.
 
 ## Storage

@@ -22,7 +22,7 @@ PowerDNS is configured as an Authoritative DNS server running on the ingress nod
 
 ## Dependencies
 
-- **GeoIP Database**: the [geoip-updater](../geoip-updater/README.md) DaemonSet (namespace `geoip`, all nodes) provides `/var/lib/geoip/GeoLite2-City.mmdb`. The `wait-geoip-db` init container waits up to 10 minutes for it, then falls back to the old per-node cache. The `maxmind-license` Secret in this namespace is no longer used by this DaemonSet (the license key now lives in `geoip/maxmind-credentials`) and can be removed in a follow-up.
+- **GeoIP Database**: the [geoip-updater](../geoip-updater/README.md) DaemonSet (namespace `geoip`, all nodes) provides `/var/lib/geoip/GeoLite2-City.mmdb`. The `wait-geoip-db` init container waits up to 10 minutes for it, then falls back to the old per-node cache. The MaxMind credentials live in `geoip/maxmind-credentials`; this namespace has no MaxMind secret any more.
 - **Edge Health Checks**: Relies on `https://vmd1.homelab/health` availability for DNS-level failovers.
 
 ## Services & Routers
@@ -48,5 +48,4 @@ PowerDNS is configured as an Authoritative DNS server running on the ingress nod
 - **ConfigMap**: `powerdns-config`
   - `ingress-nodes.json`: Single source of truth containing geographical IP mappings for edge nodes.
   - `init-zone.sh` and `gen-zone.py`: Generator scripting to build zone rules.
-- **Secret**: `maxmind-license` (MaxMind API downloads license).
 - **Environment variables**: Controls launch modules, LUA activation, and AXFR policies inside the daemon.
