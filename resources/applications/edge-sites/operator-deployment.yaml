@@ -26,9 +26,9 @@ spec:
           imagePullPolicy: IfNotPresent
           env:
             - name: BUILDER_IMAGE
-              value: ghcr.io/vmd1/edge-builder:latest@sha256:0d353f215003c241ac913c90c4a60f62c1b21ed22accc8973517f1bcceacb1b2
+              value: ghcr.io/vmd1/edge-builder:latest@sha256:12d27915a24937cecbeff80432b1f430943c7f2cf8d770d5475a23999e21c2fe
             - name: RUNTIME_IMAGE
-              value: ghcr.io/vmd1/edge-runtime:latest@sha256:4f8ae46bf6733d479b624c07a7eb48f3ef60a3e88bdb847a9fb3df98062b62cb
+              value: ghcr.io/vmd1/edge-runtime:latest@sha256:3f2dcff4dde4a4fcca0387f82e0bdecea426c860c8789f6eff8b52bd7b03f8d0
             # The one registry for builds (Kaniko, fast path) and for the edge pods' pulls (token auth).
             - name: REGISTRY_HOST
               value: registry.vmd1.homelab

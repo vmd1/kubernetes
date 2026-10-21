@@ -34,7 +34,7 @@ spec:
         - name: edge
           # Fixed runtime image. Site content is synced at runtime by the edge-agent from the in-cluster
           # registry (driven by ConfigMap/edge-manifest), so updating a site never pulls an image or restarts pods.
-          image: ghcr.io/vmd1/edge-runtime:latest@sha256:4f8ae46bf6733d479b624c07a7eb48f3ef60a3e88bdb847a9fb3df98062b62cb
+          image: ghcr.io/vmd1/edge-runtime:latest@sha256:3f2dcff4dde4a4fcca0387f82e0bdecea426c860c8789f6eff8b52bd7b03f8d0
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 80
