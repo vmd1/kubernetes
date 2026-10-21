@@ -2,7 +2,7 @@
 
 Self-hosted productivity, cloud storage, and office suite configured with Backblaze B2 S3 as primary object storage, CloudNativePG PostgreSQL backend, Redis HA caching/locking, Collabora Online (CODE), and Traefik edge ingress.
 
-> **Offline (2026-10-21):** the `nextcloud` and `collabora` Deployments are scaled to `replicas: 0` because of the PHP2Shell RCE (CVE-2026-109618 / CVE-2026-109619). Set `nextcloud` back to `1` once the pinned `nextcloud:30-apache` image carries a patched PHP; Collabora is only useful alongside Nextcloud.
+> **Upgraded 2026-10-21:** Nextcloud went 30.0.17 -> 35.0.2 (stepwise 31/32/33/34/35 via one-off `occ upgrade` Jobs, no web exposure) on `nextcloud:35-apache` (PHP 8.5.12, patched for PHP2Shell CVE-2026-109618/109619). Pre-upgrade backups: Longhorn snapshot `nextcloud-pre-upgrade-30-0-17` on the PVC volume and a local `pg_dump` (not B2). Renovate still blocks automatic Nextcloud major bumps.
 
 ## Architecture
 

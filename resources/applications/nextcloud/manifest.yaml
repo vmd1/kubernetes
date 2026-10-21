@@ -24,7 +24,7 @@ metadata:
   labels:
     app: nextcloud
 spec:
-  replicas: 0
+  replicas: 1
   strategy:
     type: Recreate
   selector:
@@ -49,7 +49,7 @@ spec:
           tolerationSeconds: 60
       containers:
         - name: nextcloud
-          image: nextcloud:30-apache@sha256:fb966733647ea03f0446b0c22eac9733c8eb616d37b960caca9d4c3010e14a08
+          image: nextcloud:35-apache@sha256:3f05f4d5eded9d3d029e617926500645cca6344710364737a374088f6811095a
           ports:
             - name: http
               containerPort: 80
@@ -110,7 +110,7 @@ spec:
             - name: nextcloud-data
               mountPath: /var/www/html
         - name: nextcloud-cron
-          image: nextcloud:30-apache@sha256:fb966733647ea03f0446b0c22eac9733c8eb616d37b960caca9d4c3010e14a08
+          image: nextcloud:35-apache@sha256:3f05f4d5eded9d3d029e617926500645cca6344710364737a374088f6811095a
           command: ["/cron.sh"]
           envFrom:
             - secretRef:
@@ -165,7 +165,7 @@ metadata:
   labels:
     app: collabora
 spec:
-  replicas: 0
+  replicas: 1
   strategy:
     type: Recreate
   selector:
