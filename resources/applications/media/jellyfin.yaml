@@ -38,6 +38,7 @@ spec:
         enabled: true
         type: hostPath
         hostPath: /mnt/huge/media
+        readOnly: false  # chart >= 3.4 defaults /media to read-only; keep it writable as before
       cache:
         enabled: false
     
