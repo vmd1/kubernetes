@@ -126,7 +126,12 @@ spec:
       - "--providers.kubernetescrd.allowCrossNamespace=true"
       # Replace Traefik-generated 429/502/503/504 with the branded pages (Middleware error-pages, infrastructure/traefik).
       # The middleware must exist before this rolls out: merge the infrastructure change first.
-      - "--entrypoints.websecure.http.middlewares=traefik-error-pages@kubernetescrd"
+      # Order matters: geo-country first, so every route (and the error pages) sees a trustworthy CF-IPCountry.
+      # Both Middlewares are in infrastructure/traefik and must exist before this rolls out.
+      - "--entrypoints.websecure.http.middlewares=traefik-geo-country@kubernetescrd,traefik-error-pages@kubernetescrd"
+      # Country and where it came from in every access-log line (request_CF-IPCountry, request_X-Vmd1-Geo-Source)
+      - "--accesslog.fields.headers.names.CF-IPCountry=keep"
+      - "--accesslog.fields.headers.names.X-Vmd1-Geo-Source=keep"
       # Header and HTTP/2 limits (defaults: 1 MiB headers, 250 streams per connection)
       - "--entrypoints.websecure.http.maxHeaderBytes=65536"
       - "--entrypoints.websecure.http2.maxConcurrentStreams=100"
