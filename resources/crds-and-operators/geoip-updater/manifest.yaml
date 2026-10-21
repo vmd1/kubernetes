@@ -52,7 +52,12 @@ spec:
             - name: GEOIPUPDATE_EDITION_IDS
               value: "GeoLite2-City GeoLite2-Country"
             - name: GEOIPUPDATE_FREQUENCY
-              value: "12"
+              value: "24"
+            # MaxMind caps downloads per account per day and answers 429 to
+            # every request (even up-to-date checks) once it is hit, so do
+            # not hammer it with retries.
+            - name: GEOIPUPDATE_RETRY_FOR
+              value: "0s"
             - name: GEOIPUPDATE_DB_DIR
               value: /geoip
             - name: GEOIPUPDATE_VERBOSE

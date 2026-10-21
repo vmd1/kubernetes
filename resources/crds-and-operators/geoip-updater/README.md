@@ -16,7 +16,7 @@ Keeps the MaxMind **GeoLite2** databases up to date on every node, in one shared
 
 | File | Description |
 | :--- | :--- |
-| [manifest.yaml](manifest.yaml) | `Namespace` `geoip` and `DaemonSet` `geoip-updater` (official `ghcr.io/maxmind/geoipupdate`, editions `GeoLite2-City` + `GeoLite2-Country`, checks every 12 h). |
+| [manifest.yaml](manifest.yaml) | `Namespace` `geoip` and `DaemonSet` `geoip-updater` (official `ghcr.io/maxmind/geoipupdate`, editions `GeoLite2-City` + `GeoLite2-Country`, checks every 24 h, no retries on failure). |
 | [secrets.sops.yaml](secrets.sops.yaml) | SOPS-encrypted `Secret` `maxmind-credentials` (`account-id`, `license-key`). |
 | [kustomization.yaml](kustomization.yaml) | Kustomize entrypoint for this folder. |
 
