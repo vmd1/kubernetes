@@ -103,7 +103,7 @@ spec:
         runAsGroup: 0
       containers:
         - name: loki
-          image: grafana/loki:3.0.0@sha256:757b5fadf816a1396f1fea598152947421fa49cb8b2db1ddd2a6e30fae003253
+          image: grafana/loki:3.7.8@sha256:1107dd5274e0ada47e42472b7a7e71f3b2a2fe878878108f3e2f9e51528f0193
           args:
             - -config.file=/etc/loki/loki.yaml
           ports:
@@ -218,7 +218,7 @@ spec:
                       - hades-02
       containers:
         - name: grafana
-          image: grafana/grafana:11.1.0@sha256:079600c9517b678c10cda6006b4487d3174512fd4c6cface37df7822756ed7a5
+          image: grafana/grafana:11.6.16@sha256:d67af92050b8d93b393dc741864752a69c9da1ffa39c1bb9af49ad5d9e47d2c3
           ports:
             - name: http
               containerPort: 3000
@@ -582,7 +582,7 @@ spec:
         runAsGroup: 0
       containers:
         - name: prometheus
-          image: prom/prometheus:v3.0.0@sha256:3b9b2a15d376334da8c286d995777d3b9315aa666d2311170ada6059a517b74f
+          image: prom/prometheus:v3.15.0@sha256:efd719c99d83b060d9daefdcf00360461adf279f45ef5391f8d111892118753e
           args:
             - --config.file=/etc/prometheus/prometheus.yml
             - --storage.tsdb.path=/prometheus
@@ -710,7 +710,7 @@ spec:
           effect: NoExecute
       containers:
         - name: node-exporter
-          image: prom/node-exporter:v1.8.1@sha256:fa7fa12a57eff607176d5c363d8bb08dfbf636b36ac3cb5613a202f3c61a6631
+          image: prom/node-exporter:v1.12.1@sha256:1b4e4438faca4dd7e001dd445d161a4a2091b0fededa84093b3a8dfeae1f1be0
           args:
             - --path.procfs=/host/proc
             - --path.sysfs=/host/sys
