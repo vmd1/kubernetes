@@ -115,6 +115,9 @@ data:
       expiration: 900
       certificate: /secrets/token.crt
       key: /secrets/token.key
+      # registry v3 verifies the token kid against the JWK thumbprint of the signing cert;
+      # the legacy libtrust key ID makes v3 reject every token (401 'untrusted key').
+      disable_legacy_key_id: true
     # Users authenticate against lldap. Only members of registry-admin (push/pull)
     # or registry-pull (pull only) can obtain a token at all.
     ldap_auth:
@@ -159,7 +162,7 @@ spec:
         topology.kubernetes.io/zone: uk-home
       containers:
         - name: docker-auth
-          image: cesanta/docker_auth:1@sha256:7e7d7d9aa72850b9b4811cbe7fe61fdc5b5184bf8bfb3335350f9d11985b6f0a
+          image: cesanta/docker_auth:1.14.0@sha256:98e0307e0d2dcbafe10098814a97d248143b78ca478693f78c3c0d67fe776ab4
           args: ["/config/auth_config.yml"]
           ports:
             - containerPort: 5001
