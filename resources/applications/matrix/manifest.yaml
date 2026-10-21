@@ -290,7 +290,7 @@ spec:
               app: mautrix-gmessages
       containers:
         - name: bridge
-          image: dock.mau.dev/mautrix/gmessages:latest@sha256:e515c691f5d32dde87bec3268a46bec9c9068138dca83c4f6aded71521417a86
+          image: dock.mau.dev/mautrix/gmessages:latest@sha256:6853e1275dc953d60799e988e3ffe01c0fee51e2f1dfc8b4b09c22476a56294f
           ports:
             - containerPort: 29336
           resources:
