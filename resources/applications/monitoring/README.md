@@ -22,6 +22,7 @@ The monitoring namespace deploys log aggregation (`loki` + `promtail`), metrics 
   - Loki retention is configured to `720h` (30 days) to bound disk growth.
   - Prometheus `scrape_interval` and `evaluation_interval` are set to `30s` to minimize API server CPU load on `hades-01`.
   - Promtail is deployed as a DaemonSet but relabeled to only ingest and forward logs from the `traefik` namespace. This keeps the Loki log database small and performant.
+  - A Promtail pipeline stage turns the geo plugin's access-log headers into the labels `ClientCountry` (two-letter code, `XX` unknown) and `ClientCountrySource` (`cloudflare`, `geoip`, `none`) on Traefik access-log lines, e.g. `{container_name="traefik", ClientCountry="DE"}`. Other Traefik log lines are untouched.
 - **Scrape Targets**: Prometheus scrapes metrics from Node Exporter, Kubelet, CoreDNS, Cert-Manager, Longhorn, CNPG, Redis, Etcd, and local Kubernetes service pods.
 
 ## Dependencies

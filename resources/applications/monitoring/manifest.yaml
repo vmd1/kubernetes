@@ -816,6 +816,21 @@ data:
       - job_name: kubernetes-pods
         kubernetes_sd_configs:
           - role: pod
+        # Traefik cannot rename header fields in its access log, so expose the
+        # geo plugin's headers as Loki labels with nicer names. Both have a
+        # small value set (~250 country codes, 3 sources).
+        pipeline_stages:
+          - cri: {}
+          - match:
+              selector: '{container_name="traefik"} |= "request_X-Vmd1-Geo-Source"'
+              stages:
+                - json:
+                    expressions:
+                      ClientCountry: '"request_Cf-Ipcountry"'
+                      ClientCountrySource: '"request_X-Vmd1-Geo-Source"'
+                - labels:
+                    ClientCountry:
+                    ClientCountrySource:
         relabel_configs:
           - source_labels: [__meta_kubernetes_namespace]
             action: keep
