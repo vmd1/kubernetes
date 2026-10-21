@@ -16,6 +16,22 @@ spec:
     requests:
       storage: 10Gi
 ---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nextcloud-php-hardening
+  namespace: nextcloud
+data:
+  zz-hardening.ini: |
+    ; PHP2Shell (CVE-2026-109618/109619) defence in depth: PHP's multipart / session upload
+    ; progress handling is the reported attack surface. Nextcloud does not use these.
+    session.upload_progress.enabled = 0
+    session.use_strict_mode = 1
+    ; do not advertise the PHP version in X-Powered-By
+    expose_php = Off
+    display_errors = Off
+    log_errors = On
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -36,6 +52,9 @@ spec:
         app: nextcloud
     spec:
       automountServiceAccountToken: false
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
       nodeSelector:
         topology.kubernetes.io/zone: uk-home
       tolerations:
@@ -106,9 +125,18 @@ spec:
                   value: cloud.vmd1.homelab
             periodSeconds: 20
             timeoutSeconds: 5
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+              add: ["CHOWN", "DAC_OVERRIDE", "FOWNER", "SETUID", "SETGID", "NET_BIND_SERVICE", "KILL"]
           volumeMounts:
             - name: nextcloud-data
               mountPath: /var/www/html
+            - name: php-hardening
+              mountPath: /usr/local/etc/php/conf.d/zz-hardening.ini
+              subPath: zz-hardening.ini
+              readOnly: true
         - name: nextcloud-cron
           image: nextcloud:35-apache@sha256:3f05f4d5eded9d3d029e617926500645cca6344710364737a374088f6811095a
           command: ["/cron.sh"]
@@ -129,6 +157,9 @@ spec:
         - name: nextcloud-data
           persistentVolumeClaim:
             claimName: nextcloud-pvc
+        - name: php-hardening
+          configMap:
+            name: nextcloud-php-hardening
 ---
 apiVersion: v1
 kind: Service
