@@ -6,7 +6,7 @@ metadata:
 spec:
   repo: https://traefik.github.io/charts
   chart: traefik
-  version: 41.0.1
+  version: 41.7.1
   targetNamespace: traefik
   valuesContent: |-
     deployment:
