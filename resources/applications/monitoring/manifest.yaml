@@ -103,7 +103,7 @@ spec:
         runAsGroup: 0
       containers:
         - name: loki
-          image: grafana/loki:3.7.8@sha256:1107dd5274e0ada47e42472b7a7e71f3b2a2fe878878108f3e2f9e51528f0193
+          image: grafana/loki:3.7.9@sha256:0db216b630ae1f348a1584c67f3cead8b4c1fc839169a39501db664744158e28
           args:
             - -config.file=/etc/loki/loki.yaml
           ports:
@@ -888,7 +888,7 @@ spec:
           effect: NoExecute
       containers:
         - name: promtail
-          image: grafana/promtail:3.0.0@sha256:d3de3da9431cfbe74a6a94555050df5257f357e827be8e63f8998d509c37af8b
+          image: grafana/promtail:3.6.11@sha256:a761cb834cfaeee29745440d4884d6748f0a08d8f68928db1d707018c1dcfbe9
           args:
             - -config.file=/etc/promtail/promtail.yaml
             - -config.expand-env=true

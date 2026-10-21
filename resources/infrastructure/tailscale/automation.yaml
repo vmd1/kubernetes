@@ -55,7 +55,7 @@ spec:
       serviceAccountName: tailscale-region-controller
       containers:
         - name: controller
-          image: ghcr.io/vmd1/tailscale-region-controller:latest@sha256:57a8c744a2a86f706fa08ecf8653bd16e89c2bb5be8aa5b6e75d60d5e37a9a73
+          image: ghcr.io/vmd1/tailscale-region-controller:latest@sha256:0893aca045443667afee2bc9121a5a3de883be0fff59d3767848b8c3d2024a17
           imagePullPolicy: IfNotPresent
           env:
             - name: MALLOC_TRIM_THRESHOLD_

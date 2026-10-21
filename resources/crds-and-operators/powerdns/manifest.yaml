@@ -71,7 +71,7 @@ spec:
 
       containers:
         - name: pdns
-          image: dl010/powerdns-auth:5.0.6@sha256:55d26fe704b0adb043629535561e3169e1259491b537c0c2a75f237b622c84a2
+          image: dl010/powerdns-auth:5.0.7@sha256:b61dfbd38965004d273d7cd8faba1a4871eef28eecff3768de98755e5bb2d464
           imagePullPolicy: Always
           securityContext:
             runAsUser: 0
@@ -147,7 +147,7 @@ spec:
               memory: 256Mi
 
         - name: config-watcher
-          image: dl010/powerdns-auth:5.0.6@sha256:55d26fe704b0adb043629535561e3169e1259491b537c0c2a75f237b622c84a2
+          image: dl010/powerdns-auth:5.0.7@sha256:b61dfbd38965004d273d7cd8faba1a4871eef28eecff3768de98755e5bb2d464
           securityContext:
             runAsUser: 0
             runAsGroup: 0

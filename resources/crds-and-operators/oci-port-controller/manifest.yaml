@@ -115,7 +115,7 @@ spec:
       serviceAccountName: oci-port-controller
       containers:
         - name: controller
-          image: ghcr.io/vmd1/oci-port-controller:latest@sha256:2d14ddf34e143729e9d3648d3e76a5df837ed6d7842f751c77b21358395978ef
+          image: ghcr.io/vmd1/oci-port-controller:latest@sha256:2770e5084a0b68ec5bbc34f1c535ebbe89e4f6102e9520651c46d417588275e2
           imagePullPolicy: IfNotPresent
           env:
             - name: PYTHONUNBUFFERED

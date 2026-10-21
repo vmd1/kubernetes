@@ -141,7 +141,7 @@ spec:
           tolerationSeconds: 60
       containers:
         - name: unifi
-          image: lscr.io/linuxserver/unifi-network-application:latest@sha256:4d5fc889c2f2c2cecc6b35d4d641780cbedbe90d3a51b8f03283261b137af468
+          image: lscr.io/linuxserver/unifi-network-application:latest@sha256:392031f6300b5b98631c2ee6871e0dae67aca31e9debb298c8efca0d92eb9fa7
           env:
             - name: PUID
               value: "1000"

@@ -22,7 +22,7 @@ spec:
         topology.kubernetes.io/zone: uk-home
       containers:
         - name: operator
-          image: ghcr.io/vmd1/edge-operator:latest@sha256:20a9c41af3989b39feddb923c410d6ab243105fdf588d3eaeb7a59302481a5cd
+          image: ghcr.io/vmd1/edge-operator:latest@sha256:df5c4734f77adf99f064521d4e9fa95ffeecd2a73286503fad17970be92b55f8
           imagePullPolicy: IfNotPresent
           env:
             - name: BUILDER_IMAGE

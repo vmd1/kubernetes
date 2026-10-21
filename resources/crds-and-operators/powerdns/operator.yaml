@@ -72,7 +72,7 @@ spec:
         node-role.kubernetes.io/control-plane: "true"
       containers:
         - name: operator
-          image: ghcr.io/vmd1/powerdns-operator:latest@sha256:fd9d37f805c45a79e35f488f5ebfed91f28ad946fc6c53750ec693355cb9a708
+          image: ghcr.io/vmd1/powerdns-operator:latest@sha256:9063cf3782bb149ed6a28dbdbe65dce305e15ae748a0bb4f36d6399a3db24470
           imagePullPolicy: IfNotPresent
           env:
             - name: POD_NAMESPACE
