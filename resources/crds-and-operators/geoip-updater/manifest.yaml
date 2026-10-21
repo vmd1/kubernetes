@@ -37,6 +37,20 @@ spec:
           image: ghcr.io/maxmind/geoipupdate:v8.0.0@sha256:51e70dd6f16cd3e4d845ac02d09940b10772a75b9d741427d235a78570923c1d
           # Pinned by the multi-arch index digest (amd64, arm64, arm/v6); the tag is kept for readability. To upgrade,
           # resolve the new tag's index digest (docker buildx imagetools inspect ghcr.io/maxmind/geoipupdate:<tag>) and replace both.
+          # The image entrypoint exits (set -e) when geoipupdate fails, which
+          # crash-loops the pod and blocks Flux whenever MaxMind rate-limits
+          # (429). Run our own loop: a failed check keeps the existing
+          # databases and is retried at the next interval.
+          command:
+            - /bin/sh
+            - -c
+            - |
+              trap 'exit 0' TERM INT
+              while true; do
+                /usr/bin/geoipupdate || echo "geoipupdate failed; keeping existing databases"
+                sleep "$((GEOIPUPDATE_FREQUENCY * 3600))" &
+                wait $!
+              done
           env:
             - name: GEOIPUPDATE_ACCOUNT_ID
               valueFrom:
