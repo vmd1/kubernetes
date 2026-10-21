@@ -2,6 +2,8 @@
 
 Self-hosted productivity, cloud storage, and office suite configured with Backblaze B2 S3 as primary object storage, CloudNativePG PostgreSQL backend, Redis HA caching/locking, Collabora Online (CODE), and Traefik edge ingress.
 
+> **Offline (2026-10-21):** the `nextcloud` and `collabora` Deployments are scaled to `replicas: 0` because of the PHP2Shell RCE (CVE-2026-109618 / CVE-2026-109619). Set `nextcloud` back to `1` once the pinned `nextcloud:30-apache` image carries a patched PHP; Collabora is only useful alongside Nextcloud.
+
 ## Architecture
 
 * **Namespace**: `nextcloud`
