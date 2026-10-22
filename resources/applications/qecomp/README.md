@@ -27,6 +27,8 @@ QEComp is an OIDC-authenticated app (API + SPA served same-origin) with Redis-ba
 - **Group-based permissions**: QEComp maps the OIDC `groups` claim to permissions via its own `role_permissions` table. The lldap groups must exist with exactly these names: `qecomp-admin` (all permissions), `qecomp-operator`, `qecomp-video`, `qecomp-lighting`, `qecomp-emcee`, `qecomp-viewer`. Authelia's `qecomp_users` policy only lets members of these groups sign in; everyone else is denied.
 - **Leader-election HA**: QEComp scales via `kubectl scale deployment/qecomp -n qecomp --replicas=N` — the app handles N replicas natively via a Redis leader-election lock (only one pod is ever "active"; the rest serve reads/HA passively). Pod anti-affinity is declared up front so it takes effect automatically once scaled past 1 replica.
 - **`edge-retry` middleware referenced explicitly**: this middleware only actually exists in namespace `vmd1-web` (created outside git); other apps in this repo reference it with no namespace, which silently resolves to their own namespace and never resolves. QEComp references it as `namespace: vmd1-web` so it actually works.
+- **API Docs Behind SSO**: FastAPI's `/docs`, `/redoc` and `/openapi.json` are served by a priority-100 route behind `oauth2-proxy-vmd1-dev` (Authelia, `Domain: vmd1.homelab` group). Other unknown paths fall through to the SPA, so only those three are real doc endpoints.
+
 
 ## Dependencies
 

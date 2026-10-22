@@ -19,6 +19,8 @@ PowerDNS is configured as an Authoritative DNS server running on the ingress nod
   - Implements LUA `ifurlup` records to return the closest healthy node's IP to the client based on distance and health check metrics (`https://vmd1.homelab/health`).
 - **No Directory Shadowing**: To avoid overlaying config folders and losing the container's default configs, generated files are placed in an `emptyDir` volume and mounted as individual files using `subPath` definitions.
 - **AXFR Whitelist**: Restricts zone transfers (`PDNS_allow_axfr_ips`) strictly to Cloudflare's IP ranges to sync changes to secondary name servers.
+- **No Version Disclosure**: `PDNS_version_string=anonymous` makes `version.bind`/`version.pdns` queries return REFUSED instead of the exact PowerDNS build string. Recursion and AXFR were already refused on all ingress nodes.
+
 
 ## Dependencies
 

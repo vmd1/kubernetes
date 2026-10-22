@@ -15,6 +15,8 @@ Vaultwarden is an alternative Bitwarden server API implementation written in Rus
 - **SSO Integration**: Configured with OIDC authentication pointing to the [Authelia](../authelia/README.md) OIDC authority (`https://identity.vmd1.homelab`, client `vaultwarden`) to permit Single Sign-On (SSO) login.
 - **Strict Registration Limits**: Disables new signups (`"signups_allowed": false`) to prevent unauthorized public registrations, while leaving organization invitations open (`"invitations_allowed": true`).
 - **SMTP relaying**: Connects to SMTP2Go using encrypted STARTTLS over port 587 for dispatching secure 2FA tokens, organizational invitations, and vault sharing emails.
+- **Admin Panel Behind SSO**: a second route (`PathPrefix(`/admin`)`, priority 100) adds the `oauth2-proxy-vmd1-dev` forward-auth middleware (Authelia, 2FA, `Domain: vmd1.homelab` group) in front of Vaultwarden's own `ADMIN_TOKEN` prompt. No Bitwarden client uses `/admin`, so vault access is unaffected.
+
 
 ## Dependencies
 

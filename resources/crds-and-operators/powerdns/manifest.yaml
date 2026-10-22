@@ -99,6 +99,9 @@ spec:
               value: "/var/run"
             - name: PDNS_edns_subnet_processing
               value: "yes"
+            # "anonymous" makes version.bind / version.pdns answer REFUSED instead of the exact build string.
+            - name: PDNS_version_string
+              value: "anonymous"
             - name: PDNS_loglevel
               value: "9"
             - name: PDNS_primary

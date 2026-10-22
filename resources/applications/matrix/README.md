@@ -18,6 +18,8 @@ This directory hosts the self-hosted Matrix federation setup, utilizing the high
   - Exposes the client-server APIs on `matrix.vmd1.homelab`.
   - Exposes standard server-to-server federation on `federation.vmd1.homelab` (exposing port `8448` over SSL).
   - Routes requests matching `/.well-known/matrix` directly to provide correct client/server discovery mappings.
+- **Rate Limit and Headers**: `matrix-rate-limit` (average 600, burst 600, deliberately lenient because federation peers and clients behind one Cloudflare PoP share a bucket) and `security-headers` are on `matrix.vmd1.homelab`/`federation.vmd1.homelab` and `chat.vmd1.homelab`; the five public bridge routes (`api.vmd1.homelab/v1/bridges/*`) get the cluster `rate-limit` and `security-headers`. Bridges talk to continuwuity in-cluster (`http://continuwuity:8008`) and are called back at their ClusterIP service, so none of this is on the appservice path.
+
 
 ## Dependencies
 

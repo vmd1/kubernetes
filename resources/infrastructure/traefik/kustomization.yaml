@@ -12,3 +12,4 @@ resources:
   - trace.yaml
   - error-pages.yaml
   - geo-country.yaml
+  - cloudflare-only.yaml

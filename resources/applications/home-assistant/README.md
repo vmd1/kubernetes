@@ -15,6 +15,8 @@ Home Assistant is a home automation platform running locally in the cluster. It 
 - **Embedded File Browser Sidecar**: Integrates a `filebrowser/filebrowser` container in the same pod sharing the `/config` mount. This permits secure browser-based edits of YAML configurations without needing terminal access.
 - **SSO Gate on Editor**: The File Browser management dashboard (`edit-home.vmd1.homelab`) is gated behind oauth2-proxy (Authelia).
 - **Sign-in through Authelia**: the dashboard (`home.vmd1.homelab`) uses the `hass-oidc-auth` custom component (see [Single Sign-On](#single-sign-on-authelia)). The old LLDAP command-line auth provider was removed.
+- **Filebrowser Auth**: the filebrowser sidecar runs without `--noauth` (the flag only matters when its database is first created, and the existing database already requires a login). It is reachable on the host network of the uk-home node as well as through `edit-home.vmd1.homelab` (behind oauth2-proxy), so its own login stays enabled.
+
 
 ## Dependencies
 

@@ -1,0 +1,40 @@
+# Cloudflare-only origin for vmd1.homelab and every subdomain.
+#
+# Every vmd1.homelab hostname that serves HTTP is proxied by Cloudflare (dns/domains/vmd1.homelab.js: apex ALIAS and the
+# `*` CNAME are CF_PROXY_ON; the DNS-only names are ns1-4, ingress, vivaans-pc.d and non-cluster targets). Anything
+# that reaches an ingress node directly with a vmd1.homelab Host header is bypassing Cloudflare's WAF/rate limits and
+# is answered with the same 404 as an unknown host. The router matches on the TCP peer (Traefik's ClientIP matcher
+# uses RemoteAddr, which the entrypoints' forwardedHeaders.trustedIPs never rewrite), so it cannot be spoofed with
+# X-Forwarded-For or CF-Connecting-IP.
+#
+# Allowed peers: Cloudflare's published ranges (https://www.cloudflare.com/ips/, same list as the entrypoints'
+# trustedIPs in crds-and-operators/traefik/manifest.yaml; keep the two in sync) plus loopback, the pod and service
+# CIDRs and the tailnet. LAN ranges are NOT allowed, so a LAN client with split-horizon DNS for *.vmd1.homelab would be
+# blocked; add 192.168.0.0/16 here if that ever applies.
+#
+# Priority 900000 sits below /.vmd1/trace (1000000, intentionally answerable on any host and any path of origin)
+# and above every site route (rule-length priorities, explicit ones top out at 10000). vmd1.homelab, vmd1.homelab and
+# vmd1.homelab are untouched.
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: vmd1-dev-cloudflare-only
+  namespace: traefik
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: >-
+        HostRegexp(`^(.+\.)?vmd1\.dev$`) && !ClientIP(
+        `173.245.48.0/20`, `103.21.244.0/22`, `103.22.200.0/22`, `103.31.4.0/22`, `141.101.64.0/18`,
+        `108.162.192.0/18`, `190.93.240.0/20`, `188.114.96.0/20`, `197.234.240.0/22`, `198.41.128.0/17`,
+        `162.158.0.0/15`, `104.16.0.0/13`, `104.24.0.0/14`, `172.64.0.0/13`, `131.0.72.0/22`,
+        `2400:cb00::/32`, `2606:4700::/32`, `2803:f800::/32`, `2405:b500::/32`, `2405:8100::/32`,
+        `2a06:98c0::/29`, `2c0f:f248::/32`,
+        `127.0.0.0/8`, `::1/128`, `10.42.0.0/16`, `10.43.0.0/16`, `100.64.0.0/10`, `fd7a:115c:a1e0::/48`)
+      kind: Rule
+      priority: 900000
+      services:
+        - name: error-pages
+          port: catchall-404
+          nativeLB: true
