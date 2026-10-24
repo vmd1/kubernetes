@@ -101,8 +101,8 @@ survives node rebuilds. IPv4 only, matching the cluster. IPv6 events are counted
 
 Prometheus metrics on a hostNetwork port (9477, confirm it is free), scraped through the existing
 `kubernetes-pods` job (confirm the annotation convention there, else add a job):
-- `podflow_bytes_total{namespace,pod,workload,direction,app,category}`
-- `podflow_flows_total{namespace,pod,workload,app,category}` (closed flows)
+- `podflow_bytes_total{ns,pod_name,workload,direction,application,category}`
+- `podflow_flows_total{ns,pod_name,workload,application,category}` (closed flows)
 - `podflow_peer_bytes_total{namespace,workload,direction,peer_kind,peer_namespace,peer_workload,peer_country}`
   (workload level, for pod-to-pod and Service maps)
 - agent health: dropped events, flow-table size, DNS cache size, unresolved endpoint ratio
@@ -237,7 +237,7 @@ namespace, so the pod's conntrack table holds the original source (the client's 
   not assume it works. Fallback with no new credential: ask the pod's own tailscaled (`whois`) through its local
   socket, which is fiddlier.
 - **Output.** Same flow-line schema with `src.kind="tailnet"`, device name, and `via_exit_node`. Metrics:
-  `podflow_tailnet_bytes_total{device,exit_node,direction,app,category}` (a few dozen series). New dashboard view
+  `podflow_tailnet_bytes_total{device,exit_node,direction,application,category}` (a few dozen series). New dashboard view
   "Tailnet Devices" with the same layout as Pod Traffic (device table, then drill-down to categories, active flows and
   connection history), filterable by exit node.
 - **Dedup.** The core agent still logs the exit-node pod's own flows, now post-NAT. To avoid double counting, flows seen
@@ -281,8 +281,9 @@ plan above:
 - **Go, as planned.** A `scratch` image (about 7MB binary), standard library plus `golang.org/x/sys` and
   `maxminddb-golang`. No client-go and no Prometheus client library (heap and binary size). The Kubernetes cache is a
   hand-written list+watch.
-- **Metric label names** are `ns`, `pod_name`, `workload` (not `namespace` / `pod`), because Prometheus' own target
-  labels `namespace` and `pod` would shadow them as `exported_*`. Host-network and node traffic is `ns="_host"`,
+- **Metric label names** are `ns`, `pod_name`, `workload`, `application` (not `namespace` / `pod` / `app`), because the
+  `kubernetes-pods` job copies the pod's own labels onto every series (`namespace`, `pod`, and `app=podflow`), which
+  would shadow them as `exported_*`. The first deployment showed exactly that for `app`. Host-network and node traffic is `ns="_host"`,
   `pod_name=<node>`.
 - **Rules** ship in the image rather than in a `podflow-rules` ConfigMap; `RULES_FILE` allows an override later.
 - **Baselining.** Flows that were already running when the agent starts (first dump, or start time before the agent)
