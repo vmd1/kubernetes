@@ -4,6 +4,7 @@ kind: Kustomization
 resources:
   - ingressroute.yaml
   - dashboards.yaml
+  - podflow-dashboards.yaml
   - kube-state-metrics.yaml
   - podflow.yaml
   - manifest.yaml

@@ -308,6 +308,8 @@ spec:
               mountPath: /var/lib/grafana/dashboards/coredns
             - name: db-traefik-loki
               mountPath: /var/lib/grafana/dashboards/traefik-loki
+            - name: db-podflow
+              mountPath: /var/lib/grafana/dashboards/podflow
       volumes:
         - name: datasources-volume
           configMap:
@@ -333,6 +335,9 @@ spec:
         - name: db-traefik-loki
           configMap:
             name: grafana-dashboard-traefik-loki
+        - name: db-podflow
+          configMap:
+            name: grafana-dashboard-podflow
 ---
 apiVersion: v1
 kind: Service
