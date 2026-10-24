@@ -226,10 +226,10 @@ spec:
           resources:
             requests:
               cpu: 20m
-              memory: 96Mi
+              memory: 128Mi
             limits:
-              cpu: 300m
-              memory: 256Mi
+              cpu: 1000m
+              memory: 512Mi
           env:
             - name: GOGC
               value: "50"
