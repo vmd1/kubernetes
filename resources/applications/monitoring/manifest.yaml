@@ -840,7 +840,7 @@ data:
           # podflow writes flow lines as JSON on stdout and diagnostics on stderr; keep only the JSON.
           # Labels stay low-cardinality (job, node_name, event); everything else is parsed at query time.
           - match:
-              selector: '{container_name="podflow"}'
+              selector: '{container_name=~"podflow(-ts)?"}'
               stages:
                 - drop:
                     expression: '^[^{]'
@@ -856,7 +856,7 @@ data:
           - source_labels: [__meta_kubernetes_namespace, __meta_kubernetes_pod_label_app]
             separator: ';'
             action: keep
-            regex: 'traefik;.*|monitoring;podflow'
+            regex: 'traefik;.*|monitoring;podflow(-ts)?'
           - source_labels: [__meta_kubernetes_pod_node_name]
             action: keep
             regex: ${HOSTNAME}

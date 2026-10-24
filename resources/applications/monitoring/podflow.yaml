@@ -64,7 +64,7 @@ spec:
       initContainers:
         # conntrack carries no byte counts or start times unless these two sysctls are on (they are off by default)
         - name: enable-accounting
-          image: ghcr.io/vmd1/podflow:latest@sha256:8f79d4ee4f80204031d57ee3102a3aa6b35c37c1ac6736972e1352c72cc473a0
+          image: ghcr.io/vmd1/podflow:latest@sha256:0f4d531604f07033f44891f7287badd12fd2e48219d6936eb302bfefc07ea9f1
           args: ["-init"]
           securityContext:
             privileged: true
@@ -78,7 +78,7 @@ spec:
               memory: 24Mi
       containers:
         - name: podflow
-          image: ghcr.io/vmd1/podflow:latest@sha256:8f79d4ee4f80204031d57ee3102a3aa6b35c37c1ac6736972e1352c72cc473a0
+          image: ghcr.io/vmd1/podflow:latest@sha256:0f4d531604f07033f44891f7287badd12fd2e48219d6936eb302bfefc07ea9f1
           env:
             - name: NODE_NAME
               valueFrom:
@@ -110,6 +110,83 @@ spec:
               add: ["NET_ADMIN", "NET_RAW"]
             seccompProfile:
               type: RuntimeDefault
+          volumeMounts:
+            - name: geoip
+              mountPath: /geoip
+              readOnly: true
+      volumes:
+        - name: geoip
+          hostPath:
+            path: /var/lib/geoip
+---
+# podflow -ts: which tailnet device sent the traffic that leaves through a Tailscale exit node or subnet router.
+# One pod per node finds the Tailscale proxy pods (tailscale/ts-*) on its node, enters each pod's network
+# namespace and reads conntrack there, where the client's tailnet address is still the source. Device names come
+# from the pod's own tailscaled local API, so no Tailscale API key or OAuth client is needed.
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: podflow-ts
+  namespace: monitoring
+  labels:
+    app: podflow-ts
+spec:
+  updateStrategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 2
+  selector:
+    matchLabels:
+      app: podflow-ts
+  template:
+    metadata:
+      labels:
+        app: podflow-ts
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9478"
+        prometheus.io/path: /metrics
+    spec:
+      serviceAccountName: podflow
+      hostNetwork: true
+      hostPID: true
+      dnsPolicy: ClusterFirstWithHostNet
+      tolerations:
+        - operator: Exists
+          effect: NoSchedule
+        - operator: Exists
+          effect: NoExecute
+      containers:
+        - name: podflow-ts
+          image: ghcr.io/vmd1/podflow:latest@sha256:0f4d531604f07033f44891f7287badd12fd2e48219d6936eb302bfefc07ea9f1
+          args: ["-ts"]
+          env:
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: NODE_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.hostIP
+            - name: METRICS_PORT
+              value: "9478"
+            - name: GOMEMLIMIT
+              value: 64MiB
+          resources:
+            requests:
+              cpu: 20m
+              memory: 32Mi
+            limits:
+              cpu: 200m
+              memory: 96Mi
+          # privileged: with hostPID it enters the Tailscale pods' network namespaces (setns, ptrace to read
+          # /proc/<pid>/ns and the pod's tailscaled socket) and switches on conntrack accounting inside each,
+          # which needs a writable /proc/sys.
+          securityContext:
+            privileged: true
+            runAsUser: 0
+            readOnlyRootFilesystem: true
           volumeMounts:
             - name: geoip
               mountPath: /geoip
