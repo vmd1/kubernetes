@@ -5,5 +5,6 @@ resources:
   - ingressroute.yaml
   - dashboards.yaml
   - kube-state-metrics.yaml
+  - podflow.yaml
   - manifest.yaml
   - secrets.sops.yaml

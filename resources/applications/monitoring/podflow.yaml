@@ -1,0 +1,117 @@
+# podflow: per-pod network flow agent (source: controllers/podflow, plan: PODFLOW-PLAN.md). One pod per node in
+# the host network namespace reads conntrack and exports per-pod Prometheus metrics (scraped through the
+# prometheus.io annotations by the kubernetes-pods job) and JSON flow lines on stdout (shipped to Loki by promtail).
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: podflow
+  namespace: monitoring
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: podflow
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "services", "nodes"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: podflow
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: podflow
+subjects:
+  - kind: ServiceAccount
+    name: podflow
+    namespace: monitoring
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: podflow
+  namespace: monitoring
+  labels:
+    app: podflow
+spec:
+  updateStrategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 2
+  selector:
+    matchLabels:
+      app: podflow
+  template:
+    metadata:
+      labels:
+        app: podflow
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9477"
+        prometheus.io/path: /metrics
+    spec:
+      serviceAccountName: podflow
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      tolerations:
+        - operator: Exists
+          effect: NoSchedule
+        - operator: Exists
+          effect: NoExecute
+      initContainers:
+        # conntrack carries no byte counts or start times unless these two sysctls are on (they are off by default)
+        - name: enable-accounting
+          image: ghcr.io/vmd1/podflow:latest@sha256:71ccc569eb7befcb0a7bfd87c33ed361b4f2df3e9f65cb8c3403956dc1391036
+          args: ["-init"]
+          securityContext:
+            privileged: true
+            runAsUser: 0
+          resources:
+            requests:
+              cpu: 5m
+              memory: 8Mi
+            limits:
+              cpu: 50m
+              memory: 24Mi
+      containers:
+        - name: podflow
+          image: ghcr.io/vmd1/podflow:latest@sha256:71ccc569eb7befcb0a7bfd87c33ed361b4f2df3e9f65cb8c3403956dc1391036
+          env:
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            # bind the metrics port to the node's internal (Tailscale) address, not to the edge nodes' public ones
+            - name: NODE_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.hostIP
+            - name: GOMEMLIMIT
+              value: 48MiB
+          resources:
+            requests:
+              cpu: 20m
+              memory: 24Mi
+            limits:
+              cpu: 200m
+              memory: 64Mi
+          securityContext:
+            runAsUser: 0
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+              add: ["NET_ADMIN", "NET_RAW"]
+            seccompProfile:
+              type: RuntimeDefault
+          volumeMounts:
+            - name: geoip
+              mountPath: /geoip
+              readOnly: true
+      volumes:
+        - name: geoip
+          hostPath:
+            path: /var/lib/geoip
