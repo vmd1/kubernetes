@@ -170,7 +170,7 @@ free space before each PVC expansion.
 | `controllers/podflow/` (new) | Go agent, Dockerfile, README. Add `podflow` to the `IMAGES` array in `.github/scripts/controller-images-changes.sh`. |
 | `resources/applications/monitoring/podflow.yaml` (new) | ServiceAccount, ClusterRole/Binding, ConfigMap `podflow-rules`, DaemonSet. |
 | `.../monitoring/manifest.yaml` | `loki-pvc` 10Gi to 20Gi; Loki memory limit review; Prometheus PVC 30Gi to 40Gi, `--storage.tsdb.retention.time=30d`, `--storage.tsdb.retention.size=36GB`; `metric_relabel_configs` dropping heavy apiserver/etcd buckets (first check no dashboard or rule uses them); promtail `keep` rule widened from `traefik` to `traefik` plus `monitoring`/`podflow`; promtail stage labelling `event`; optional recording rules for 7d/30d increases. |
-| `.../monitoring/podflow-ts.yaml` (new, Phase 5) | DaemonSet `podflow-ts` (hostPID, `SYS_ADMIN` + `SYS_PTRACE`) on Connector nodes, SOPS secret with the read-scoped Tailscale API credential. |
+| `.../monitoring/podflow-ts.yaml` (new, Phase 5) | DaemonSet `podflow-ts` (hostPID, `SYS_ADMIN` + `SYS_PTRACE`) on Connector nodes. No credentials: device names come from each Tailscale pod's own tailscaled. |
 | `.../monitoring/podflow-dashboards.yaml` (new) | Dashboard ConfigMaps, mounted in the Grafana Deployment like the existing ones. |
 | `.../infrastructure/geoip-updater` | Add the GeoLite2-ASN edition. |
 | Docs | monitoring README, `controllers/README.md`, `cluster-info.md` (files, PVC sizes, retention, new DaemonSet; also remove the stale `nodedns` / node-local-dns entry), root README ToC if a section is added. |
@@ -231,11 +231,14 @@ namespace, so the pod's conntrack table holds the original source (the client's 
   pod's network namespace through `/proc` (matched to the pod by cgroup/UID), enters it with `setns`, and reads
   conntrack there with the same netlink code as the core agent. It also sniffs DNS inside that namespace, because
   clients may resolve names through the exit node. Budget: about 20-30Mi per pod.
-- **Device names.** Map `100.x` to device name (and tags) from the Tailscale API device list (available on the free
-  plan), cached and refreshed every few minutes. This needs a read-scoped API key or OAuth client that **you create**;
-  it goes in a SOPS secret in `monitoring`. The scopes of the existing `operator-oauth` client are not checked, so do
-  not assume it works. Fallback with no new credential: ask the pod's own tailscaled (`whois`) through its local
-  socket, which is fiddlier.
+- **Device names (no key, nothing to expire).** Map `100.x` to device name, owner and tags by asking the Tailscale pod's
+  own tailscaled through its local API socket (`/tmp/tailscaled.sock` inside the pod, reachable from the host through
+  `/proc/<pid>/root/tmp/tailscaled.sock`; `GET /localapi/v0/status`, the same data as `tailscale status --json`).
+  Verified 2026-10-21 on the `uk-home` exit-node pod: the socket is world-writable (`srw-rw-rw-`) and the status lists
+  22 peers with `HostName`, `TailscaleIPs`, `UserID`, `Tags`, `Online` plus a `User` map of owners. Cached and refreshed
+  every minute or so. A Tailscale API key (90-day expiry) is not needed, and neither is an OAuth client; the operator's
+  own `operator-oauth` credential is not touched. Limit: a pod only knows the peers its ACL view allows, which includes
+  every client that uses it as an exit node or subnet router.
 - **Output.** Same flow-line schema with `src.kind="tailnet"`, device name, and `via_exit_node`. Metrics:
   `podflow_tailnet_bytes_total{device,exit_node,direction,application,category}` (a few dozen series). New dashboard view
   "Tailnet Devices" with the same layout as Pod Traffic (device table, then drill-down to categories, active flows and
