@@ -64,7 +64,7 @@ spec:
       initContainers:
         # conntrack carries no byte counts or start times unless these two sysctls are on (they are off by default)
         - name: enable-accounting
-          image: ghcr.io/vmd1/podflow:latest@sha256:71ccc569eb7befcb0a7bfd87c33ed361b4f2df3e9f65cb8c3403956dc1391036
+          image: ghcr.io/vmd1/podflow:latest@sha256:8f79d4ee4f80204031d57ee3102a3aa6b35c37c1ac6736972e1352c72cc473a0
           args: ["-init"]
           securityContext:
             privileged: true
@@ -78,7 +78,7 @@ spec:
               memory: 24Mi
       containers:
         - name: podflow
-          image: ghcr.io/vmd1/podflow:latest@sha256:71ccc569eb7befcb0a7bfd87c33ed361b4f2df3e9f65cb8c3403956dc1391036
+          image: ghcr.io/vmd1/podflow:latest@sha256:8f79d4ee4f80204031d57ee3102a3aa6b35c37c1ac6736972e1352c72cc473a0
           env:
             - name: NODE_NAME
               valueFrom:
