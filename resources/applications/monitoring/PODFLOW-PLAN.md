@@ -328,3 +328,18 @@ plan above:
   conntrack socket buffer). Limit raised to 96Mi (request 32Mi, `GOMEMLIMIT` 64MiB). Normal use is 20-30MB.
 - **Pre-existing, unrelated:** the Prometheus `etcd` target (`10.0.0.10:2381`) is refused; it was already down before
   any of these changes.
+
+## Incident and design change (2026-10-24, Phase 5 rollout)
+
+Adding a second DaemonSet (`podflow-ts`) and rolling the `podflow` image at the same time took edge nodes to NotReady
+(hera-01, zeus-01, ares-02, hera-02, one after another, each recovering by itself). It was not CPU or the pods' own
+memory (each used 8-16MB): the nodes (1GB, no swap, about 250MB "available" of which most is hot page cache) hit
+page-cache thrashing. On zeus-01 the boot volume was read at 17-47 MB/s (about 450 IOPS, the volume's limit) with
+100+ major page faults per second for about 7 minutes, so the kubelet starved. Every extra pod costs more than its RSS
+(container shim, pause container, its own caches), and a rollout briefly doubles it.
+
+Changes: tailnet attribution is now a mode of the main process (`TAILNET=true`, PR "refactor(podflow): tailnet
+attribution inside the main process"), so there is no second DaemonSet; the DaemonSet rolls one node at a time with
+`minReadySeconds: 60`. Not done, worth considering for the edge nodes: a small swapfile or zram (they have no swap, so
+the kernel's only reclaimable memory is page cache including program code), `MemoryLow=` for the kubelet and
+containerd, and fewer per-node pods.
