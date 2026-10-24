@@ -1,6 +1,6 @@
 # Pod flow visibility plan (`podflow`)
 
-Status: Phase 0 (measurement) done 2026-10-21; Phases 1-4 implemented 2026-10-23 (see "Implementation notes" at the end). Dashboards (Phase 6) and tailnet attribution (Phase 5) are not built.
+Status: Phase 0 (measurement) done 2026-10-21; Phases 1-4 implemented 2026-10-23 and deployed 2026-10-24 (see "Implementation notes" at the end). Dashboards (Phase 6) and tailnet attribution (Phase 5) are not built.
 
 ## Goal
 
@@ -302,3 +302,23 @@ plan above:
 - **For Phase 6:** Prometheus runs with `--query.max-samples=1000000`. A 7d or 30d `increase()` over a few hundred
   `podflow_bytes_total` series needs tens of millions of samples, so the pod table needs recording rules (hourly
   increases, `rule_files` is not configured yet) or a higher limit.
+
+## Deployment notes (2026-10-24)
+
+- **Rollout:** PRs #176 (storage/retention), #177 (agent), #179 (promtail, GeoLite2-ASN), #180 (DaemonSet), #181/#182
+  (metric label fix). The agent runs on all 8 nodes: 11-28MB resident, no event overflows, targets up in Prometheus,
+  flow lines in Loki from every node (about 9,400 lines per 5 minutes cluster-wide, so about 2.7M lines/day; at the
+  planned 8x compression roughly 4GB for 30 days, inside the 20Gi Loki volume).
+- **Series:** Prometheus went from about 196k to 136k series after the apiserver/etcd bucket drop, plus about 2k for
+  podflow.
+- **Bug found during verification:** the `kubernetes-pods` job copies the pod's labels onto every series, so
+  `app="podflow"` replaced the agent's `app` metric label. Renamed to `application` (#181).
+- **GHCR visibility:** the `ghcr.io/vmd1/podflow` package is created private; it had to be made public by hand
+  (the API cannot do it) before nodes could pull it.
+- **PVC expansion is stuck.** `prometheus-pvc` (30Gi to 40Gi) and `loki-pvc` (10Gi to 20Gi) show `Resizing`. The
+  Longhorn volumes and replicas were expanded, but the engine cannot refresh the iSCSI initiator on hades-02:
+  `nsenter --mount=/host/proc/11440/ns/mnt ... iscsiadm`: no such file (the hades-02 instance manager cached a host
+  PID that no longer exists). Both volumes work at their old sizes. Until the expansion completes,
+  `--storage.tsdb.retention.size=36GB` is larger than the 30Gi volume; the expected 30-day data volume (about 19GB at
+  136k series) still fits, but lower the cap to about 27GB if Prometheus growth surprises. See
+  `longhorn_expansion_stuck` in `cluster-info.md` for the fix.
