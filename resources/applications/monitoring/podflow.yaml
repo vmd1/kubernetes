@@ -90,14 +90,17 @@ spec:
                 fieldRef:
                   fieldPath: status.hostIP
             - name: GOMEMLIMIT
-              value: 48MiB
+              value: 64MiB
+          # ~20-30MB normally. The limit also covers the mmapped GeoLite2 files, the 8MB conntrack socket buffer and
+          # transient dump buffers; a burst of new connections on hades-02 (Longhorn reattaching volumes) pushed it
+          # past the original 64Mi and the pod was OOMKilled.
           resources:
             requests:
               cpu: 20m
-              memory: 24Mi
+              memory: 32Mi
             limits:
               cpu: 200m
-              memory: 64Mi
+              memory: 96Mi
           securityContext:
             runAsUser: 0
             allowPrivilegeEscalation: false

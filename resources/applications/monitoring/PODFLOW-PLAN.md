@@ -315,10 +315,13 @@ plan above:
   `app="podflow"` replaced the agent's `app` metric label. Renamed to `application` (#181).
 - **GHCR visibility:** the `ghcr.io/vmd1/podflow` package is created private; it had to be made public by hand
   (the API cannot do it) before nodes could pull it.
-- **PVC expansion is stuck.** `prometheus-pvc` (30Gi to 40Gi) and `loki-pvc` (10Gi to 20Gi) show `Resizing`. The
-  Longhorn volumes and replicas were expanded, but the engine cannot refresh the iSCSI initiator on hades-02:
-  `nsenter --mount=/host/proc/11440/ns/mnt ... iscsiadm`: no such file (the hades-02 instance manager cached a host
-  PID that no longer exists). Both volumes work at their old sizes. Until the expansion completes,
-  `--storage.tsdb.retention.size=36GB` is larger than the 30Gi volume; the expected 30-day data volume (about 19GB at
-  136k series) still fits, but lower the cap to about 27GB if Prometheus growth surprises. See
-  `longhorn_expansion_stuck` in `cluster-info.md` for the fix.
+- **PVC expansion was stuck, then fixed (2026-10-24).** `prometheus-pvc` (30Gi to 40Gi) and `loki-pvc` (10Gi to 20Gi)
+  showed `Resizing`: the hades-02 Longhorn instance manager had cached a stale host PID, so the engine could not
+  refresh the iSCSI initiator. Restarting that instance manager with the three affected workloads (loki, prometheus,
+  matrix continuwuity) scaled down fixed it; both PVCs are now 40Gi/20Gi and Prometheus kept all its data. Procedure:
+  `longhorn_expansion_stuck` in `cluster-info.md`.
+- **OOM during that maintenance:** two podflow pods on the hades nodes were OOMKilled at the 64Mi limit while Longhorn
+  reattached volumes (a burst of new connections; the limit also covers the mmapped GeoLite2 files and the 8MB
+  conntrack socket buffer). Limit raised to 96Mi (request 32Mi, `GOMEMLIMIT` 64MiB). Normal use is 20-30MB.
+- **Pre-existing, unrelated:** the Prometheus `etcd` target (`10.0.0.10:2381`) is refused; it was already down before
+  any of these changes.
