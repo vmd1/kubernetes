@@ -45,6 +45,8 @@ data:
       # Time-based retention (30 days max) to bound disk use on the 20Gi PVC (Traefik access logs + podflow flow logs)
       retention_period: 720h
       allow_structured_metadata: false
+      # the podflow dashboards group flow log lines into series (active flows); the default is 500
+      max_query_series: 5000
 
     compactor:
       working_directory: /loki/compactor
@@ -356,6 +358,9 @@ data:
       scrape_interval: 30s
       evaluation_interval: 30s
 
+    rule_files:
+      - /etc/prometheus/podflow-rules.yml
+
     scrape_configs:
       - job_name: 'prometheus'
         static_configs:
@@ -537,6 +542,37 @@ data:
           - source_labels: [__meta_kubernetes_endpoint_port_name]
             action: keep
             regex: http-metrics
+
+  # Recording rules for the podflow dashboards. A 7d or 30d range query over the raw per-pod counters would need
+  # tens of millions of samples; these roll them up into 5-minute and hourly increases that sum cheaply
+  # (sum_over_time(<rule>[30d])). Evaluated on their own schedule, so a window ending "now" lags by up to
+  # one interval. Only data from after deployment exists, so long windows fill up over time.
+  podflow-rules.yml: |
+    groups:
+      - name: podflow_5m
+        interval: 5m
+        rules:
+          - record: podflow:pod_bytes:increase5m
+            expr: sum by (ns, pod_name, workload, direction) (increase(podflow_bytes_total[5m]))
+          - record: podflow:pod_app_bytes:increase5m
+            expr: sum by (ns, pod_name, workload, direction, application, category) (increase(podflow_bytes_total[5m]))
+          - record: podflow:ns_app_bytes:increase5m
+            expr: sum by (ns, direction, application, category) (increase(podflow_bytes_total[5m]))
+          - record: podflow:tailnet_bytes:increase5m
+            expr: sum by (device, exit_node, direction, application, category) (increase(podflow_tailnet_bytes_total[5m]))
+      - name: podflow_1h
+        interval: 1h
+        rules:
+          - record: podflow:pod_bytes:increase1h
+            expr: sum by (ns, pod_name, workload, direction) (increase(podflow_bytes_total[1h]))
+          - record: podflow:ns_app_flows:increase1h
+            expr: sum by (ns, application, category) (increase(podflow_flows_total[1h]))
+          - record: podflow:peer_bytes:increase1h
+            expr: sum by (ns, workload, direction, peer_kind, peer_ns, peer_workload, peer_country) (increase(podflow_peer_bytes_total[1h]))
+          - record: podflow:tailnet_bytes:increase1h
+            expr: sum by (device, exit_node, direction, application, category) (increase(podflow_tailnet_bytes_total[1h]))
+          - record: podflow:tailnet_flows:increase1h
+            expr: sum by (device, exit_node, application, category) (increase(podflow_tailnet_flows_total[1h]))
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
@@ -598,7 +634,8 @@ spec:
             - --storage.tsdb.retention.size=36GB
             - --storage.tsdb.retention.time=30d
             - --query.max-concurrency=4
-            - --query.max-samples=1000000
+            # the podflow dashboards sum 5-minute recording rules over up to 30 days (about 2.6M samples cluster-wide)
+            - --query.max-samples=5000000
           env:
             - name: GOGC
               value: "50"
