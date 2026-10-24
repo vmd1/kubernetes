@@ -13,6 +13,7 @@ The monitoring namespace deploys log aggregation (`loki` + `promtail`), metrics 
 | [example-not-working-traefik-dash.json](example-not-working-traefik-dash.json) | Backup archive of a non-functional dashboard version preserved for debugging purposes. |
 | [download-dashboards.ps1](download-dashboards.ps1) | PowerShell script used to fetch the latest production dashboards from public Grafana APIs. |
 | [download-ksm.ps1](download-ksm.ps1) | PowerShell script to download the target Kube-State-Metrics deployment templates. |
+| [PODFLOW-PLAN.md](PODFLOW-PLAN.md) | Plan (not yet deployed) for per-pod network flow visibility: a conntrack-based `podflow` agent feeding Prometheus and Loki, with router-style Grafana dashboards, and the Loki + Prometheus storage budget (70Gi, 30d). |
 
 ## Design Decisions
 
