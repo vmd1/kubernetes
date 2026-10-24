@@ -20,6 +20,7 @@ The monitoring namespace deploys log aggregation (`loki` + `promtail`), metrics 
 - **PostgreSQL-backed Grafana**: Grafana is configured to use the high-availability CloudNativePG PostgreSQL database cluster instead of sqlite. This ensures dashboard edits and user profiles persist across restarts.
 - **Log Retention & Scrape Filtering**:
   - Loki retention is configured to `720h` (30 days) to bound disk growth.
+  - Prometheus keeps 30 days, capped at 36GB (`--storage.tsdb.retention.time=30d`, `--storage.tsdb.retention.size=36GB`). The `kubelet` job drops the apiserver/etcd `*_bucket` histogram families (about 63k of 196k series, unused by the dashboards in this repo); their `_count` and `_sum` series stay. If a dashboard needs those buckets, remove the drop rule in `metric_relabel_configs`.
   - Prometheus `scrape_interval` and `evaluation_interval` are set to `30s` to minimize API server CPU load on `hades-01`.
   - Promtail is deployed as a DaemonSet but relabeled to only ingest and forward logs from the `traefik` namespace. This keeps the Loki log database small and performant.
   - A Promtail pipeline stage turns the geo plugin's access-log headers into the labels `ClientCountry` (two-letter code, `XX` unknown) and `ClientCountrySource` (`cloudflare`, `geoip`, `none`) on Traefik access-log lines, e.g. `{container_name="traefik", ClientCountry="DE"}`. Other Traefik log lines are untouched.
@@ -42,8 +43,8 @@ The monitoring namespace deploys log aggregation (`loki` + `promtail`), metrics 
 
 ## Storage
 
-- **Loki storage**: PVC `loki-pvc` (size `10Gi`, class `longhorn-single-replica`) mounted at `/loki`. Holds active and compacted chunks.
-- **Prometheus Storage**: PVC `prometheus-pvc` (size `30Gi`, class `longhorn-single-replica`) mounted at `/prometheus` to store long-term time-series databases.
+- **Loki storage**: PVC `loki-pvc` (size `20Gi`, class `longhorn-single-replica`) mounted at `/loki`. Holds active and compacted chunks.
+- **Prometheus Storage**: PVC `prometheus-pvc` (size `40Gi`, class `longhorn-single-replica`) mounted at `/prometheus` to store long-term time-series databases.
 
 ## Constraints & Scheduling
 
