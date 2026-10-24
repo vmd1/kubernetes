@@ -6,7 +6,7 @@ The monitoring namespace deploys log aggregation (`loki` + `promtail`), metrics 
 
 | File | Description |
 | :--- | :--- |
-| [manifest.yaml](manifest.yaml) | Comprehensive deployment manifest containing Loki (and configmaps/volumes), Promtail DaemonSet (for Traefik namespace log forwarding), Prometheus (metrics server), Node Exporter, Grafana Server (with CNPG backend connection details), services, and IngressRoutes. |
+| [manifest.yaml](manifest.yaml) | Comprehensive deployment manifest containing Loki (and configmaps/volumes), Promtail DaemonSet (forwards Traefik logs and the podflow agent's flow lines), Prometheus (metrics server), Node Exporter, Grafana Server (with CNPG backend connection details), services, and IngressRoutes. |
 | [kube-state-metrics.yaml](kube-state-metrics.yaml) | Configuration deployment file setting up the Kube-State-Metrics broker agent to expose low-level cluster object metrics to Prometheus. |
 | [dashboards.yaml](dashboards.yaml) | Pre-configured dashboard payloads to load default views into Grafana (Node details, Longhorn, Postgres CNPG, Prometheus internals, Traefik traffic). |
 | [traefik-loki.json](traefik-loki.json) | Grafana dashboard config matching Loki structured logs emitted by Traefik. |
@@ -23,7 +23,8 @@ The monitoring namespace deploys log aggregation (`loki` + `promtail`), metrics 
   - Loki retention is configured to `720h` (30 days) to bound disk growth.
   - Prometheus keeps 30 days, capped at 36GB (`--storage.tsdb.retention.time=30d`, `--storage.tsdb.retention.size=36GB`). The `kubelet` job drops the apiserver/etcd `*_bucket` histogram families (about 63k of 196k series, unused by the dashboards in this repo); their `_count` and `_sum` series stay. If a dashboard needs those buckets, remove the drop rule in `metric_relabel_configs`.
   - Prometheus `scrape_interval` and `evaluation_interval` are set to `30s` to minimize API server CPU load on `hades-01`.
-  - Promtail is deployed as a DaemonSet but relabeled to only ingest and forward logs from the `traefik` namespace. This keeps the Loki log database small and performant.
+  - Promtail is deployed as a DaemonSet but relabeled to only ingest and forward logs from the `traefik` namespace and from the `podflow` agent (`monitoring` namespace, label `app=podflow`). This keeps the Loki log database small and performant.
+  - podflow writes one JSON line per flow on stdout and diagnostics on stderr; a promtail stage drops every line that does not start with `{`. Loki labels stay `job="podflow"`, `node_name`, `event` (`close` or `active`); everything else (`src.name`, `dst.host`, `app`, ...) is read at query time with `| json`, e.g. `{job="podflow", event="close"} | json | src_name="nextcloud-..."`. Short flows are aggregated per minute into one line with a `count`.
   - A Promtail pipeline stage turns the geo plugin's access-log headers into the labels `ClientCountry` (two-letter code, `XX` unknown) and `ClientCountrySource` (`cloudflare`, `geoip`, `none`) on Traefik access-log lines, e.g. `{container_name="traefik", ClientCountry="DE"}`. Other Traefik log lines are untouched.
 - **Scrape Targets**: Prometheus scrapes metrics from Node Exporter, Kubelet, CoreDNS, Cert-Manager, Longhorn, CNPG, Redis, Etcd, and local Kubernetes service pods.
 

@@ -16,7 +16,7 @@ Keeps the MaxMind **GeoLite2** databases up to date on every node, in one shared
 
 | File | Description |
 | :--- | :--- |
-| [manifest.yaml](manifest.yaml) | `Namespace` `geoip` and `DaemonSet` `geoip-updater` (official `ghcr.io/maxmind/geoipupdate`, editions `GeoLite2-City` + `GeoLite2-Country`, checks every 24 h, no retries on failure). |
+| [manifest.yaml](manifest.yaml) | `Namespace` `geoip` and `DaemonSet` `geoip-updater` (official `ghcr.io/maxmind/geoipupdate`, editions `GeoLite2-City` + `GeoLite2-Country` + `GeoLite2-ASN`, checks every 24 h, no retries on failure). |
 | [secrets.sops.yaml](secrets.sops.yaml) | SOPS-encrypted `Secret` `maxmind-credentials` (`account-id`, `license-key`). |
 | [kustomization.yaml](kustomization.yaml) | Kustomize entrypoint for this folder. |
 
@@ -25,7 +25,7 @@ Keeps the MaxMind **GeoLite2** databases up to date on every node, in one shared
 - **One updater per node, nobody owns it but itself:** PowerDNS and Traefik both consume the databases, so the updater lives in its own namespace instead of inside either of them. It runs on every node (all taints tolerated), including the uk-home nodes, because Traefik runs there too.
 - **Image pinned by digest:** `ghcr.io/maxmind/geoipupdate:v8.0.0@sha256:51e70dd6...` is the multi-arch index digest (amd64, arm64, arm/v6; verified to pull and run on hades-01 arm64 and hades-02 amd64), so a moved or re-pushed tag cannot change what runs. To upgrade, resolve the new tag's index digest (`docker buildx imagetools inspect ghcr.io/maxmind/geoipupdate:<tag>`) and replace both the tag and the digest.
 - **Official tool, conditional downloads:** `geoipupdate` asks MaxMind whether an edition changed (md5) and only downloads when it did (verified: a second run reports "up to date" without downloading), so the 12-hourly checks do not use MaxMind's daily download allowance. GeoLite2 is released on Tuesdays and Fridays. Needs the MaxMind **account ID** as well as the license key.
-- **Two editions:** `GeoLite2-City` (~51 MB, PowerDNS needs latitude/longitude for `pickclosest`) and `GeoLite2-Country` (~3.4 MB, small enough to hold inside the Traefik plugin).
+- **Three editions:** `GeoLite2-City` (~51 MB, PowerDNS needs latitude/longitude for `pickclosest`), `GeoLite2-Country` (~3.4 MB, small enough to hold inside the Traefik plugin, also read by podflow) and `GeoLite2-ASN` (~10 MB, the network owner of an address, read by podflow to name destinations such as Cloudflare or Google). MaxMind caps downloads per account per day; with one updater per node, the first run after adding an edition downloads it once per node.
 - **Shared hostPath, directory mounts:** files are written to `/var/lib/geoip` on the node (world-readable). Consumers must mount the **directory** read-only, not a single file with `subPath`: `geoipupdate` replaces files atomically, and a `subPath` mount would keep pointing at the old file.
 - **Traefik** mounts the directory read-only and its `vmd1geo` plugin reads `GeoLite2-Country.mmdb` (see the [traefik README](../traefik/README.md)); it re-reads the file when it changes.
 - **PowerDNS** reads `/var/lib/geoip` (previously it only downloaded its own copy when the file was missing, so the node copy was 4 months old) and reloads itself when the file is replaced; see the [powerdns README](../powerdns/README.md).
@@ -37,7 +37,7 @@ Keeps the MaxMind **GeoLite2** databases up to date on every node, in one shared
 
 ## Storage
 
-- `hostPath` `/var/lib/geoip` (`DirectoryOrCreate`) holding `GeoLite2-City.mmdb`, `GeoLite2-Country.mmdb` and a lock file. A 16 MiB `emptyDir` is used for `/tmp`.
+- `hostPath` `/var/lib/geoip` (`DirectoryOrCreate`) holding `GeoLite2-City.mmdb`, `GeoLite2-Country.mmdb`, `GeoLite2-ASN.mmdb` and a lock file. A 16 MiB `emptyDir` is used for `/tmp`.
 
 ## Constraints & Scheduling
 

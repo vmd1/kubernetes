@@ -837,10 +837,26 @@ data:
                 - labels:
                     ClientCountry:
                     ClientCountrySource:
+          # podflow writes flow lines as JSON on stdout and diagnostics on stderr; keep only the JSON.
+          # Labels stay low-cardinality (job, node_name, event); everything else is parsed at query time.
+          - match:
+              selector: '{container_name="podflow"}'
+              stages:
+                - drop:
+                    expression: '^[^{]'
+                - json:
+                    expressions:
+                      event: event
+                - labels:
+                    event:
+                - static_labels:
+                    job: podflow
         relabel_configs:
-          - source_labels: [__meta_kubernetes_namespace]
+          # Traefik access logs, and the podflow agent's flow lines (JSON on stdout)
+          - source_labels: [__meta_kubernetes_namespace, __meta_kubernetes_pod_label_app]
+            separator: ';'
             action: keep
-            regex: traefik
+            regex: 'traefik;.*|monitoring;podflow'
           - source_labels: [__meta_kubernetes_pod_node_name]
             action: keep
             regex: ${HOSTNAME}
@@ -909,7 +925,7 @@ spec:
               memory: 32Mi
             limits:
               cpu: 100m
-              memory: 80Mi
+              memory: 96Mi
           securityContext:
             runAsUser: 0
             privileged: true

@@ -1,5 +1,5 @@
 # Keeps the MaxMind GeoLite2 databases fresh on every node that serves traffic, for PowerDNS (City: it needs
-# lat/lon for pickclosest) and Traefik (Country: small enough to hold in the plugin). One updater per node writes
+# lat/lon for pickclosest), Traefik (Country: small enough to hold in the plugin) and podflow (Country + ASN). One updater per node writes
 # to the shared hostPath /var/lib/geoip; consumers mount that directory read-only. geoipupdate asks MaxMind
 # whether each edition changed (md5) and only downloads when it did, so the 12 hourly checks cost almost nothing.
 apiVersion: v1
@@ -62,9 +62,10 @@ spec:
                 secretKeyRef:
                   name: maxmind-credentials
                   key: license-key
-            # GeoLite2 is released on Tuesdays and Fridays; the City edition is for PowerDNS, Country for Traefik.
+            # GeoLite2 is released on Tuesdays and Fridays; the City edition is for PowerDNS, Country for Traefik
+            # and podflow, ASN (network owner, ~10 MB) for podflow's flow classification.
             - name: GEOIPUPDATE_EDITION_IDS
-              value: "GeoLite2-City GeoLite2-Country"
+              value: "GeoLite2-City GeoLite2-Country GeoLite2-ASN"
             - name: GEOIPUPDATE_FREQUENCY
               value: "24"
             # MaxMind caps downloads per account per day and answers 429 to
