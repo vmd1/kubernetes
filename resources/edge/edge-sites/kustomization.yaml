@@ -10,3 +10,4 @@ resources:
   - secrets.sops.yaml
   - sites/gossip.yaml
   - sites/vmd1-dev.yaml
+  - sites/router-console.yaml
