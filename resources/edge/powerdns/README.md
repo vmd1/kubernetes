@@ -7,6 +7,7 @@ PowerDNS is configured as an Authoritative DNS server running on the ingress nod
 | File | Description |
 | :--- | :--- |
 | [manifest.yaml](manifest.yaml) | Defines ConfigMap (`powerdns-config`) containing python zone-generators and configurations, DaemonSet running PowerDNS (`dl010/powerdns-auth:5.0.5`), and internal volumes. |
+| [secrets.sops.yaml](secrets.sops.yaml) | SOPS-encrypted Secret `powerdns-secrets` holding `PDNS_API_KEY`, a random 64-character hex key read by the `pdns` container via `secretKeyRef`. |
 | [operator.yaml](operator.yaml) | ServiceAccount, RBAC and Deployment for `powerdns-operator`, which turns the nodes' `node.vmd1.homelab/public-ip` and zone labels into the `geoip-zones.yaml` ConfigMap PowerDNS reads. Runs the image `ghcr.io/vmd1/powerdns-operator` (pinned by digest, built from [`controllers/powerdns-operator`](../../../../controllers/powerdns-operator)). |
 
 ## Design Decisions
@@ -30,7 +31,7 @@ PowerDNS is configured as an Authoritative DNS server running on the ingress nod
 ## Services & Routers
 
 - **Ports**: Exposes port `53` (TCP/UDP) directly on the host interface (`hostNetwork: true`).
-- **Web Server / API**: Internal admin dashboard running on `127.0.0.1:8081` with API enabled for local metrics.
+- **Web Server / API**: Internal admin dashboard running on `127.0.0.1:8081` with the API enabled for local use only. The API key is a random 64-character hex string in the SOPS Secret `powerdns-secrets` (it used to be the literal `changeme`). To rotate it, generate a new one (`openssl rand -hex 32`), put it in `secrets.sops.yaml` with `sops`, merge, then run `kubectl rollout restart ds/powerdns -n powerdns` (pods read the Secret only at start, so changing it does not roll them by itself).
 
 ## Storage
 

@@ -117,7 +117,10 @@ spec:
             - name: PDNS_api
               value: "yes"
             - name: PDNS_api_key
-              value: "changeme"
+              valueFrom:
+                secretKeyRef:
+                  name: powerdns-secrets
+                  key: PDNS_API_KEY
             - name: PDNS_setuid
               value: "0"
             - name: PDNS_setgid

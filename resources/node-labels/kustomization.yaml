@@ -3,7 +3,9 @@ kind: Kustomization
 
 # Labels only. Taints stay in each node's k3s flags: Node.spec.taints is an atomic list, so Flux would own the
 # whole list and strip the node.kubernetes.io/unreachable and not-ready taints the node controller adds.
-# node.vmd1.homelab/public-ip is left out on purpose: a script keeps it current, and Flux would fight it.
+# node.vmd1.homelab/public-ip: set here for the cloud nodes (static OCI IPs). Left out for hades-01/02 on purpose: the
+# cf-ddns CronJob keeps it current (dynamic home IP), and Flux would fight it. Do not drop it from the cloud nodes:
+# Flux took ownership of the old hand-set labels on first apply and removed them, which emptied the PowerDNS zone.
 resources:
   - ares-01.yaml
   - ares-02.yaml
