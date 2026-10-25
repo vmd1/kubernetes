@@ -29,4 +29,4 @@ The [kustomization.yaml](kustomization.yaml) here is the Kustomize entrypoint fo
 - [../nodes/README.md](../nodes/README.md) — `OCIPortRule` instances reconciled after this layer.
 - [../infrastructure/README.md](../infrastructure/README.md) — companion infrastructure layer.
 - [../../clusters/vmd1/operators.yaml](../../clusters/vmd1/operators.yaml) — the Flux Kustomization that reconciles this layer.
-- [../../cluster-info.md](../../../cluster-info.md) — detailed per-component inventory.
+- [../../../docs/manifests.md](../../../docs/manifests.md) — detailed per-component inventory.

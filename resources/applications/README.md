@@ -40,4 +40,4 @@ The [kustomization.yaml](kustomization.yaml) here is the Kustomize entrypoint th
 - [kustomization.yaml](kustomization.yaml) — the Kustomize entrypoint for this layer.
 - [../infrastructure/README.md](../infrastructure/README.md) — infrastructure primitives these applications depend on.
 - [../../clusters/vmd1/applications.yaml](../../clusters/vmd1/applications.yaml) — the Flux Kustomization that reconciles this layer.
-- [../../cluster-info.md](../../../cluster-info.md) — detailed per-application inventory.
+- [../../../docs/manifests.md](../../../docs/manifests.md) — detailed per-application inventory.

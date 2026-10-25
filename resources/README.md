@@ -40,5 +40,5 @@ All secrets live next to their workloads as SOPS-encrypted `secrets.sops.yaml` f
 ## Related
 
 - [../clusters/vmd1/README.md](../clusters/vmd1/README.md) — the Flux Kustomizations that drive these layers.
-- [../../cluster-info.md](../../cluster-info.md) — detailed inventory of every resource in these layers.
+- [../../docs/manifests.md](../../docs/manifests.md) — detailed inventory of every resource in these layers.
 - [../../README.md](../../README.md) — repository overview and maintenance policy.

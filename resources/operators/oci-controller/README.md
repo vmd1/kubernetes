@@ -18,7 +18,7 @@ This folder holds the **shared SOPS-encrypted secrets** for the `oci-controller`
 
 ## Secrets
 
-Per [cluster-info.md](../../../../cluster-info.md), the encrypted file contains:
+Per [docs/manifests.md](../../../../docs/manifests.md), the encrypted file contains:
 
 | Secret | Purpose |
 | :--- | :--- |

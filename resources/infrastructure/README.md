@@ -26,4 +26,4 @@ The [kustomization.yaml](kustomization.yaml) here is the Kustomize entrypoint fo
 - [../operators/README.md](../operators/README.md) — the operators these infrastructure resources extend.
 - [../applications/README.md](../applications/README.md) — the applications that consume this layer.
 - [../../clusters/vmd1/infrastructure.yaml](../../clusters/vmd1/infrastructure.yaml) — the Flux Kustomization that reconciles this layer.
-- [../../cluster-info.md](../../../cluster-info.md) — detailed per-component inventory.
+- [../../../docs/manifests.md](../../../docs/manifests.md) — detailed per-component inventory.

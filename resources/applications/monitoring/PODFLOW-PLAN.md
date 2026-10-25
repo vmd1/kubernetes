@@ -176,7 +176,7 @@ free space before each PVC expansion.
 | Docs | monitoring README, `controllers/README.md`, `cluster-info.md` (files, PVC sizes, retention, new DaemonSet; also remove the stale `nodedns` / node-local-dns entry), root README ToC if a section is added. |
 
 PVC expansion goes through Flux. The storage classes allow expansion. If a volume does not resize online, follow the
-`rwo_pvc_safe_rollout` procedure in `cluster-info.md`.
+`rwo_pvc_safe_rollout` procedure in `docs/runbooks/rwo-pvc-safe-rollout.md`.
 
 ## Dashboards (Grafana, provisioned)
 
@@ -322,7 +322,7 @@ plan above:
   showed `Resizing`: the hades-02 Longhorn instance manager had cached a stale host PID, so the engine could not
   refresh the iSCSI initiator. Restarting that instance manager with the three affected workloads (loki, prometheus,
   matrix continuwuity) scaled down fixed it; both PVCs are now 40Gi/20Gi and Prometheus kept all its data. Procedure:
-  `longhorn_expansion_stuck` in `cluster-info.md`.
+  `longhorn_expansion_stuck` in `docs/runbooks/longhorn-expansion-stuck.md`.
 - **OOM during that maintenance:** two podflow pods on the hades nodes were OOMKilled at the 64Mi limit while Longhorn
   reattached volumes (a burst of new connections; the limit also covers the mmapped GeoLite2 files and the 8MB
   conntrack socket buffer). Limit raised to 96Mi (request 32Mi, `GOMEMLIMIT` 64MiB). Normal use is 20-30MB.
