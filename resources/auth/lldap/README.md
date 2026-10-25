@@ -24,7 +24,7 @@ Lldap is a simplified, lightweight LDAP server designed for user management. It 
 - **Kubernetes Services**:
   - `lldap` (ClusterIP, exposing port `17170` HTTP, `3890` LDAP, and `6360` LDAPS).
 - **Ingress Route**:
-  - Host `lldap.vmd1.homelab` on `websecure` entrypoint routing to service port `17170` (management console), gated by the `oauth2-proxy-kmnet-uk` forward-auth middleware (Authelia SSO). Because the UI is behind SSO, API clients can no longer call `/auth/simple/login` or the GraphQL API on this host from outside the cluster; in-cluster clients use the LDAP service directly.
+  - Host `lldap.vmd1.homelab` on `websecure` entrypoint routing to service port `17170` (management console), reachable **only from the tailnet** (the `tailnet-only` middleware, first in the chain; anyone else gets 403) and gated by the `oauth2-proxy-kmnet-uk` forward-auth middleware (Authelia SSO). `vmd1.homelab` is DNS-only, so an off-tailnet browser reaches the nodes directly and is refused by `tailnet-only`; with Tailscale on, split DNS resolves the name to the nodes' tailnet IPs (see [edge/powerdns](../../edge/powerdns/README.md#shadow-zones-tailnet-split-dns)). Because the UI is behind SSO, API clients can no longer call `/auth/simple/login` or the GraphQL API on this host from outside the cluster; in-cluster clients use the LDAP service directly.
 
 ## Storage
 
