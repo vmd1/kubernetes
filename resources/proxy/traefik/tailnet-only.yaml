@@ -1,0 +1,21 @@
+# Attach to any IngressRoute that must only be reachable from the tailnet:
+#
+#   middlewares:
+#     - name: tailnet-only
+#       namespace: traefik
+#
+# ipAllowList with no ipStrategy checks the TCP peer (RemoteAddr), never X-Forwarded-For, so it cannot be spoofed.
+# The peer is a tailnet address only when the client reached the node over Tailscale, which the DNS side arranges:
+# tailnet clients resolve every ingress name to the tailnet IPs of zeus-01, hades-01 and hera-01 (edge/powerdns,
+# shadow zones; see its README). Everyone else (Cloudflare edge IPs, direct public clients) gets a 403. With
+# Tailscale off the name still resolves publicly, so the request arrives via Cloudflare and is refused here.
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: tailnet-only
+  namespace: traefik
+spec:
+  ipAllowList:
+    sourceRange:
+      - 100.64.0.0/10
+      - fd7a:115c:a1e0::/48
