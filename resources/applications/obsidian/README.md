@@ -6,7 +6,7 @@ Obsidian Sync Server provides a self-hosted database backend for Obsidian markdo
 
 | File | Description |
 | :--- | :--- |
-| [manifest.yaml](manifest.yaml) | Defines the Namespace `obsidian`, Secret for CouchDB admin credentials, ConfigMap for CouchDB tuning (CORS, max document size, single node cluster), `longhorn-single-replica` PVC, Deployment running `couchdb:3.4.2`, Service, and Traefik `IngressRoute`. |
+| [manifest.yaml](manifest.yaml) | Defines Secret for CouchDB admin credentials, ConfigMap for CouchDB tuning (CORS, max document size, single node cluster), `longhorn-single-replica` PVC, Deployment running `couchdb:3.4.2`, Service, and Traefik `IngressRoute`. |
 
 ## Design Decisions
 

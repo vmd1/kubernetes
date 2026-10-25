@@ -20,10 +20,10 @@ This folder bootstraps **FluxCD** on the `vmd1` cluster and connects it to this 
 
 1. `gotk-sync.yaml` creates a `GitRepository` named `flux-system` that clones this repository (using the SSH deploy key stored in the `flux-system` secret).
 2. The `flux-system` `Kustomization` applies the contents of `./clusters/vmd1` (the entrypoint described in [../README.md](../README.md)).
-3. The four layer Kustomizations (`crds-and-operators`, `nodes`, `infrastructure`, `applications`) then reconcile the [resources/](../../resources/README.md) tree.
+3. The four layer Kustomizations (`operators`, `nodes`, `infrastructure`, `applications`) then reconcile the [resources/](../../../resources/README.md) tree.
 
 ## Related
 
 - [../README.md](../README.md) — the cluster-level Kustomizations driven by this bootstrap.
-- [../../resources/README.md](../../resources/README.md) — the manifest layers reconciled by Flux.
-- [../../../cluster-info.md](../../../cluster-info.md) — Flux reconciliation details (`flux.kustomizations`).
+- [../../resources/README.md](../../../resources/README.md) — the manifest layers reconciled by Flux.
+- [../../../cluster-info.md](../../../../cluster-info.md) — Flux reconciliation details (`flux.kustomizations`).

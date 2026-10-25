@@ -6,7 +6,7 @@ This component periodically checks the public IP address of the home network and
 
 | File | Description |
 | :--- | :--- |
-| [manifest.yaml](manifest.yaml) | Declares the `cf-ddns` Namespace, Secret containing API credentials, ConfigMap containing the bash/sh updater script, and the CronJob scheduling the checks. |
+| [manifest.yaml](manifest.yaml) | Declares Secret containing API credentials, ConfigMap containing the bash/sh updater script, and the CronJob scheduling the checks. |
 
 ## Design Decisions
 

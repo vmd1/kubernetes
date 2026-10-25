@@ -1,9 +1,4 @@
 apiVersion: v1
-kind: Namespace
-metadata:
-  name: qecomp
----
-apiVersion: v1
 kind: ConfigMap
 metadata:
   name: qecomp-config

@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Node
+metadata:
+  name: hades-02
+  annotations:
+    kustomize.toolkit.fluxcd.io/prune: disabled
+  labels:
+    node-role.kubernetes.io/db: "true"
+    node-role.kubernetes.io/worker: "true"
+    node.longhorn.io/create-default-disk: "false"
+    storage.vmd1.homelab/cnpg: "true"
+    storage.vmd1.homelab/longhorn-client: "true"
+    storage.vmd1.homelab/redis-sentinel: "true"
+    storage.vmd1.homelab/redis-server: "true"
+    topology.kubernetes.io/region: "united-kingdom"
+    topology.kubernetes.io/zone: "uk-home"

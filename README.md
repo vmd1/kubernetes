@@ -17,12 +17,12 @@ kubernetes/
 ├── clusters/                     <- Flux cluster definitions and entrypoints
 │   └── vmd1/                     <- Primary cluster definition & reconciliation layers
 │       ├── flux-system/          <- Flux bootstrap manifests
-│       ├── crds-and-operators.yaml
+│       ├── operators.yaml
 │       ├── nodes.yaml
 │       ├── infrastructure.yaml
 │       └── applications.yaml
 ├── resources/                    <- Manifests reconciled by Flux across 4 layers
-│   ├── crds-and-operators/       <- CRDs, operators, controllers
+│   ├── operators/       <- CRDs, operators, controllers
 │   ├── nodes/                    <- Node firewall & port rules
 │   ├── infrastructure/           <- Cluster-wide infrastructure & internal services
 │   └── applications/             <- User-facing applications and workloads
@@ -36,7 +36,7 @@ See [clusters/README.md](clusters/README.md) and [clusters/vmd1/README.md](clust
 ## Resources
 
 See [resources/README.md](resources/README.md) for details on the four deployment layers and their dependency chain:
-1. [crds-and-operators/](resources/crds-and-operators/README.md)
+1. [operators/](resources/operators/README.md)
 2. [nodes/](resources/nodes/README.md)
 3. [infrastructure/](resources/infrastructure/README.md)
 4. [applications/](resources/applications/README.md)

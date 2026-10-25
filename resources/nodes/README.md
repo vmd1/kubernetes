@@ -1,6 +1,6 @@
 # Node Port Rules (`resources/nodes/`)
 
-This directory contains individual `OCIPortRule` custom resource instances managed by [oci-port-controller](../crds-and-operators/oci-port-controller/README.md). It is reconciled by Flux **after** the CRDs & operators layer, so the CRD and controller exist before these instances are applied.
+This directory contains individual `OCIPortRule` custom resource instances managed by [oci-port-controller](../operators/oci-port-controller/README.md). It is reconciled by Flux **after** the CRDs & operators layer, so the CRD and controller exist before these instances are applied.
 
 ## Table of Contents
 
@@ -36,6 +36,6 @@ kubectl apply -k nodes/
 
 ## Related
 
-- [crds-and-operators/oci-port-controller/README.md](../crds-and-operators/oci-port-controller/README.md) — the controller + CRD that consumes these instances.
-- [crds-and-operators/oci-controller/README.md](../crds-and-operators/oci-controller/README.md) — shared secrets (`node-ssh-key`, `oci-credentials-<region>*`).
+- [operators/oci-port-controller/README.md](../operators/oci-port-controller/README.md) — the controller + CRD that consumes these instances.
+- [operators/oci-controller/README.md](../operators/oci-controller/README.md) — shared secrets (`node-ssh-key`, `oci-credentials-<region>*`).
 - [../README.md](../README.md) — the resources layer this folder belongs to.

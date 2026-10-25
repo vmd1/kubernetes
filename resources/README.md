@@ -1,6 +1,6 @@
 # Resources (`resources/`)
 
-This directory contains all the Kubernetes manifests that Flux reconciles into the `vmd1` cluster, organized into four layers. Each layer is pointed at by a Flux `Kustomization` defined in [clusters/vmd1/](../clusters/vmd1/README.md) and is applied in a strict dependency order.
+This directory contains all the Kubernetes manifests that Flux reconciles into the `vmd1` cluster, organized into eight layers. Each layer is pointed at by a Flux `Kustomization` defined in [clusters/vmd1/](../clusters/vmd1/README.md) and is applied in a strict dependency order.
 
 ## Table of Contents
 
@@ -13,18 +13,25 @@ This directory contains all the Kubernetes manifests that Flux reconciles into t
 
 | Layer | Flux Path | Contents |
 | :--- | :--- | :--- |
-| [crds-and-operators/](crds-and-operators/README.md) | `./resources/crds-and-operators` | Custom Resource Definitions and operators: cert-manager, CloudNativePG, Kube-VIP, Longhorn, Multus, OCI controller secrets, OCI port controller, PowerDNS, Redis, Traefik. |
+| [node-labels/](node-labels/README.md) | `./resources/node-labels` | Labels on each Node (no taints), Flux pruning disabled. |
+| [namespaces/](namespaces/README.md) | `./resources/namespaces` | Every Namespace the cluster uses (except `default`, `kube-*`, `flux-system`), with Flux pruning disabled. |
+| [crds/](crds/README.md) | `./resources/crds` | Vendored CRDs: CloudNativePG, EdgeSite, OCIPortRule. Never pruned. |
+| [operators/](operators/README.md) | `./resources/operators` | Operators and charts: cert-manager, CloudNativePG, Kube-VIP, Longhorn, Multus, OCI controller secrets, OCI port controller, Redis, Traefik. |
 | [nodes/](nodes/README.md) | `./resources/nodes` | `OCIPortRule` instances (web, DNS, DoT, Tailscale WireGuard ports) targeting ingress nodes. |
 | [infrastructure/](infrastructure/README.md) | `./resources/infrastructure` | Cluster services: Tailscale, Traefik middleware/LB, Longhorn UI + backup target, cf-ddns, lldap, OCI reboot controller, registry. |
-| [applications/](applications/README.md) | `./resources/applications` | User-facing applications: Authelia, Cinepro, Headlamp, Home Assistant, Matrix, Media, Monitoring, MQTT, Nextcloud, Ntfy, oauth2-proxy, Obsidian, UniFi, Uptime Kuma, Vaultwarden, vmd1-dev. |
+| [applications/](applications/README.md) | `./resources/applications` | User-facing applications: Authelia, Cinepro, Headlamp, Home Assistant, Matrix, Media, Monitoring, MQTT, Nextcloud, Ntfy, oauth2-proxy, Obsidian, UniFi, Uptime Kuma, Vaultwarden. |
+| [edge/](edge/README.md) | `./resources/edge` | DaemonSets on the ingress nodes: PowerDNS, GeoIP updater, edge-sites, error pages, podflow, node-exporter, promtail. |
 
 ## Reconciliation Order
 
 ```
-crds-and-operators ──► nodes ──► infrastructure ──► applications
+node-labels ─┐
+namespaces ──► crds ──► operators ──► nodes ──► infrastructure ──► applications
+                            │
+                            └──► edge   (nothing depends on edge)
 ```
 
-Each layer's Flux Kustomization declares `dependsOn` the previous layer (see [../clusters/vmd1/README.md](../clusters/vmd1/README.md)), so operators and CRDs exist before the custom resources that rely on them, and infrastructure primitives exist before the applications that consume them.
+Each layer's Flux Kustomization declares `dependsOn` the layer before it (see [../clusters/vmd1/README.md](../clusters/vmd1/README.md)). `edge` hangs off `operators` with nothing depending on it, so a flaky ingress node cannot stall the main chain.
 
 ## Secrets
 

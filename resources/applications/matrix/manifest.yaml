@@ -3,11 +3,6 @@
 # Migrated from compose/ultimate/matrix + compose/ultimate/matrix-pub
 # =============================================================================
 ---
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: matrix
----
 # =============================================================================
 # CONFIGMAP: continuwuity (main, vmd1.homelab)
 # =============================================================================

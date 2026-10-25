@@ -5,7 +5,7 @@ metadata:
   namespace: flux-system
 spec:
   dependsOn:
-    - name: crds-and-operators
+    - name: operators
   interval: 10m0s
   path: ./resources/nodes
   prune: true

@@ -1,0 +1,83 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: oci-port-controller
+  namespace: oci-controller
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: oci-port-controller-role
+rules:
+  - apiGroups: [""]
+    resources: ["nodes"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get"]
+  - apiGroups: ["network.vmd1.homelab"]
+    resources: ["ociportrules", "ociportrules/status"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: oci-port-controller-binding
+subjects:
+  - kind: ServiceAccount
+    name: oci-port-controller
+    namespace: oci-controller
+roleRef:
+  kind: ClusterRole
+  name: oci-port-controller-role
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: oci-port-controller
+  namespace: oci-controller
+  labels:
+    app: oci-port-controller
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: oci-port-controller
+  template:
+    metadata:
+      labels:
+        app: oci-port-controller
+    spec:
+      serviceAccountName: oci-port-controller
+      containers:
+        - name: controller
+          image: ghcr.io/vmd1/oci-port-controller:latest@sha256:7d397724e4e80403626e9368f0ebf8b5bbe90d3fcc2a417a73b1b89cc44f2ef6
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: PYTHONUNBUFFERED
+              value: "1"
+            - name: MALLOC_TRIM_THRESHOLD_
+              value: "100000"
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: POLL_INTERVAL
+              value: "30"
+          volumeMounts:
+            - name: ssh-key-volume
+              mountPath: /etc/ssh-key
+              readOnly: true
+          resources:
+            limits:
+              cpu: 200m
+              memory: 256Mi
+            requests:
+              cpu: 20m
+              memory: 128Mi
+      volumes:
+        - name: ssh-key-volume
+          secret:
+            secretName: node-ssh-key
+            defaultMode: 0600

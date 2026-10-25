@@ -6,7 +6,7 @@ Vaultwarden is an alternative Bitwarden server API implementation written in Rus
 
 | File | Description |
 | :--- | :--- |
-| [manifest.yaml](manifest.yaml) | Defines Namespace `vaultwarden`, Deployment running `vaultwarden/server:latest`, Service, and Traefik `IngressRoute`. |
+| [manifest.yaml](manifest.yaml) | Defines Deployment running `vaultwarden/server:latest`, Service, and Traefik `IngressRoute`. |
 | [secrets.sops.yaml](secrets.sops.yaml) | SOPS-encrypted Secret `vaultwarden-secrets` (stores `DATABASE_URL` and `ADMIN_TOKEN`), Secret `vaultwarden-keys` (RSA signing key), and ConfigMap `vaultwarden-config` (`config.json` with SSO credentials, admin token, and SMTP credentials). |
 
 ## Design Decisions

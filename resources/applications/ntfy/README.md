@@ -6,7 +6,7 @@ Ntfy (pronounced "notify") is a simple HTTP-based pub-sub notification service. 
 
 | File | Description |
 | :--- | :--- |
-| [manifest.yaml](manifest.yaml) | Defines the Namespace `ntfy`, two PersistentVolumeClaims for cache and auth files, Deployment running `binwiederhier/ntfy:latest`, HTTP Service, `LoadBalancer` SMTP Service, and Traefik `IngressRoute`. |
+| [manifest.yaml](manifest.yaml) | Defines two PersistentVolumeClaims for cache and auth files, Deployment running `binwiederhier/ntfy:latest`, HTTP Service, `LoadBalancer` SMTP Service, and Traefik `IngressRoute`. |
 | [secrets.sops.yaml](secrets.sops.yaml) | SOPS-encrypted ConfigMap `ntfy-server-config` containing the server configuration, SMTP relay password, WebPush private key, and ACL user credentials. |
 
 ## Design Decisions

@@ -18,7 +18,7 @@ Authelia is the cluster-wide OpenID Connect 1.0 provider, served at `identity.vm
 
 | File | Description |
 | :--- | :--- |
-| [manifest.yaml](manifest.yaml) | Namespace `authelia`, ConfigMap `authelia-config`, Deployment `authelia` (2 replicas), ClusterIP Service on `:9091`. |
+| [manifest.yaml](manifest.yaml) | ConfigMap `authelia-config`, Deployment `authelia` (2 replicas), ClusterIP Service on `:9091`. |
 | [ingressroute.yaml](ingressroute.yaml) | Traefik `IngressRoute` for `identity.vmd1.homelab` (covered by the `*.vmd1.homelab` wildcard certificate). |
 | [secrets.sops.yaml](secrets.sops.yaml) | SOPS-encrypted Secret `authelia-secrets`. |
 | [kustomization.yaml](kustomization.yaml) | Kustomize entrypoint. |

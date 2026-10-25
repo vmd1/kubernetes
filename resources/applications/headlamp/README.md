@@ -6,7 +6,7 @@ Headlamp is an easy-to-use, extensible Kubernetes web UI. It provides a visual d
 
 | File | Description |
 | :--- | :--- |
-| [manifest.yaml](manifest.yaml) | Full K8s manifest containing Namespace, ServiceAccount, RBAC ClusterRoleBinding, Deployment (running Headlamp), Service, and Traefik `IngressRoute` configuration. |
+| [manifest.yaml](manifest.yaml) | Full K8s manifest containing ServiceAccount, RBAC ClusterRoleBinding, Deployment (running Headlamp), Service, and Traefik `IngressRoute` configuration. |
 
 ## Design Decisions
 

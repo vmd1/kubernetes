@@ -1,0 +1,12 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - cnpg
+  - edgesite
+  - oci-port-controller
+
+# Deleting a CRD deletes every object of that kind (for CNPG: every database Cluster), so Flux never prunes these.
+# Remove a CRD by hand once nothing uses it.
+commonAnnotations:
+  kustomize.toolkit.fluxcd.io/prune: disabled

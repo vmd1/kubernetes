@@ -6,7 +6,6 @@ This directory manages Jellyfin, the homelab streaming server. Seerr (request ma
 
 | File | Description |
 | :--- | :--- |
-| [00-namespace-and-storage.yaml](00-namespace-and-storage.yaml) | Declares the namespace `media`. |
 | [jellyfin.yaml](jellyfin.yaml) | Deploys Jellyfin via a K3s HelmChart CRD, defining config paths, resources, and dotnet runtime properties. |
 | [ingressroute.yaml](ingressroute.yaml) | Traefik `IngressRoute` for `jellyfin.vmd1.homelab`. |
 

@@ -17,7 +17,7 @@ QEComp is an OIDC-authenticated app (API + SPA served same-origin) with Redis-ba
 
 | File | Description |
 | :--- | :--- |
-| [manifest.yaml](manifest.yaml) | Namespace `qecomp`, ConfigMap `qecomp-config`, Deployment `qecomp` (`ghcr.io/qerobotics/vex-tm-tools:backend`, private image), ClusterIP Service on port 8000. |
+| [manifest.yaml](manifest.yaml) | ConfigMap `qecomp-config`, Deployment `qecomp` (`ghcr.io/qerobotics/vex-tm-tools:backend`, private image), ClusterIP Service on port 8000. |
 | [ingressroute.yaml](ingressroute.yaml) | Traefik `IngressRoute` for `tmtools.vmd1.homelab` (QEComp). |
 | [secrets.sops.yaml](secrets.sops.yaml) | SOPS-encrypted Secrets: `qecomp-secrets`, `ghcr-pull-secret` (private image pull). |
 | [kustomization.yaml](kustomization.yaml) | Kustomize manifest for QEComp. |
@@ -61,5 +61,5 @@ QEComp is an OIDC-authenticated app (API + SPA served same-origin) with Redis-ba
 ## Related
 
 - [../README.md](../README.md) — Applications layer.
-- [../../crds-and-operators/cnpg/README.md](../../crds-and-operators/cnpg/README.md) — CNPG PostgreSQL operator.
-- [../../crds-and-operators/redis/README.md](../../crds-and-operators/redis/README.md) — Redis operator/cluster.
+- [../../operators/cnpg/README.md](../../operators/cnpg/README.md) — CNPG PostgreSQL operator.
+- [../../operators/redis/README.md](../../operators/redis/README.md) — Redis operator/cluster.

@@ -1,9 +1,4 @@
 apiVersion: v1
-kind: Namespace
-metadata:
-  name: authelia
----
-apiVersion: v1
 kind: ConfigMap
 metadata:
   name: authelia-config

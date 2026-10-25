@@ -1,6 +1,6 @@
 # Applications Layer (`resources/applications/`)
 
-This layer contains the **user-facing applications** deployed on the `vmd1` cluster. It is reconciled last by Flux (after [crds-and-operators](../crds-and-operators/README.md), [nodes](../nodes/README.md), and [infrastructure](../infrastructure/README.md)) because the applications depend on ingress, auth, storage, and database primitives provided by the lower layers.
+This layer contains the **user-facing applications** deployed on the `vmd1` cluster. It is reconciled last by Flux (after [operators](../operators/README.md), [nodes](../nodes/README.md), and [infrastructure](../infrastructure/README.md)) because the applications depend on ingress, auth, storage, and database primitives provided by the lower layers.
 
 The [kustomization.yaml](kustomization.yaml) here is the Kustomize entrypoint that pulls in every application subfolder below.
 
@@ -27,7 +27,6 @@ The [kustomization.yaml](kustomization.yaml) here is the Kustomize entrypoint th
 | [UniFi](unifi/README.md) | UniFi Network Application for managing UniFi networking hardware. |
 | [Uptime Kuma](uptime-kuma/README.md) | Self-hosted uptime and latency monitoring. |
 | [Vaultwarden](vaultwarden/README.md) | Lightweight Bitwarden-compatible password vault (PostgreSQL + Authelia SSO). |
-| [Edge Sites](edge-sites/README.md) | CRD-driven edge serving platform (edge-operator + `edge-sites` DaemonSet) for static sites and Workers. |
 
 ## Common Patterns
 
@@ -41,4 +40,4 @@ The [kustomization.yaml](kustomization.yaml) here is the Kustomize entrypoint th
 - [kustomization.yaml](kustomization.yaml) — the Kustomize entrypoint for this layer.
 - [../infrastructure/README.md](../infrastructure/README.md) — infrastructure primitives these applications depend on.
 - [../../clusters/vmd1/applications.yaml](../../clusters/vmd1/applications.yaml) — the Flux Kustomization that reconciles this layer.
-- [../../cluster-info.md](../../cluster-info.md) — detailed per-application inventory.
+- [../../cluster-info.md](../../../cluster-info.md) — detailed per-application inventory.

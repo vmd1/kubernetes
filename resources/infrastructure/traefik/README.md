@@ -1,6 +1,6 @@
 # Traefik Ingress Helpers (`resources/infrastructure/traefik/`)
 
-This folder holds the **Traefik custom resources** that sit on top of the Traefik controller: shared middlewares (rate limiting, security headers, compression), TLS options, the admin dashboard route, and the `uk-home` LoadBalancer service. The Traefik controller itself (HelmChart, DaemonSet, host network) is deployed from [crds-and-operators/traefik/](../../crds-and-operators/traefik/README.md).
+This folder holds the **Traefik custom resources** that sit on top of the Traefik controller: shared middlewares (rate limiting, security headers, compression), TLS options, the admin dashboard route, and the `uk-home` LoadBalancer service. The Traefik controller itself (HelmChart, DaemonSet, host network) is deployed from [operators/traefik/](../../operators/traefik/README.md).
 
 ## Table of Contents
 
@@ -20,7 +20,7 @@ This folder holds the **Traefik custom resources** that sit on top of the Traefi
 | [rate-limit.yaml](rate-limit.yaml) | `Middleware` `rate-limit` (`average: 300`, `burst: 150` requests/second) and the stricter `rate-limit-auth` (`average: 30`, `burst: 60`) used by `identity.vmd1.homelab` and the `secure.<domain>/oauth2/` routes. |
 | [tls-option.yaml](tls-option.yaml) | `TLSOption` `default`: minimum TLS 1.2 with ECDHE+AEAD cipher suites only and X25519/P-256/P-384 curves, cluster-wide. `sniStrict` stays `false` so bare-IP clients can still be shown the direct-IP page. |
 | [geo-country.yaml](geo-country.yaml) | `Middleware` `geo-country` (plugin `vmd1geo`): makes the `CF-IPCountry` header trustworthy. Cloudflare requests keep their validated country; direct requests get a GeoLite2-Country lookup in Cloudflare's format (`XX` when unknown) and `X-Vmd1-Geo-Source` says which. **Not attached to any entrypoint yet** (separate change). |
-| [error-pages.yaml](error-pages.yaml) | Branded error pages: `DaemonSet` `error-pages` (nginx-unprivileged on every node, pages fetched at pod start from a pinned commit of [vmd1/error-pages](https://github.com/vmd1/error-pages)), `Service` `error-pages`, `Middleware` `error-pages` (replaces Traefik-generated 429/502/503/504), and two lowest-priority catch-all `IngressRoute`s (`catchall-direct-ip`, `catchall-not-found`). |
+| [../../edge/error-pages/error-pages.yaml](../../edge/error-pages/error-pages.yaml) (edge layer) | Branded error pages: `DaemonSet` `error-pages` (nginx-unprivileged on every node, pages fetched at pod start from a pinned commit of [vmd1/error-pages](https://github.com/vmd1/error-pages)), `Service` `error-pages`, `Middleware` `error-pages` (replaces Traefik-generated 429/502/503/504), and two lowest-priority catch-all `IngressRoute`s (`catchall-direct-ip`, `catchall-not-found`). |
 | [cloudflare-only.yaml](cloudflare-only.yaml) | `IngressRoute` `vmd1-dev-cloudflare-only` (priority 900000): any `vmd1.homelab` / `*.vmd1.homelab` request whose TCP peer is not a Cloudflare range (or loopback, pod/service CIDRs, tailnet) is answered with the generic 404 from `error-pages`. |
 | [trace.yaml](trace.yaml) | `Middleware` `vmd1-trace` (config for the `vmd1trace` plugin: node name → region map) and `IngressRoute` `vmd1-trace` serving `/.vmd1/trace` on every domain. |
 | [lb-uk-home.yaml](lb-uk-home.yaml) | `LoadBalancer` Service `traefik-uk-home-lb` (IP `192.168.12.20` via Kube-VIP) exposing ports 80/443 on the home network. |
@@ -41,8 +41,8 @@ This folder holds the **Traefik custom resources** that sit on top of the Traefi
 
 ## Dependencies
 
-- **Traefik controller** in [crds-and-operators/traefik](../../crds-and-operators/traefik/README.md) (provides the CRDs and `api@internal`).
-- **Kube-VIP** in [crds-and-operators/kube-vip](../../crds-and-operators/kube-vip/README.md) (allocates `192.168.12.20`).
+- **Traefik controller** in [operators/traefik](../../operators/traefik/README.md) (provides the CRDs and `api@internal`).
+- **Kube-VIP** in [operators/kube-vip](../../operators/kube-vip/README.md) (allocates `192.168.12.20`).
 - **oauth2-proxy** (`oauth2-proxy-kmnet-uk` middleware, for the dashboard SSO gate).
 
 ## Services & Routers
@@ -53,6 +53,6 @@ This folder holds the **Traefik custom resources** that sit on top of the Traefi
 
 ## Related
 
-- [../../crds-and-operators/traefik/README.md](../../crds-and-operators/traefik/README.md) — the Traefik controller chart.
-- [../../crds-and-operators/kube-vip/README.md](../../crds-and-operators/kube-vip/README.md) — the load balancer providing `192.168.12.20`.
+- [../../operators/traefik/README.md](../../operators/traefik/README.md) — the Traefik controller chart.
+- [../../operators/kube-vip/README.md](../../operators/kube-vip/README.md) — the load balancer providing `192.168.12.20`.
 - [../README.md](../README.md) — the infrastructure layer this folder belongs to.

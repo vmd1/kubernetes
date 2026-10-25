@@ -6,14 +6,14 @@ Mosquitto is a lightweight open-source message broker implementing the MQTT prot
 
 | File | Description |
 | :--- | :--- |
-| [manifest.yaml](manifest.yaml) | Defines the Namespace `mqtt`, the PersistentVolumeClaim for storage, ConfigMap containing the broker settings, Deployment running `eclipse-mosquitto:2.0.18`, and a `LoadBalancer` Service. |
+| [manifest.yaml](manifest.yaml) | Defines PersistentVolumeClaim for storage, ConfigMap containing the broker settings, Deployment running `eclipse-mosquitto:2.0.18`, and a `LoadBalancer` Service. |
 
 ## Design Decisions
 
 - **Configurable Access**: Configured with `allow_anonymous true` to permit quick home IoT telemetry reporting (e.g., Tasmota, ESPHome) without certificate overhead on the internal subnet.
 - **WebSocket Protocol Support**: Exposes a secondary listener on port `9001` running over WebSockets to support browser-based clients or web integrations.
 - **Physical Node Binding**: Pinned to home hardware (`hades-01` in `region: uk-home`) to align with physical local network discovery and lower connection latencies.
-- **Direct LoadBalancer Access**: Exposed via a standard `LoadBalancer` type service to assign a dedicated, static IP mapping (`10.0.0.10`) directly onto the Tailscale interface for external hardware integration.
+- **Direct LoadBalancer Access**: Exposed via a standard `LoadBalancer` type service with a static Kube-VIP address (`192.168.12.12`, ARP on the uk-home LAN) for external hardware integration.
 
 ## Dependencies
 

@@ -1,0 +1,246 @@
+# Branded error pages for the whole edge (source: https://github.com/vmd1/error-pages, generated static HTML).
+#
+# - DaemonSet error-pages: one nginx per node (all nodes, like Traefik) serving the pages. An init container
+#   downloads the pinned commit's tarball into an emptyDir, so the pod needs no registry/git and the content is
+#   immutable per commit. To roll out new pages: bump ERROR_PAGES_REF below (the pod template changes, so the
+#   DaemonSet rolls).
+# - :8080  /<status>.html (used by Middleware error-pages)
+# - :8081  every request -> 404 with the "direct IP access forbidden" page (catch-all for bare-IP requests)
+# - :8082  every request -> 404 with the normal 404 page (catch-all for any other request with no matching route)
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: error-pages-nginx
+  namespace: traefik
+data:
+  default.conf: |
+    # http-level (this file is included inside `http {}` by the nginx-unprivileged image)
+    access_log off;
+    server_tokens off;
+    add_header Cache-Control "no-store" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header Referrer-Policy "no-referrer" always;
+    add_header X-Robots-Tag "noindex, nofollow" always;
+    add_header Content-Security-Policy "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'" always;
+
+    # Visitor IP for the "click to view IP" footer toggle (nginx SSI fills <!--# echo var="client_ip" -->).
+    # First X-Forwarded-For entry, restricted to IP characters so it is safe to print unescaped.
+    map $http_x_forwarded_for $client_ip {
+        default "unknown";
+        "~^\s*(?<first>[0-9A-Fa-f:.]+)" $first;
+    }
+    ssi on;
+
+    # Error pages for Middleware error-pages: GET /<status>.html
+    server {
+        listen 8080 default_server;
+        server_name _;
+        root /srv/pages/public;
+
+        location = /health {
+            default_type text/plain;
+            return 200 "OK\n";
+        }
+        location / {
+            try_files $uri =404;
+        }
+    }
+
+    # Catch-all 1: bare IP / no Host
+    server {
+        listen 8081;
+        server_name _;
+        root /srv/pages/public;
+
+        error_page 404 /direct-ip.html;
+        location = /direct-ip.html {
+            internal;
+        }
+        location / {
+            return 404;
+        }
+    }
+
+    # Catch-all 2: everything else with no route
+    server {
+        listen 8082;
+        server_name _;
+        root /srv/pages/public;
+
+        error_page 404 /404.html;
+        location = /404.html {
+            internal;
+        }
+        location / {
+            return 404;
+        }
+    }
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: error-pages
+  namespace: traefik
+  labels:
+    app.kubernetes.io/name: error-pages
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: error-pages
+  updateStrategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 4
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: error-pages
+    spec:
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      tolerations:
+        - operator: Exists
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 101
+        runAsGroup: 101
+        seccompProfile:
+          type: RuntimeDefault
+      initContainers:
+        - name: fetch
+          image: alpine:3.24@sha256:294b683cb724975bec92580e1e685676bd4b50bda910ddb8c51d4cabeaec77e6
+          env:
+            - name: ERROR_PAGES_REF
+              value: 750c38a9616b5c5f28b4434cee9432b42c96a959
+          command:
+            - sh
+            - -ec
+            - |
+              wget -qO- "https://github.com/vmd1/error-pages/archive/${ERROR_PAGES_REF}.tar.gz" \
+                | tar -xz -C /srv/pages --strip-components=1
+              test -s /srv/pages/public/404.html && test -s /srv/pages/public/direct-ip.html
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          resources:
+            requests: {cpu: 10m, memory: 16Mi}
+            limits: {cpu: 200m, memory: 64Mi}
+          volumeMounts:
+            - name: pages
+              mountPath: /srv/pages
+      containers:
+        - name: nginx
+          image: nginxinc/nginx-unprivileged:1.31.7-alpine@sha256:b5047b9b76845eac124358373c6852377c52e4b05834a47647e955dd91cb8f1e
+          ports:
+            - {name: pages, containerPort: 8080}
+            - {name: catchall-ip, containerPort: 8081}
+            - {name: catchall-404, containerPort: 8082}
+          readinessProbe:
+            httpGet: {path: /health, port: pages}
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: {path: /health, port: pages}
+            periodSeconds: 30
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          resources:
+            requests: {cpu: 5m, memory: 12Mi}
+            limits: {cpu: 100m, memory: 48Mi}
+          volumeMounts:
+            - name: pages
+              mountPath: /srv/pages
+              readOnly: true
+            - name: conf
+              mountPath: /etc/nginx/conf.d/default.conf
+              subPath: default.conf
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: pages
+          emptyDir: {sizeLimit: 8Mi}
+        - name: tmp
+          emptyDir: {sizeLimit: 16Mi}
+        - name: conf
+          configMap:
+            name: error-pages-nginx
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: error-pages
+  namespace: traefik
+spec:
+  selector:
+    app.kubernetes.io/name: error-pages
+  trafficDistribution: PreferSameZone
+  ports:
+    - {name: pages, port: 8080, targetPort: pages}
+    - {name: catchall-ip, port: 8081, targetPort: catchall-ip}
+    - {name: catchall-404, port: 8082, targetPort: catchall-404}
+---
+# Applied to every websecure router (see ports.websecure.http.middlewares in operators/traefik). Only
+# statuses Traefik itself generates (429 from rate-limit, 502/503/504 from the proxy) are replaced: apps keep their
+# own 4xx/500 bodies (JSON APIs, Matrix, registry). Request headers are forwarded to the in-cluster nginx (the
+# errorRequestHeaders option is not in the v3.7.5 CRD); it does not log or use them.
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: error-pages
+  namespace: traefik
+spec:
+  errors:
+    status:
+      - "429"
+      - "502-504"
+    query: "/{status}.html"
+    service:
+      name: error-pages
+      port: pages
+      nativeLB: true
+---
+# Lowest-priority catch-alls (Traefik's built-in 404 for unmatched requests bypasses entrypoint middlewares).
+# 1) The request names no hostname, only a bare IP address (IPv4 or [IPv6]): 404 + direct-IP page.
+#    (HostRegexp(`^$`) for a missing Host matches every request in Traefik v3.7, so it is not used.)
+#    Unknown *domains* are not matched here; they fall through to the generic 404 below.
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: catchall-direct-ip
+  namespace: traefik
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: >-
+        HostRegexp(`^(\d{1,3}\.){3}\d{1,3}$`) ||
+        HostRegexp(`^\[[0-9a-fA-F:.]+\]$`)
+      kind: Rule
+      priority: 2
+      services:
+        - name: error-pages
+          port: catchall-ip
+          nativeLB: true
+---
+# 2) Anything else with no matching route (unknown domain, or a known host with no matching path): 404 + branded 404 page
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: catchall-not-found
+  namespace: traefik
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: PathPrefix(`/`)
+      kind: Rule
+      priority: 1
+      services:
+        - name: error-pages
+          port: catchall-404
+          nativeLB: true

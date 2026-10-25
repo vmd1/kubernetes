@@ -1,0 +1,1556 @@
+apiVersion: helm.cattle.io/v1
+kind: HelmChart
+metadata:
+  name: traefik
+  namespace: kube-system
+spec:
+  repo: https://traefik.github.io/charts
+  chart: traefik
+  version: 41.7.1
+  targetNamespace: traefik
+  valuesContent: |-
+    deployment:
+      kind: DaemonSet
+      dnsPolicy: ClusterFirstWithHostNet
+      additionalVolumes:
+        # GeoLite2 databases kept fresh by the geoip-updater DaemonSet (edge/geoip-updater)
+        - name: geoip
+          hostPath:
+            path: /var/lib/geoip
+            type: DirectoryOrCreate
+
+    additionalVolumeMounts:
+      - name: geoip
+        mountPath: /geoip
+        readOnly: true
+
+    resources:
+      requests:
+        cpu: 30m
+        memory: 128Mi
+      limits:
+        cpu: 250m
+        memory: 256Mi
+
+    updateStrategy:
+      type: RollingUpdate
+      rollingUpdate:
+        maxUnavailable: 4
+        maxSurge: 0
+
+    hostNetwork: true
+
+    service:
+      enabled: false
+
+    tolerations:
+      - operator: "Exists"
+
+    ports:
+      web:
+        port: 80
+        forwardedHeaders:
+          trustedIPs:
+            - 173.245.48.0/20
+            - 103.21.244.0/22
+            - 103.22.200.0/22
+            - 103.31.4.0/22
+            - 141.101.64.0/18
+            - 108.162.192.0/18
+            - 190.93.240.0/20
+            - 188.114.96.0/20
+            - 197.234.240.0/22
+            - 198.41.128.0/17
+            - 162.158.0.0/15
+            - 104.16.0.0/13
+            - 104.24.0.0/14
+            - 172.64.0.0/13
+            - 131.0.72.0/22
+            - 2400:cb00::/32
+            - 2606:4700::/32
+            - 2803:f800::/32
+            - 2405:b500::/32
+            - 2405:8100::/32
+            - 2a06:98c0::/29
+            - 2c0f:f248::/32
+      websecure:
+        port: 443
+        http3:
+          enabled: true
+        forwardedHeaders:
+          trustedIPs:
+            - 173.245.48.0/20
+            - 103.21.244.0/22
+            - 103.22.200.0/22
+            - 103.31.4.0/22
+            - 141.101.64.0/18
+            - 108.162.192.0/18
+            - 190.93.240.0/20
+            - 188.114.96.0/20
+            - 197.234.240.0/22
+            - 198.41.128.0/17
+            - 162.158.0.0/15
+            - 104.16.0.0/13
+            - 104.24.0.0/14
+            - 172.64.0.0/13
+            - 131.0.72.0/22
+            - 2400:cb00::/32
+            - 2606:4700::/32
+            - 2803:f800::/32
+            - 2405:b500::/32
+            - 2405:8100::/32
+            - 2a06:98c0::/29
+            - 2c0f:f248::/32
+      matrix-fed:
+        port: 8448
+        expose:
+          default: true
+      dot:
+        port: 853
+        expose:
+          default: true
+      traefik:
+        port: 81
+        expose:
+          default: true
+
+    additionalArguments:
+      - "--entrypoints.web.http.redirections.entrypoint.to=websecure"
+      - "--entrypoints.web.http.redirections.entrypoint.scheme=https"
+      - "--entrypoints.web.http.redirections.entrypoint.permanent=true"
+      - "--entrypoints.websecure.http3"
+      - "--log.level=INFO"
+      - "--log.format=json"
+      - "--accesslog=true"
+      - "--accesslog.format=json"
+      - "--providers.kubernetescrd.allowCrossNamespace=true"
+      # Replace Traefik-generated 429/502/503/504 with the branded pages (Middleware error-pages, infrastructure/traefik).
+      # The middleware must exist before this rolls out: merge the infrastructure change first.
+      # Order matters: geo-country first, so every route (and the error pages) sees a trustworthy CF-IPCountry.
+      # Both Middlewares are in infrastructure/traefik and must exist before this rolls out.
+      - "--entrypoints.websecure.http.middlewares=traefik-geo-country@kubernetescrd,traefik-error-pages@kubernetescrd"
+      # Country and where it came from in every access-log line (request_CF-IPCountry, request_X-Vmd1-Geo-Source)
+      - "--accesslog.fields.headers.names.CF-IPCountry=keep"
+      - "--accesslog.fields.headers.names.X-Vmd1-Geo-Source=keep"
+      # Header and HTTP/2 limits (defaults: 1 MiB headers, 250 streams per connection)
+      - "--entrypoints.websecure.http.maxHeaderBytes=65536"
+      - "--entrypoints.websecure.http2.maxConcurrentStreams=100"
+      - "--serverstransport.forwardingtimeouts.dialtimeout=15s"
+      - "--serverstransport.forwardingtimeouts.responseheadertimeout=15s"
+      - "--serverstransport.forwardingtimeouts.idleconntimeout=90s"
+
+    # Local (inline) plugin serving /.vmd1/trace, see infrastructure/traefik/trace.yaml
+    env:
+      - name: NODE_NAME
+        valueFrom:
+          fieldRef:
+            fieldPath: spec.nodeName
+
+    experimental:
+      localPlugins:
+        vmd1trace:
+          moduleName: github.com/vmd1/traefik-trace
+          mountPath: /plugins-local/src/github.com/vmd1/traefik-trace
+          type: inlinePlugin
+          source:
+            .traefik.yml: |
+              displayName: vmd1 trace
+              type: middleware
+              import: github.com/vmd1/traefik-trace
+              summary: Answers /.vmd1/trace with connection info (host, ip, tls, http, node, region) as text, HTML or JSON.
+              testData:
+                regions:
+                  zeus-01: uk-london-cloud
+            go.mod: |
+              module github.com/vmd1/traefik-trace
+
+              go 1.22
+            plugin.go: |
+              // Package traefik_trace answers requests with a description of the connection: plain text (key=value, for
+              // curl), HTML (for browsers, same look as the vmd1 error pages) or JSON.
+              package traefik_trace
+
+              import (
+              	"context"
+              	"encoding/json"
+              	"fmt"
+              	"html"
+              	"math"
+              	"net"
+              	"net/http"
+              	"os"
+              	"strconv"
+              	"strings"
+              )
+
+              // Config maps node names to the region label reported as resp-reg, and lists the Cloudflare IP ranges (default: Cloudflare's published list): the
+              // CF-IPCountry header is only believed when the TCP peer is inside one of them (anyone can send that header on a
+              // direct request to a node).
+              type Config struct {
+              	Regions         map[string]string `json:"regions,omitempty"`
+              	CloudflareCIDRs []string          `json:"cloudflareCIDRs,omitempty"`
+              }
+
+              // defaultCloudflareCIDRs is Cloudflare's published edge address list, the same one as the forwardedHeaders.trustedIPs
+              // of the Traefik entrypoints (operators/traefik/manifest.yaml): keep the two in sync. The middleware config
+              // key cloudflareCIDRs replaces it when set.
+              var defaultCloudflareCIDRs = []string{
+              	"173.245.48.0/20",
+              	"103.21.244.0/22",
+              	"103.22.200.0/22",
+              	"103.31.4.0/22",
+              	"141.101.64.0/18",
+              	"108.162.192.0/18",
+              	"190.93.240.0/20",
+              	"188.114.96.0/20",
+              	"197.234.240.0/22",
+              	"198.41.128.0/17",
+              	"162.158.0.0/15",
+              	"104.16.0.0/13",
+              	"104.24.0.0/14",
+              	"172.64.0.0/13",
+              	"131.0.72.0/22",
+              	"2400:cb00::/32",
+              	"2606:4700::/32",
+              	"2803:f800::/32",
+              	"2405:b500::/32",
+              	"2405:8100::/32",
+              	"2a06:98c0::/29",
+              	"2c0f:f248::/32",
+              }
+
+              // CreateConfig creates the default plugin configuration.
+              func CreateConfig() *Config {
+              	cidrs := make([]string, len(defaultCloudflareCIDRs))
+              	copy(cidrs, defaultCloudflareCIDRs)
+              	return &Config{Regions: map[string]string{}, CloudflareCIDRs: cidrs}
+              }
+
+              type trace struct {
+              	regions map[string]string
+              	node    string
+              	cf      []*net.IPNet
+              }
+
+              // info is the connection description; the json tags are the key names of the text and JSON formats.
+              type info struct {
+              	Host        string `json:"h"`
+              	IP          string `json:"ip"`
+              	VisitScheme string `json:"visit_scheme"`
+              	UserAgent   string `json:"uag"`
+              	RespReg     string `json:"resp-reg"`
+              	HTTP        string `json:"http"`
+              	ReqReg      string `json:"req-reg"`
+              	ReqRegSrc   string `json:"req-reg-src"`
+              	TLS         string `json:"tls"`
+              	SNI         string `json:"sni"`
+              	Node        string `json:"node-name"`
+              }
+
+              // New creates the trace middleware. It never calls next: it is the response.
+              func New(_ context.Context, _ http.Handler, config *Config, _ string) (http.Handler, error) {
+              	var nets []*net.IPNet
+              	for _, c := range config.CloudflareCIDRs {
+              		_, n, err := net.ParseCIDR(strings.TrimSpace(c))
+              		if err != nil {
+              			return nil, fmt.Errorf("cloudflareCIDRs: %v", err)
+              		}
+              		nets = append(nets, n)
+              	}
+              	// An empty list trusts nobody: the country is then always "unknown" (fail closed).
+              	return &trace{regions: config.Regions, node: os.Getenv("NODE_NAME"), cf: nets}, nil
+              }
+
+              // fromCloudflare reports whether the TCP peer is a Cloudflare address.
+              func (t *trace) fromCloudflare(req *http.Request) bool {
+              	host, _, err := net.SplitHostPort(req.RemoteAddr)
+              	if err != nil {
+              		host = req.RemoteAddr
+              	}
+              	ip := net.ParseIP(host)
+              	if ip == nil {
+              		return false
+              	}
+              	for _, n := range t.cf {
+              		if n.Contains(ip) {
+              			return true
+              		}
+              	}
+              	return false
+              }
+
+              // validCountry accepts the two-character codes Cloudflare sends (ISO 3166 letters, "XX", "T1" for Tor).
+              func validCountry(c string) bool {
+              	if len(c) != 2 {
+              		return false
+              	}
+              	for i := 0; i < 2; i++ {
+              		ch := c[i]
+              		if !((ch >= 'A' && ch <= 'Z') || (ch >= '0' && ch <= '9')) {
+              			return false
+              		}
+              	}
+              	return true
+              }
+
+              func (t *trace) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
+              	region := t.regions[t.node]
+              	if region == "" {
+              		region = "unknown"
+              	}
+
+              	scheme := req.Header.Get("X-Forwarded-Proto")
+              	if scheme == "" {
+              		scheme = "http"
+              		if req.TLS != nil {
+              			scheme = "https"
+              		}
+              	}
+
+              	tlsVersion, sni := "none", "none"
+              	if req.TLS != nil {
+              		tlsVersion = tlsName(req.TLS.Version)
+              		if req.TLS.ServerName != "" {
+              			sni = "plaintext"
+              		}
+              	}
+
+              	// CF-IPCountry is set by Cloudflare, but any client can send it to a node directly. The geo-country middleware
+              	// (entrypoint level) overwrites the header on every request and says where it came from in X-Vmd1-Geo-Source
+              	// ("cloudflare" or "geoip", always set by it, so a client cannot forge it). Without that middleware the header is
+              	// only believed when the TCP peer is a Cloudflare address; otherwise the country is "unknown".
+              	country := "unknown"
+              	source := "none"
+              	gs := req.Header.Get("X-Vmd1-Geo-Source")
+              	if gs == "cloudflare" || gs == "geoip" {
+              		c := strings.ToUpper(strings.TrimSpace(req.Header.Get("CF-IPCountry")))
+              		if validCountry(c) {
+              			country = c
+              			source = gs
+              		}
+              	} else if t.fromCloudflare(req) {
+              		c := strings.ToUpper(strings.TrimSpace(req.Header.Get("CF-IPCountry")))
+              		if validCountry(c) {
+              			country = c
+              			source = "cloudflare"
+              		}
+              	}
+
+              	i := info{
+              		Host:        clean(req.Host),
+              		IP:          clientIP(req),
+              		VisitScheme: clean(scheme),
+              		UserAgent:   clean(req.UserAgent()),
+              		RespReg:     region,
+              		HTTP:        httpName(req.Proto),
+              		ReqReg:      clean(country),
+              		ReqRegSrc:   source,
+              		TLS:         tlsVersion,
+              		SNI:         sni,
+              		Node:        t.node,
+              	}
+
+              	// Plain assignments on purpose: Yaegi (Traefik's plugin interpreter) mishandles tuple assignments in switch cases.
+              	body := ""
+              	contentType := "text/plain; charset=utf-8"
+              	format := negotiate(req)
+              	if format == "html" {
+              		body = renderHTML(i)
+              		contentType = "text/html; charset=utf-8"
+              		rw.Header().Set("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'")
+              		rw.Header().Set("X-Robots-Tag", "noindex, nofollow")
+              	} else if format == "json" {
+              		b, _ := json.Marshal(i)
+              		body = string(b) + "\n"
+              		contentType = "application/json"
+              	} else {
+              		body = renderText(i)
+              	}
+
+              	rw.Header().Set("Content-Type", contentType)
+              	rw.Header().Set("Cache-Control", "no-store")
+              	rw.Header().Set("Vary", "Accept")
+              	rw.Header().Set("X-Content-Type-Options", "nosniff")
+              	rw.WriteHeader(http.StatusOK)
+              	if req.Method != http.MethodHead {
+              		_, _ = rw.Write([]byte(body))
+              	}
+              }
+
+              // negotiate picks the format: ?format=text|html|json wins, otherwise browsers (Accept: text/html) get HTML and
+              // everything else (curl, scripts) gets plain text.
+              func negotiate(req *http.Request) string {
+              	switch req.URL.Query().Get("format") {
+              	case "text":
+              		return "text"
+              	case "html":
+              		return "html"
+              	case "json":
+              		return "json"
+              	}
+              	if strings.Contains(req.Header.Get("Accept"), "text/html") {
+              		return "html"
+              	}
+              	return "text"
+              }
+
+              func renderText(i info) string {
+              	var b strings.Builder
+              	fmt.Fprintf(&b, "h=%s\n", i.Host)
+              	fmt.Fprintf(&b, "ip=%s\n", i.IP)
+              	fmt.Fprintf(&b, "visit_scheme=%s\n", i.VisitScheme)
+              	fmt.Fprintf(&b, "uag=%s\n", i.UserAgent)
+              	fmt.Fprintf(&b, "resp-reg=%s\n", i.RespReg)
+              	fmt.Fprintf(&b, "http=%s\n", i.HTTP)
+              	fmt.Fprintf(&b, "req-reg=%s\n", i.ReqReg)
+              	fmt.Fprintf(&b, "tls=%s\n", i.TLS)
+              	fmt.Fprintf(&b, "sni=%s\n", i.SNI)
+              	fmt.Fprintf(&b, "node-name=%s\n", i.Node)
+              	fmt.Fprintf(&b, "req-reg-src=%s\n", i.ReqRegSrc)
+              	return b.String()
+              }
+
+              // The stylesheet is the same as the error pages (github.com/vmd1/error-pages build.py) plus the .kv table.
+              const pageHead = `<!doctype html>
+              <html lang="en">
+              <head>
+              <meta charset="utf-8">
+              <meta name="viewport" content="width=device-width, initial-scale=1">
+              <meta name="robots" content="noindex, nofollow">
+              <title>Connection trace</title>
+              <style>
+              :root{--bg:#f6f6f4;--fg:#1b1b1a;--muted:#62625e;--accent:#b4442a;--line:#dcdcd6}
+              @media (prefers-color-scheme:dark){:root{--bg:#141413;--fg:#ececea;--muted:#9a9a94;--accent:#e8825f;--line:#2e2e2b}}
+              *{box-sizing:border-box}
+              html,body{margin:0}
+              body{background:var(--bg);color:var(--fg);font:16px/1.55 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;padding:24px 16px}
+              main{max-width:34rem;width:100%}
+              .code{font:700 clamp(4rem,18vw,7.5rem)/1 ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--accent);letter-spacing:-.04em;margin:0}
+              .code.sm{font-size:clamp(1.6rem,8vw,2.4rem);letter-spacing:-.02em}
+              h1{font-size:1.5rem;margin:.5rem 0 .25rem}
+              p{margin:.25rem 0;color:var(--muted)}
+              p.lead{color:var(--fg);font-size:1.1rem}
+              .actions{margin-top:1.5rem;display:flex;gap:.75rem;flex-wrap:wrap}
+              a.btn{display:inline-block;padding:.5rem 1rem;border:1px solid var(--line);border-radius:6px;color:var(--fg);text-decoration:none;font-size:.95rem}
+              a.btn:hover,a.btn:focus-visible{border-color:var(--accent);color:var(--accent)}
+              footer{margin-top:2.5rem;padding-top:1rem;border-top:1px solid var(--line);font-size:.8rem;color:var(--muted);display:flex;justify-content:space-between;flex-wrap:wrap;gap:.5rem 1rem}
+              details.ip summary{cursor:pointer;list-style:none;color:var(--muted)}
+              details.ip summary::-webkit-details-marker{display:none}
+              details.ip summary:hover,details.ip summary:focus-visible{color:var(--accent)}
+              details.ip .shown{display:none;color:var(--fg);font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+              details.ip[open] .hidden{display:none}
+              details.ip[open] .shown{display:inline}
+              h2{font-size:.75rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:1.5rem 0 .25rem}
+              dl.kv{margin:0;border-top:1px solid var(--line)}
+              dl.kv div{display:flex;gap:1rem;padding:.45rem 0;border-bottom:1px solid var(--line)}
+              dl.kv dt{flex:0 0 7.5rem;color:var(--muted)}
+              dl.kv dd{margin:0;min-width:0;overflow-wrap:anywhere;font:.9rem/1.5 ui-monospace,SFMono-Regular,Menlo,monospace}
+              .map{width:100%;height:auto;display:block;margin:.75rem 0 .25rem}
+              .map .land{fill:none;stroke:var(--muted);stroke-opacity:.5;stroke-width:.72;stroke-linecap:round;stroke-dasharray:0 1}
+              .map .arc{fill:none;stroke:var(--accent);stroke-width:.45;stroke-linecap:round;stroke-dasharray:1.2 1.2;animation:flow 1.4s linear infinite}
+              @keyframes flow{to{stroke-dashoffset:-2.4}}
+              @media (prefers-reduced-motion:reduce){.map .arc{animation:none}}
+              .map .you{fill:var(--bg);stroke:var(--fg);stroke-width:.5}
+              .map .edge{fill:var(--accent)}
+              .map .ring{fill:none;stroke:var(--accent);stroke-width:.3;stroke-opacity:.55}
+              .map text{font:2.5px ui-monospace,SFMono-Regular,Menlo,monospace;fill:var(--fg)}
+              .map text.dim{fill:var(--muted)}
+              </style>
+              </head>
+              <body>
+              <main>
+              `
+
+
+              // Dotted world map: one path segment per run of land cells on a 120x48 grid (3 degrees per cell,
+              // lat 84 .. -60, lon -180 .. 180), drawn as dots with a round-capped dashed stroke. Generated from Natural Earth.
+              const landPath = "M31.5 0.5h7.5M44.5 0.5h8.5M28.5 1.5h6.5M38.5 1.5h15.5M64.5 1.5h1.5M67.5 1.5h0.5M91.5 1.5h1.5M19.5 2.5h1.5M23.5 2.5h0.5M26.5 2.5h0.5M28.5 2.5h5.5M37.5 2.5h15.5M82.5 2.5h0.5M94.5 2.5h2.5M19.5 3.5h1.5M24.5 3.5h0.5M26.5 3.5h4.5M32.5 3.5h1.5M41.5 3.5h11.5M78.5 3.5h0.5M87.5 3.5h12.5M101.5 3.5h0.5M107.5 3.5h0.5M6.5 4.5h3.5M22.5 4.5h3.5M28.5 4.5h0.5M30.5 4.5h6.5M42.5 4.5h8.5M68.5 4.5h1.5M82.5 4.5h1.5M85.5 4.5h27.5M0.5 5.5h0.5M5.5 5.5h27.5M34.5 5.5h0.5M36.5 5.5h2.5M42.5 5.5h6.5M65.5 5.5h8.5M76.5 5.5h7.5M85.5 5.5h34.5M6.5 6.5h26.5M34.5 6.5h3.5M43.5 6.5h2.5M53.5 6.5h1.5M64.5 6.5h2.5M68.5 6.5h50.5M5.5 7.5h23.5M34.5 7.5h1.5M44.5 7.5h1.5M62.5 7.5h3.5M67.5 7.5h44.5M113.5 7.5h0.5M115.5 7.5h2.5M8.5 8.5h0.5M14.5 8.5h14.5M34.5 8.5h2.5M38.5 8.5h0.5M58.5 8.5h0.5M62.5 8.5h0.5M64.5 8.5h1.5M68.5 8.5h38.5M113.5 8.5h0.5M16.5 9.5h14.5M34.5 9.5h5.5M58.5 9.5h0.5M64.5 9.5h0.5M67.5 9.5h37.5M112.5 9.5h1.5M17.5 10.5h15.5M34.5 10.5h6.5M57.5 10.5h0.5M59.5 10.5h48.5M112.5 10.5h0.5M19.5 11.5h18.5M59.5 11.5h48.5M19.5 12.5h18.5M59.5 12.5h10.5M71.5 12.5h0.5M73.5 12.5h3.5M78.5 12.5h27.5M107.5 12.5h0.5M19.5 13.5h17.5M57.5 13.5h0.5M59.5 13.5h2.5M63.5 13.5h5.5M73.5 13.5h2.5M77.5 13.5h27.5M107.5 13.5h0.5M19.5 14.5h15.5M57.5 14.5h2.5M65.5 14.5h2.5M70.5 14.5h6.5M78.5 14.5h21.5M101.5 14.5h1.5M19.5 15.5h15.5M57.5 15.5h2.5M64.5 15.5h0.5M67.5 15.5h0.5M69.5 15.5h7.5M78.5 15.5h22.5M102.5 15.5h0.5M106.5 15.5h0.5M20.5 16.5h13.5M58.5 16.5h4.5M72.5 16.5h27.5M104.5 16.5h1.5M21.5 17.5h11.5M57.5 17.5h7.5M67.5 17.5h1.5M72.5 17.5h28.5M103.5 17.5h0.5M23.5 18.5h4.5M32.5 18.5h0.5M56.5 18.5h14.5M72.5 18.5h3.5M77.5 18.5h23.5M24.5 19.5h3.5M55.5 19.5h21.5M80.5 19.5h19.5M25.5 20.5h1.5M33.5 20.5h0.5M55.5 20.5h16.5M73.5 20.5h6.5M83.5 20.5h6.5M91.5 20.5h6.5M25.5 21.5h2.5M30.5 21.5h0.5M36.5 21.5h0.5M55.5 21.5h16.5M74.5 21.5h4.5M84.5 21.5h3.5M91.5 21.5h3.5M96.5 21.5h0.5M27.5 22.5h3.5M54.5 22.5h18.5M74.5 22.5h3.5M84.5 22.5h2.5M91.5 22.5h4.5M100.5 22.5h0.5M30.5 23.5h1.5M54.5 23.5h21.5M85.5 23.5h1.5M93.5 23.5h2.5M31.5 24.5h0.5M35.5 24.5h2.5M39.5 24.5h0.5M55.5 24.5h21.5M85.5 24.5h1.5M95.5 24.5h0.5M34.5 25.5h5.5M56.5 25.5h20.5M101.5 25.5h0.5M34.5 26.5h8.5M57.5 26.5h0.5M62.5 26.5h13.5M92.5 26.5h0.5M98.5 26.5h1.5M34.5 27.5h8.5M63.5 27.5h11.5M93.5 27.5h1.5M96.5 27.5h2.5M33.5 28.5h11.5M63.5 28.5h10.5M94.5 28.5h0.5M97.5 28.5h1.5M100.5 28.5h0.5M104.5 28.5h0.5M33.5 29.5h13.5M64.5 29.5h8.5M94.5 29.5h0.5M105.5 29.5h2.5M33.5 30.5h14.5M64.5 30.5h8.5M96.5 30.5h1.5M106.5 30.5h2.5M34.5 31.5h13.5M64.5 31.5h8.5M35.5 32.5h11.5M64.5 32.5h9.5M76.5 32.5h0.5M103.5 32.5h1.5M107.5 32.5h0.5M36.5 33.5h10.5M64.5 33.5h8.5M75.5 33.5h1.5M101.5 33.5h4.5M107.5 33.5h1.5M37.5 34.5h9.5M64.5 34.5h7.5M75.5 34.5h0.5M100.5 34.5h8.5M37.5 35.5h8.5M65.5 35.5h6.5M74.5 35.5h1.5M98.5 35.5h11.5M36.5 36.5h7.5M65.5 36.5h5.5M98.5 36.5h12.5M36.5 37.5h7.5M65.5 37.5h5.5M98.5 37.5h12.5M36.5 38.5h6.5M66.5 38.5h3.5M99.5 38.5h11.5M36.5 39.5h5.5M66.5 39.5h0.5M99.5 39.5h0.5M106.5 39.5h3.5M35.5 40.5h5.5M107.5 40.5h2.5M118.5 40.5h0.5M35.5 41.5h3.5M118.5 41.5h0.5M36.5 42.5h1.5M117.5 42.5h0.5M35.5 43.5h2.5M116.5 43.5h0.5M35.5 44.5h1.5M35.5 45.5h1.5"
+
+              // Approximate coordinates (lat, lon) of the served-by regions. uk-home is deliberately vague.
+              var regionPos = map[string][2]float64{
+              	"uk-london-cloud":    {51.5, -0.1},
+              	"in-mumbai-cloud":    {19.1, 72.9},
+              	"fr-marseille-cloud": {43.3, 5.4},
+              	"uk-home":            {52.5, -1.5},
+              }
+
+              // Country centroids (lat, lon) for the CF-IPCountry header, from Natural Earth.
+              var countryPos = map[string][2]float64{
+              	"AD": {42.5, 1.5},
+              	"AE": {23.9, 54.2},
+              	"AF": {33.9, 66.1},
+              	"AL": {41.1, 20.0},
+              	"AM": {40.2, 45.0},
+              	"AO": {-12.3, 17.5},
+              	"AQ": {-80.5, 21.3},
+              	"AR": {-35.2, -65.1},
+              	"AT": {47.6, 14.1},
+              	"AU": {-25.6, 134.4},
+              	"AZ": {40.3, 47.7},
+              	"BA": {44.2, 17.8},
+              	"BD": {23.8, 90.3},
+              	"BE": {50.7, 4.6},
+              	"BF": {12.3, -1.8},
+              	"BG": {42.8, 25.2},
+              	"BH": {26.0, 50.6},
+              	"BI": {-3.4, 29.9},
+              	"BJ": {9.6, 2.3},
+              	"BM": {32.3, -64.8},
+              	"BN": {4.7, 114.9},
+              	"BO": {-16.7, -64.6},
+              	"BR": {-10.8, -53.1},
+              	"BS": {24.5, -77.9},
+              	"BT": {27.4, 90.5},
+              	"BW": {-22.1, 23.8},
+              	"BY": {53.5, 28.0},
+              	"BZ": {17.2, -88.7},
+              	"CA": {57.7, -101.6},
+              	"CD": {-2.9, 23.6},
+              	"CF": {6.5, 20.4},
+              	"CG": {-0.8, 15.1},
+              	"CH": {46.8, 8.1},
+              	"CI": {7.6, -5.6},
+              	"CL": {-37.3, -71.7},
+              	"CM": {5.7, 12.6},
+              	"CN": {36.6, 103.9},
+              	"CO": {3.9, -73.1},
+              	"CR": {10.0, -84.2},
+              	"CU": {21.6, -79.0},
+              	"CY": {34.9, 33.0},
+              	"CZ": {49.8, 15.3},
+              	"DE": {51.1, 10.3},
+              	"DJ": {11.8, 42.5},
+              	"DK": {56.2, 9.3},
+              	"DO": {18.9, -70.5},
+              	"DZ": {28.2, 2.6},
+              	"EC": {-1.5, -78.4},
+              	"EE": {58.6, 25.8},
+              	"EG": {26.5, 29.8},
+              	"EH": {24.3, -12.1},
+              	"ER": {15.4, 38.7},
+              	"ES": {40.3, -3.6},
+              	"ET": {8.7, 39.6},
+              	"FI": {64.5, 26.2},
+              	"FJ": {-17.8, 178.0},
+              	"FK": {-51.7, -59.4},
+              	"FO": {62.0, -6.9},
+              	"FR": {46.6, 2.3},
+              	"GA": {-0.6, 11.7},
+              	"GB": {53.9, -2.7},
+              	"GE": {42.2, 43.5},
+              	"GG": {49.5, -2.6},
+              	"GH": {7.9, -1.2},
+              	"GI": {36.1, -5.4},
+              	"GL": {74.8, -41.5},
+              	"GM": {13.5, -15.4},
+              	"GN": {10.4, -11.1},
+              	"GQ": {1.6, 10.4},
+              	"GR": {39.3, 22.6},
+              	"GT": {15.7, -90.4},
+              	"GW": {12.0, -15.1},
+              	"GY": {4.8, -59.0},
+              	"HK": {22.3, 114.2},
+              	"HN": {14.8, -86.6},
+              	"HR": {45.0, 16.6},
+              	"HT": {18.9, -72.7},
+              	"HU": {47.2, 19.4},
+              	"ID": {-0.3, 114.0},
+              	"IE": {53.2, -8.0},
+              	"IL": {31.5, 35.0},
+              	"IM": {54.2, -4.5},
+              	"IN": {22.9, 79.6},
+              	"IQ": {33.0, 43.8},
+              	"IR": {32.5, 54.3},
+              	"IS": {65.1, -18.8},
+              	"IT": {43.5, 12.2},
+              	"JE": {49.2, -2.1},
+              	"JM": {18.1, -77.3},
+              	"JO": {31.2, 36.8},
+              	"JP": {36.0, 136.9},
+              	"KE": {0.6, 37.8},
+              	"KG": {41.5, 74.6},
+              	"KH": {12.7, 104.9},
+              	"KP": {40.1, 127.2},
+              	"KR": {36.4, 127.8},
+              	"KW": {29.3, 47.6},
+              	"KY": {19.3, -81.3},
+              	"KZ": {48.2, 67.3},
+              	"LA": {18.4, 103.8},
+              	"LB": {33.9, 35.9},
+              	"LI": {47.2, 9.5},
+              	"LK": {7.7, 80.7},
+              	"LR": {6.4, -9.4},
+              	"LS": {-29.6, 28.2},
+              	"LT": {55.3, 23.9},
+              	"LU": {49.8, 6.0},
+              	"LV": {56.8, 24.8},
+              	"LY": {27.0, 18.0},
+              	"MA": {29.9, -8.4},
+              	"MC": {43.7, 7.4},
+              	"MD": {47.2, 28.4},
+              	"ME": {42.8, 19.3},
+              	"MG": {-19.4, 46.7},
+              	"MK": {41.6, 21.7},
+              	"ML": {17.3, -3.5},
+              	"MM": {21.0, 96.5},
+              	"MN": {46.8, 102.9},
+              	"MO": {22.2, 113.5},
+              	"MQ": {14.6, -61.0},
+              	"MR": {20.2, -10.3},
+              	"MT": {35.9, 14.4},
+              	"MU": {-20.3, 57.6},
+              	"MV": {3.2, 73.2},
+              	"MW": {-13.2, 34.2},
+              	"MX": {23.9, -102.6},
+              	"MY": {3.5, 114.7},
+              	"MZ": {-17.2, 35.5},
+              	"NA": {-22.1, 17.2},
+              	"NC": {-21.3, 165.5},
+              	"NE": {17.3, 9.3},
+              	"NG": {9.5, 8.0},
+              	"NI": {12.8, -85.0},
+              	"NL": {52.3, 5.5},
+              	"NO": {64.5, 14.2},
+              	"NP": {28.2, 84.0},
+              	"NZ": {-44.0, 170.5},
+              	"OM": {20.6, 56.1},
+              	"PA": {8.5, -80.1},
+              	"PE": {-9.2, -74.4},
+              	"PG": {-6.6, 144.3},
+              	"PH": {15.8, 121.5},
+              	"PK": {30.0, 69.4},
+              	"PL": {52.1, 19.3},
+              	"PR": {18.2, -66.5},
+              	"PS": {31.9, 35.3},
+              	"PT": {39.6, -8.1},
+              	"PY": {-23.2, -58.4},
+              	"QA": {25.3, 51.2},
+              	"RO": {45.9, 24.9},
+              	"RS": {44.2, 20.8},
+              	"RU": {61.7, 99.2},
+              	"RW": {-2.0, 29.9},
+              	"SA": {24.1, 44.5},
+              	"SB": {-7.9, 159.1},
+              	"SD": {16.0, 29.9},
+              	"SE": {62.8, 16.6},
+              	"SG": {1.4, 103.8},
+              	"SI": {46.1, 14.9},
+              	"SK": {48.7, 19.5},
+              	"SL": {8.5, -11.8},
+              	"SM": {43.9, 12.5},
+              	"SN": {14.4, -14.5},
+              	"SO": {4.8, 45.7},
+              	"SR": {4.1, -55.9},
+              	"SS": {7.3, 30.2},
+              	"SV": {13.7, -88.9},
+              	"SY": {35.0, 38.5},
+              	"SZ": {-26.5, 31.4},
+              	"TD": {15.3, 18.6},
+              	"TF": {-49.3, 69.5},
+              	"TG": {8.4, 1.0},
+              	"TH": {15.0, 101.0},
+              	"TJ": {38.6, 71.0},
+              	"TL": {-8.8, 126.0},
+              	"TM": {39.1, 59.3},
+              	"TN": {34.2, 9.5},
+              	"TR": {39.0, 35.4},
+              	"TT": {10.4, -61.3},
+              	"TW": {23.7, 121.0},
+              	"TZ": {-6.3, 34.8},
+              	"UA": {49.1, 31.2},
+              	"UG": {1.3, 32.4},
+              	"US": {39.5, -99.1},
+              	"UY": {-32.8, -56.0},
+              	"UZ": {41.7, 63.2},
+              	"VE": {7.2, -66.2},
+              	"VN": {16.7, 106.3},
+              	"VU": {-15.2, 166.9},
+              	"XK": {42.6, 20.9},
+              	"YE": {15.9, 47.5},
+              	"ZA": {-29.0, 25.1},
+              	"ZM": {-13.4, 27.7},
+              	"ZW": {-18.9, 29.8},
+              }
+
+              func mapX(lon float64) float64 { return (lon + 180) / 3 }
+              func mapY(lat float64) float64 { return (84 - lat) / 3 }
+
+              func fmtF(v float64) string { return strconv.FormatFloat(v, 'f', 1, 64) }
+
+              // renderMap draws the land dots, the edge node and, when the visitor's country is known, the path from there.
+              func renderMap(i info) string {
+              	e := html.EscapeString
+              	var b strings.Builder
+              	b.WriteString(`<svg class="map" viewBox="0 0 120 48" role="img" aria-label="`)
+              	b.WriteString(e("Path from " + i.ReqReg + " to " + i.RespReg))
+              	b.WriteString(`"><path class="land" d="` + landPath + `"/>`)
+
+              	edge, edgeKnown := regionPos[i.RespReg]
+              	you, youKnown := countryPos[i.ReqReg]
+              	if !edgeKnown {
+              		b.WriteString("</svg>\n")
+              		return b.String()
+              	}
+              	ex := mapX(edge[1])
+              	ey := mapY(edge[0])
+              	yx := mapX(you[1])
+              	yy := mapY(you[0])
+              	far := false
+              	if youKnown {
+              		far = math.Hypot(ex-yx, ey-yy) > 2
+              	}
+              	if youKnown && far {
+              		dist := math.Hypot(ex-yx, ey-yy)
+              		cx := (ex + yx) / 2
+              		cy := (ey+yy)/2 - dist*0.28
+              		if cy < -3 {
+              			cy = -3
+              		}
+              		b.WriteString(`<path class="arc" d="M` + fmtF(yx) + " " + fmtF(yy) + "Q" + fmtF(cx) + " " + fmtF(cy) + " " + fmtF(ex) + " " + fmtF(ey) + `"/>`)
+              		b.WriteString(`<circle class="you" cx="` + fmtF(yx) + `" cy="` + fmtF(yy) + `" r="1"/>`)
+              	}
+              	b.WriteString(`<circle class="ring" cx="` + fmtF(ex) + `" cy="` + fmtF(ey) + `" r="2.2"/>`)
+              	b.WriteString(`<circle class="edge" cx="` + fmtF(ex) + `" cy="` + fmtF(ey) + `" r="1.1"/>`)
+
+              	// Labels: edge below its dot, visitor above theirs; anchor towards the map centre near the right edge.
+              	anchor := "start"
+              	dx := 2.0
+              	if ex > 85 {
+              		anchor = "end"
+              		dx = -2.0
+              	}
+              	b.WriteString(`<text x="` + fmtF(ex+dx) + `" y="` + fmtF(ey+3.6) + `" text-anchor="` + anchor + `">` + e(i.RespReg) + "</text>")
+              	if youKnown && far {
+              		anchor = "start"
+              		dx = 2.0
+              		if yx > 85 {
+              			anchor = "end"
+              			dx = -2.0
+              		}
+              		b.WriteString(`<text class="dim" x="` + fmtF(yx+dx) + `" y="` + fmtF(yy-1.8) + `" text-anchor="` + anchor + `">you &#183; ` + e(i.ReqReg) + "</text>")
+              	}
+              	b.WriteString("</svg>\n")
+              	return b.String()
+              }
+
+              func renderHTML(i info) string {
+              	e := html.EscapeString
+              	row := func(k, v string) string {
+              		return "<div><dt>" + e(k) + "</dt><dd>" + e(v) + "</dd></div>\n"
+              	}
+              	var b strings.Builder
+              	b.WriteString(pageHead)
+              	b.WriteString(`<p class="code sm" aria-hidden="true">/.vmd1/trace</p>` + "\n")
+              	b.WriteString("<h1>Connection trace</h1>\n")
+              	b.WriteString(`<p class="lead">Served by ` + e(i.Node) + ` (` + e(i.RespReg) + `) over ` + e(i.HTTP) + ` and ` + e(i.TLS) + `.</p>` + "\n")
+              	b.WriteString("<h2>You</h2>\n<dl class=\"kv\">\n")
+              	b.WriteString(row("IP address", i.IP))
+              	b.WriteString(row("Country", i.ReqReg))
+              	b.WriteString(row("Country source", i.ReqRegSrc))
+              	b.WriteString(row("User agent", i.UserAgent))
+              	b.WriteString("</dl>\n<h2>Request</h2>\n<dl class=\"kv\">\n")
+              	b.WriteString(row("Host", i.Host))
+              	b.WriteString(row("Scheme", i.VisitScheme))
+              	b.WriteString(row("HTTP", i.HTTP))
+              	b.WriteString(row("TLS", i.TLS))
+              	b.WriteString(row("SNI", i.SNI))
+              	b.WriteString("</dl>\n<h2>Edge</h2>\n")
+              	b.WriteString(renderMap(i))
+              	b.WriteString("<dl class=\"kv\">\n")
+              	b.WriteString(row("Node", i.Node))
+              	b.WriteString(row("Region", i.RespReg))
+              	b.WriteString("</dl>\n")
+              	b.WriteString(`<div class="actions"><a class="btn" href="?format=text">Plain text</a><a class="btn" href="?format=json">JSON</a></div>` + "\n")
+              	b.WriteString("<footer>vmd1 edge &middot; connection trace</footer>\n</main>\n</body>\n</html>\n")
+              	return b.String()
+              }
+
+              // clientIP returns the first X-Forwarded-For entry (Traefik already overwrites it for untrusted
+              // sources) and falls back to the socket peer.
+              func clientIP(req *http.Request) string {
+              	if xff := req.Header.Get("X-Forwarded-For"); xff != "" {
+              		return clean(strings.TrimSpace(strings.Split(xff, ",")[0]))
+              	}
+              	host, _, err := net.SplitHostPort(req.RemoteAddr)
+              	if err != nil {
+              		return clean(req.RemoteAddr)
+              	}
+              	return host
+              }
+
+              // clean strips newlines so a client cannot inject extra key=value lines.
+              func clean(s string) string {
+              	return strings.NewReplacer("\r", "", "\n", "").Replace(s)
+              }
+
+              func httpName(proto string) string {
+              	switch proto {
+              	case "HTTP/3.0":
+              		return "http/3"
+              	case "HTTP/2.0":
+              		return "http/2"
+              	default:
+              		return strings.ToLower(proto)
+              	}
+              }
+
+              func tlsName(v uint16) string {
+              	switch v {
+              	case 0x0304:
+              		return "TLSv1.3"
+              	case 0x0303:
+              		return "TLSv1.2"
+              	case 0x0302:
+              		return "TLSv1.1"
+              	case 0x0301:
+              		return "TLSv1.0"
+              	default:
+              		return fmt.Sprintf("0x%04x", v)
+              	}
+              }
+
+        vmd1geo:
+          moduleName: github.com/vmd1/traefik-geo
+          mountPath: /plugins-local/src/github.com/vmd1/traefik-geo
+          type: inlinePlugin
+          source:
+            .traefik.yml: |
+              displayName: vmd1 geo country
+              type: middleware
+              import: github.com/vmd1/traefik-geo
+              summary: Makes CF-IPCountry trustworthy on every route; direct requests get a GeoLite2-Country lookup in Cloudflare's format.
+              testData:
+                dbPath: /geoip/GeoLite2-Country.mmdb
+            go.mod: |
+              module github.com/vmd1/traefik-geo
+
+              go 1.22
+            mmdb.go: |
+              package traefik_geo
+
+              import (
+              	"bytes"
+              	"encoding/binary"
+              	"errors"
+              	"net"
+              	"sync"
+              )
+
+              // A minimal MaxMind DB (.mmdb) reader using only the standard library: no mmap, no unsafe, no dependencies, so it
+              // runs inside Traefik's plugin interpreter. It decodes just enough to read a record by IP address.
+              // Format: https://maxmind.github.io/MaxMind-DB/
+
+              var metadataMarker = []byte("\xab\xcd\xefMaxMind.com")
+
+              const maxDepth = 16
+
+              type mmdb struct {
+              	buf        []byte
+              	nodeCount  uint
+              	recordSize uint
+              	nodeBytes  uint
+              	treeSize   uint // bytes of the search tree
+              	dataStart  uint // treeSize + 16-byte separator
+              	ipv4Start  uint
+              	ipVersion  uint
+
+              	// The answer per data record (the tree's leaf value). The database has a few hundred distinct records for
+              	// over a million networks, so after warm-up a lookup is just the tree walk.
+              	mu    sync.RWMutex
+              	codes map[uint]string
+              }
+
+              var errCorrupt = errors.New("mmdb: corrupt database")
+
+              func openMMDB(buf []byte) (*mmdb, error) {
+              	idx := bytes.LastIndex(buf, metadataMarker)
+              	if idx < 0 {
+              		return nil, errors.New("mmdb: metadata marker not found")
+              	}
+              	metaStart := uint(idx + len(metadataMarker))
+              	d := &decoder{buf: buf, base: metaStart}
+              	v, _, err := d.decode(metaStart, 0)
+              	if err != nil {
+              		return nil, err
+              	}
+              	meta, ok := v.(map[string]interface{})
+              	if !ok {
+              		return nil, errCorrupt
+              	}
+              	m := &mmdb{buf: buf, codes: map[uint]string{}}
+              	m.nodeCount = asUint(meta["node_count"])
+              	m.recordSize = asUint(meta["record_size"])
+              	m.ipVersion = asUint(meta["ip_version"])
+              	if m.nodeCount == 0 || (m.recordSize != 24 && m.recordSize != 28 && m.recordSize != 32) || (m.ipVersion != 4 && m.ipVersion != 6) {
+              		return nil, errCorrupt
+              	}
+              	m.nodeBytes = m.recordSize * 2 / 8
+              	m.treeSize = m.nodeCount * m.nodeBytes
+              	m.dataStart = m.treeSize + 16
+              	if m.dataStart > uint(idx) {
+              		return nil, errCorrupt
+              	}
+              	// for an IPv6 tree, IPv4 addresses live under ::/96
+              	if m.ipVersion == 6 {
+              		node := uint(0)
+              		for i := 0; i < 96 && node < m.nodeCount; i++ {
+              			node = m.readRecord(node, 0)
+              		}
+              		m.ipv4Start = node
+              	}
+              	return m, nil
+              }
+
+              func asUint(v interface{}) uint {
+              	if u, ok := v.(uint64); ok {
+              		return uint(u)
+              	}
+              	return 0
+              }
+
+              func (m *mmdb) readRecord(node uint, bit byte) uint {
+              	base := node * m.nodeBytes
+              	if base+m.nodeBytes > m.treeSize {
+              		return m.nodeCount // treated as "not found"
+              	}
+              	b := m.buf
+              	if m.recordSize == 24 {
+              		o := base + uint(bit)*3
+              		return uint(b[o])<<16 | uint(b[o+1])<<8 | uint(b[o+2])
+              	}
+              	if m.recordSize == 28 {
+              		mid := uint(b[base+3])
+              		if bit == 0 {
+              			return (mid&0xF0)<<20 | uint(b[base])<<16 | uint(b[base+1])<<8 | uint(b[base+2])
+              		}
+              		return (mid&0x0F)<<24 | uint(b[base+4])<<16 | uint(b[base+5])<<8 | uint(b[base+6])
+              	}
+              	o := base + uint(bit)*4
+              	return uint(b[o])<<24 | uint(b[o+1])<<16 | uint(b[o+2])<<8 | uint(b[o+3])
+              }
+
+              // lookupCountry returns country.iso_code for ip, or "" (no record, no country, or not two upper-case letters).
+              // It does not decode the record: it walks the data section and reads only the two values it needs, which keeps it
+              // cheap when run by Traefik's plugin interpreter.
+              func (m *mmdb) lookupCountry(ip net.IP) string {
+              	var addr []byte
+              	node := uint(0)
+              	if v4 := ip.To4(); v4 != nil {
+              		addr = v4
+              		if m.ipVersion == 6 {
+              			node = m.ipv4Start
+              		}
+              	} else if v6 := ip.To16(); v6 != nil {
+              		if m.ipVersion == 4 {
+              			return ""
+              		}
+              		addr = v6
+              	} else {
+              		return ""
+              	}
+              	bits := len(addr) * 8
+              	if m.recordSize == 24 {
+              		// the common case, inlined: this loop runs up to 128 times per lookup
+              		b := m.buf
+              		for i := 0; i < bits && node < m.nodeCount; i++ {
+              			o := node*6 + uint((addr[i>>3]>>(7-uint(i&7)))&1)*3
+              			if o+3 > m.treeSize {
+              				return ""
+              			}
+              			node = uint(b[o])<<16 | uint(b[o+1])<<8 | uint(b[o+2])
+              		}
+              	} else {
+              		for i := 0; i < bits && node < m.nodeCount; i++ {
+              			node = m.readRecord(node, (addr[i>>3]>>(7-uint(i&7)))&1)
+              		}
+              	}
+              	if node <= m.nodeCount {
+              		return ""
+              	}
+              	m.mu.RLock()
+              	c, cached := m.codes[node]
+              	m.mu.RUnlock()
+              	if cached {
+              		return c
+              	}
+              	c = m.readCountry(m.dataStart + (node - m.nodeCount - 16))
+              	m.mu.Lock()
+              	m.codes[node] = c
+              	m.mu.Unlock()
+              	return c
+              }
+
+              // readCountry reads country.iso_code of the record at off.
+              func (m *mmdb) readCountry(off uint) string {
+              	d := &decoder{buf: m.buf, base: m.dataStart}
+              	v, ok := d.findKey(off, "country")
+              	if !ok {
+              		return ""
+              	}
+              	v, ok = d.findKey(v, "iso_code")
+              	if !ok {
+              		return ""
+              	}
+              	s, ok := d.stringAt(v)
+              	if !ok || len(s) != 2 || s[0] < 'A' || s[0] > 'Z' || s[1] < 'A' || s[1] > 'Z' {
+              		return ""
+              	}
+              	return s
+              }
+
+              type decoder struct {
+              	buf  []byte
+              	base uint // start of the section pointers are relative to
+              }
+
+              // decode reads one value at offset and returns it with the offset of the next value.
+              func (d *decoder) decode(offset uint, depth int) (interface{}, uint, error) {
+              	if depth > maxDepth || offset >= uint(len(d.buf)) {
+              		return nil, 0, errCorrupt
+              	}
+              	ctrl := d.buf[offset]
+              	offset++
+              	typ := uint(ctrl >> 5)
+
+              	if typ == 1 { // pointer
+              		ss := uint(ctrl>>3) & 3
+              		vvv := uint(ctrl & 7)
+              		if offset+ss+1 > uint(len(d.buf)) {
+              			return nil, 0, errCorrupt
+              		}
+              		var p uint
+              		switch ss {
+              		case 0:
+              			p = vvv<<8 | uint(d.buf[offset])
+              		case 1:
+              			p = (vvv<<16 | uint(d.buf[offset])<<8 | uint(d.buf[offset+1])) + 2048
+              		case 2:
+              			p = (vvv<<24 | uint(d.buf[offset])<<16 | uint(d.buf[offset+1])<<8 | uint(d.buf[offset+2])) + 526336
+              		default:
+              			p = uint(d.buf[offset])<<24 | uint(d.buf[offset+1])<<16 | uint(d.buf[offset+2])<<8 | uint(d.buf[offset+3])
+              		}
+              		next := offset + ss + 1
+              		v, _, err := d.decode(d.base+p, depth+1)
+              		return v, next, err
+              	}
+
+              	if typ == 0 { // extended type
+              		if offset >= uint(len(d.buf)) {
+              			return nil, 0, errCorrupt
+              		}
+              		typ = 7 + uint(d.buf[offset])
+              		offset++
+              	}
+
+              	size := uint(ctrl & 31)
+              	if size >= 29 {
+              		n := size - 28 // 1, 2 or 3 extra bytes
+              		if offset+n > uint(len(d.buf)) {
+              			return nil, 0, errCorrupt
+              		}
+              		var x uint
+              		for i := uint(0); i < n; i++ {
+              			x = x<<8 | uint(d.buf[offset+i])
+              		}
+              		offset += n
+              		if size == 29 {
+              			size = 29 + x
+              		} else if size == 30 {
+              			size = 285 + x
+              		} else {
+              			size = 65821 + x
+              		}
+              	}
+
+              	switch typ {
+              	case 7: // map
+              		out := make(map[string]interface{}, size)
+              		for i := uint(0); i < size; i++ {
+              			k, n1, err := d.decode(offset, depth+1)
+              			if err != nil {
+              				return nil, 0, err
+              			}
+              			key, ok := k.(string)
+              			if !ok {
+              				return nil, 0, errCorrupt
+              			}
+              			v, n2, err := d.decode(n1, depth+1)
+              			if err != nil {
+              				return nil, 0, err
+              			}
+              			out[key] = v
+              			offset = n2
+              		}
+              		return out, offset, nil
+              	case 11: // array
+              		out := make([]interface{}, 0, size)
+              		for i := uint(0); i < size; i++ {
+              			v, n, err := d.decode(offset, depth+1)
+              			if err != nil {
+              				return nil, 0, err
+              			}
+              			out = append(out, v)
+              			offset = n
+              		}
+              		return out, offset, nil
+              	case 14: // boolean: the value is the size field
+              		// (assigned to an interface variable first: Yaegi panics on returning a comparison as interface{})
+              		var b interface{}
+              		if size != 0 {
+              			b = true
+              		} else {
+              			b = false
+              		}
+              		return b, offset, nil
+              	}
+
+              	if offset+size > uint(len(d.buf)) {
+              		return nil, 0, errCorrupt
+              	}
+              	data := d.buf[offset : offset+size]
+              	next := offset + size
+              	switch typ {
+              	case 2: // utf8 string
+              		return string(data), next, nil
+              	case 5, 6, 9: // uint16, uint32, uint64
+              		var x uint64
+              		for _, b := range data {
+              			x = x<<8 | uint64(b)
+              		}
+              		return x, next, nil
+              	case 8: // int32
+              		if len(data) == 4 {
+              			return int64(int32(binary.BigEndian.Uint32(data))), next, nil
+              		}
+              		var x uint64
+              		for _, b := range data {
+              			x = x<<8 | uint64(b)
+              		}
+              		return int64(x), next, nil
+              	case 3, 4, 10, 15: // double, bytes, uint128, float: not needed here
+              		return nil, next, nil
+              	}
+              	return nil, 0, errCorrupt
+              }
+
+              // item is the parsed control byte of one value.
+              type item struct {
+              	typ     uint
+              	size    uint // payload bytes (strings, ints), or entry count (maps, arrays)
+              	payload uint // offset of the first payload byte (pointers: of the pointer's own bytes)
+              	isPtr   bool
+              	target  uint // pointers: the absolute offset it points to
+              	next    uint // offset right after this value's own bytes (for pointers: after the pointer, not its target)
+              }
+
+              // head parses the control byte at offset.
+              func (d *decoder) head(offset uint) (item, bool) {
+              	var it item
+              	if offset >= uint(len(d.buf)) {
+              		return it, false
+              	}
+              	ctrl := d.buf[offset]
+              	offset++
+              	typ := uint(ctrl >> 5)
+              	if typ == 1 {
+              		ss := uint(ctrl>>3) & 3
+              		vvv := uint(ctrl & 7)
+              		if offset+ss+1 > uint(len(d.buf)) {
+              			return it, false
+              		}
+              		var p uint
+              		switch ss {
+              		case 0:
+              			p = vvv<<8 | uint(d.buf[offset])
+              		case 1:
+              			p = (vvv<<16 | uint(d.buf[offset])<<8 | uint(d.buf[offset+1])) + 2048
+              		case 2:
+              			p = (vvv<<24 | uint(d.buf[offset])<<16 | uint(d.buf[offset+1])<<8 | uint(d.buf[offset+2])) + 526336
+              		default:
+              			p = uint(d.buf[offset])<<24 | uint(d.buf[offset+1])<<16 | uint(d.buf[offset+2])<<8 | uint(d.buf[offset+3])
+              		}
+              		it.typ = 1
+              		it.isPtr = true
+              		it.payload = offset
+              		it.target = d.base + p
+              		it.next = offset + ss + 1
+              		return it, true
+              	}
+              	if typ == 0 {
+              		if offset >= uint(len(d.buf)) {
+              			return it, false
+              		}
+              		typ = 7 + uint(d.buf[offset])
+              		offset++
+              	}
+              	size := uint(ctrl & 31)
+              	if size >= 29 {
+              		n := size - 28
+              		if offset+n > uint(len(d.buf)) {
+              			return it, false
+              		}
+              		var x uint
+              		for i := uint(0); i < n; i++ {
+              			x = x<<8 | uint(d.buf[offset+i])
+              		}
+              		offset += n
+              		if size == 29 {
+              			size = 29 + x
+              		} else if size == 30 {
+              			size = 285 + x
+              		} else {
+              			size = 65821 + x
+              		}
+              	}
+              	it.typ = typ
+              	it.size = size
+              	it.payload = offset
+              	if typ == 7 || typ == 11 || typ == 14 {
+              		it.next = offset // containers/bools: contents (if any) follow
+              	} else {
+              		it.next = offset + size
+              	}
+              	return it, true
+              }
+
+              // resolve follows pointers to the real value.
+              func (d *decoder) resolve(offset uint) (item, bool) {
+              	for depth := 0; depth < maxDepth; depth++ {
+              		it, ok := d.head(offset)
+              		if !ok {
+              			return it, false
+              		}
+              		if !it.isPtr {
+              			return it, true
+              		}
+              		offset = it.target
+              	}
+              	return item{}, false
+              }
+
+              // skip returns the offset after the value at offset without reading it (a pointer is skipped, not followed).
+              func (d *decoder) skip(offset uint, depth int) (uint, bool) {
+              	if depth > maxDepth {
+              		return 0, false
+              	}
+              	it, ok := d.head(offset)
+              	if !ok {
+              		return 0, false
+              	}
+              	if it.typ == 7 || it.typ == 11 {
+              		n := it.size
+              		if it.typ == 7 {
+              			n = it.size * 2
+              		}
+              		pos := it.payload
+              		for i := uint(0); i < n; i++ {
+              			pos, ok = d.skip(pos, depth+1)
+              			if !ok {
+              				return 0, false
+              			}
+              		}
+              		return pos, true
+              	}
+              	return it.next, true
+              }
+
+              // stringAt reads the (possibly pointed-to) string at offset.
+              func (d *decoder) stringAt(offset uint) (string, bool) {
+              	it, ok := d.resolve(offset)
+              	if !ok || it.typ != 2 || it.payload+it.size > uint(len(d.buf)) {
+              		return "", false
+              	}
+              	return string(d.buf[it.payload : it.payload+it.size]), true
+              }
+
+              // findKey returns the offset of the value stored under key in the (possibly pointed-to) map at offset.
+              func (d *decoder) findKey(offset uint, want string) (uint, bool) {
+              	it, ok := d.resolve(offset)
+              	if !ok || it.typ != 7 {
+              		return 0, false
+              	}
+              	pos := it.payload
+              	for i := uint(0); i < it.size; i++ {
+              		keyAt := pos
+              		valAt, ok := d.skip(pos, 0)
+              		if !ok {
+              			return 0, false
+              		}
+              		if k, ok := d.stringAt(keyAt); ok && k == want {
+              			return valAt, true
+              		}
+              		pos, ok = d.skip(valAt, 0)
+              		if !ok {
+              			return 0, false
+              		}
+              	}
+              	return 0, false
+              }
+
+            plugin.go: |
+              // Package traefik_geo makes the CF-IPCountry request header trustworthy on every route.
+              //
+              //   - Request from a Cloudflare address: Cloudflare set the header; it is kept if it is a valid two-character code
+              //     and replaced by "XX" otherwise.
+              //   - Any other (direct) request: whatever the client sent is discarded and the header is set from a GeoLite2-Country
+              //     lookup of the client address, in Cloudflare's format: an upper-case ISO 3166-1 alpha-2 code, or "XX" when the
+              //     country is unknown (private/unrouted address, no database).
+              //
+              // The header X-Vmd1-Geo-Source says which: "cloudflare", "geoip" or "none" (no database available). It is always
+              // overwritten here, so a client cannot forge it. The plugin fails open: a missing or broken database only means "XX".
+              package traefik_geo
+
+              import (
+              	"context"
+              	"fmt"
+              	"net"
+              	"net/http"
+              	"os"
+              	"strings"
+              	"sync"
+              	"time"
+              )
+
+              const (
+              	countryHeader = "CF-IPCountry"
+              	sourceHeader  = "X-Vmd1-Geo-Source"
+              	unknown       = "XX"
+              )
+
+              // defaultCloudflareCIDRs is Cloudflare's published edge address list, the same one as the forwardedHeaders.trustedIPs
+              // of the Traefik entrypoints (operators/traefik/manifest.yaml) and the trace plugin: keep them in sync.
+              var defaultCloudflareCIDRs = []string{
+              	"173.245.48.0/20",
+              	"103.21.244.0/22",
+              	"103.22.200.0/22",
+              	"103.31.4.0/22",
+              	"141.101.64.0/18",
+              	"108.162.192.0/18",
+              	"190.93.240.0/20",
+              	"188.114.96.0/20",
+              	"197.234.240.0/22",
+              	"198.41.128.0/17",
+              	"162.158.0.0/15",
+              	"104.16.0.0/13",
+              	"104.24.0.0/14",
+              	"172.64.0.0/13",
+              	"131.0.72.0/22",
+              	"2400:cb00::/32",
+              	"2606:4700::/32",
+              	"2803:f800::/32",
+              	"2405:b500::/32",
+              	"2405:8100::/32",
+              	"2a06:98c0::/29",
+              	"2c0f:f248::/32",
+              }
+
+              // Config of the middleware.
+              type Config struct {
+              	DBPath          string   `json:"dbPath,omitempty"`
+              	CloudflareCIDRs []string `json:"cloudflareCIDRs,omitempty"`
+              	CheckSeconds    int      `json:"checkSeconds,omitempty"`
+              	CacheSize       int      `json:"cacheSize,omitempty"`
+              }
+
+              // CreateConfig creates the default plugin configuration.
+              func CreateConfig() *Config {
+              	cidrs := make([]string, len(defaultCloudflareCIDRs))
+              	copy(cidrs, defaultCloudflareCIDRs)
+              	return &Config{DBPath: "/geoip/GeoLite2-Country.mmdb", CloudflareCIDRs: cidrs, CheckSeconds: 60, CacheSize: 4096}
+              }
+
+              // result of classifying one peer address.
+              type result struct {
+              	code   string
+              	source string
+              	cf     bool
+              }
+
+              // state is shared by every middleware instance in the process: Traefik builds one instance per router, and the
+              // database must be loaded (and watched) once, not once per router.
+              type state struct {
+              	path      string
+              	cidrs     []*net.IPNet
+              	cacheSize int
+
+              	mu      sync.RWMutex
+              	db      *mmdb
+              	sig     string
+              	cache   map[string]result
+              	reloads int
+              }
+
+              var (
+              	statesMu sync.Mutex
+              	states   = map[string]*state{}
+              )
+
+              func getState(cfg *Config) (*state, error) {
+              	key := cfg.DBPath + "|" + strings.Join(cfg.CloudflareCIDRs, ",")
+              	statesMu.Lock()
+              	defer statesMu.Unlock()
+              	if s, ok := states[key]; ok {
+              		return s, nil
+              	}
+              	var nets []*net.IPNet
+              	for _, c := range cfg.CloudflareCIDRs {
+              		_, n, err := net.ParseCIDR(strings.TrimSpace(c))
+              		if err != nil {
+              			return nil, fmt.Errorf("cloudflareCIDRs: %v", err)
+              		}
+              		nets = append(nets, n)
+              	}
+              	size := cfg.CacheSize
+              	if size <= 0 {
+              		size = 4096
+              	}
+              	s := &state{path: cfg.DBPath, cidrs: nets, cacheSize: size, cache: map[string]result{}}
+              	s.reload()
+              	secs := cfg.CheckSeconds
+              	if secs <= 0 {
+              		secs = 60
+              	}
+              	go func() {
+              		t := time.NewTicker(time.Duration(secs) * time.Second)
+              		for range t.C {
+              			s.reload()
+              		}
+              	}()
+              	states[key] = s
+              	return s, nil
+              }
+
+              // reload re-reads the database file when it changed (the geoip-updater replaces it atomically). A file that cannot be
+              // parsed is ignored and the old database stays in use.
+              func (s *state) reload() {
+              	fi, err := os.Stat(s.path)
+              	if err != nil {
+              		return
+              	}
+              	sig := fmt.Sprintf("%d-%d", fi.Size(), fi.ModTime().UnixNano())
+              	s.mu.RLock()
+              	same := sig == s.sig
+              	s.mu.RUnlock()
+              	if same {
+              		return
+              	}
+              	buf, err := os.ReadFile(s.path)
+              	if err != nil {
+              		return
+              	}
+              	db, err := openMMDB(buf)
+              	if err != nil {
+              		return
+              	}
+              	s.mu.Lock()
+              	s.db = db
+              	s.sig = sig
+              	s.cache = map[string]result{}
+              	s.reloads++
+              	s.mu.Unlock()
+              }
+
+              func (s *state) isCloudflare(ip net.IP) bool {
+              	for _, n := range s.cidrs {
+              		if n.Contains(ip) {
+              			return true
+              		}
+              	}
+              	return false
+              }
+
+              // classify decides how to treat a peer address; results are cached until the database is swapped.
+              func (s *state) classify(peer string) result {
+              	s.mu.RLock()
+              	r, ok := s.cache[peer]
+              	db := s.db
+              	s.mu.RUnlock()
+              	if ok {
+              		return r
+              	}
+              	r = result{code: unknown, source: "none"}
+              	ip := net.ParseIP(peer)
+              	if ip != nil {
+              		if s.isCloudflare(ip) {
+              			r = result{cf: true, source: "cloudflare"}
+              		} else if db != nil {
+              			r.source = "geoip"
+              			if c := db.lookupCountry(ip); c != "" {
+              				r.code = c
+              			}
+              		}
+              	}
+              	s.mu.Lock()
+              	if len(s.cache) >= s.cacheSize {
+              		s.cache = map[string]result{}
+              	}
+              	s.cache[peer] = r
+              	s.mu.Unlock()
+              	return r
+              }
+
+              type geo struct {
+              	next  http.Handler
+              	state *state
+              }
+
+              // New creates the middleware.
+              func New(_ context.Context, next http.Handler, config *Config, _ string) (http.Handler, error) {
+              	s, err := getState(config)
+              	if err != nil {
+              		return nil, err
+              	}
+              	return &geo{next: next, state: s}, nil
+              }
+
+              func peerAddr(req *http.Request) string {
+              	host, _, err := net.SplitHostPort(req.RemoteAddr)
+              	if err != nil {
+              		return req.RemoteAddr
+              	}
+              	return host
+              }
+
+              // validCode accepts the two-character codes Cloudflare sends (ISO letters, "XX", "T1" for Tor).
+              func validCode(c string) bool {
+              	if len(c) != 2 {
+              		return false
+              	}
+              	for i := 0; i < 2; i++ {
+              		ch := c[i]
+              		if !((ch >= 'A' && ch <= 'Z') || (ch >= '0' && ch <= '9')) {
+              			return false
+              		}
+              	}
+              	return true
+              }
+
+              func (g *geo) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
+              	r := g.state.classify(peerAddr(req))
+              	code := r.code
+              	if r.cf {
+              		code = strings.ToUpper(strings.TrimSpace(req.Header.Get(countryHeader)))
+              		if !validCode(code) {
+              			code = unknown
+              		}
+              	}
+              	req.Header.Set(countryHeader, code)
+              	req.Header.Set(sourceHeader, r.source)
+              	g.next.ServeHTTP(rw, req)
+              }
+
+    tlsStore:
+      default:
+        defaultCertificate:
+          secretName: cluster-wildcard-tls
+
+    securityContext:
+      capabilities:
+        add:
+          - NET_BIND_SERVICE
+        drop:
+          - ALL
+      readOnlyRootFilesystem: true
+      runAsGroup: 0
+      runAsNonRoot: false
+      runAsUser: 0

@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Node
+metadata:
+  name: ares-01
+  annotations:
+    kustomize.toolkit.fluxcd.io/prune: disabled
+  labels:
+    node-role.kubernetes.io/dns: "true"
+    node-role.kubernetes.io/ingress: "true"
+    node-type: "ingress"
+    node.vmd1.homelab/oci-account: "india-west-a2"
+    node.vmd1.homelab/oci-reboot: "true"
+    node.vmd1.homelab/username: "ubuntu"
+    topology.kubernetes.io/region: "india"
+    topology.kubernetes.io/zone: "in-mumbai-cloud"

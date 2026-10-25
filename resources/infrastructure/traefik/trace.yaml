@@ -1,5 +1,5 @@
 # GET https://<any domain>/.vmd1/trace -> plain-text connection info (answered by the vmd1trace
-# local plugin, see crds-and-operators/traefik/manifest.yaml). resp-reg is looked up by node name.
+# local plugin, see operators/traefik/manifest.yaml). resp-reg is looked up by node name.
 apiVersion: traefik.io/v1alpha1
 kind: Middleware
 metadata:

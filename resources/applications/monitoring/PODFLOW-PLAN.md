@@ -168,7 +168,7 @@ free space before each PVC expansion.
 | File | Change |
 | :--- | :--- |
 | `controllers/podflow/` (new) | Go agent, Dockerfile, README. Add `podflow` to the `IMAGES` array in `.github/scripts/controller-images-changes.sh`. |
-| `resources/applications/monitoring/podflow.yaml` (new) | ServiceAccount, ClusterRole/Binding, ConfigMap `podflow-rules`, DaemonSet. |
+| `resources/edge/podflow/podflow.yaml` (new) | ServiceAccount, ClusterRole/Binding, ConfigMap `podflow-rules`, DaemonSet. |
 | `.../monitoring/manifest.yaml` | `loki-pvc` 10Gi to 20Gi; Loki memory limit review; Prometheus PVC 30Gi to 40Gi, `--storage.tsdb.retention.time=30d`, `--storage.tsdb.retention.size=36GB`; `metric_relabel_configs` dropping heavy apiserver/etcd buckets (first check no dashboard or rule uses them); promtail `keep` rule widened from `traefik` to `traefik` plus `monitoring`/`podflow`; promtail stage labelling `event`; optional recording rules for 7d/30d increases. |
 | `.../monitoring/podflow-ts.yaml` (new, Phase 5) | DaemonSet `podflow-ts` (hostPID, `SYS_ADMIN` + `SYS_PTRACE`) on Connector nodes. No credentials: device names come from each Tailscale pod's own tailscaled. |
 | `.../monitoring/podflow-dashboards.yaml` (new) | Dashboard ConfigMaps, mounted in the Grafana Deployment like the existing ones. |
@@ -278,7 +278,7 @@ classification proves too coarse.
 
 ## Implementation notes (2026-10-23)
 
-What was built (source: `controllers/podflow/`, deployment: `monitoring/podflow.yaml`), and where it differs from the
+What was built (source: `controllers/podflow/`, deployment: `edge/podflow/podflow.yaml`), and where it differs from the
 plan above:
 
 - **Go, as planned.** A `scratch` image (about 7MB binary), standard library plus `golang.org/x/sys` and

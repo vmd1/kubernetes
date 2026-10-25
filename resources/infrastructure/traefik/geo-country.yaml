@@ -1,5 +1,5 @@
 # Makes the CF-IPCountry request header trustworthy on every route (plugin vmd1geo, defined in the HelmChart values of
-# crds-and-operators/traefik). Requests from Cloudflare keep the (validated) country Cloudflare set; direct requests
+# operators/traefik). Requests from Cloudflare keep the (validated) country Cloudflare set; direct requests
 # get the header from a GeoLite2-Country lookup of the client address, in Cloudflare's format (ISO 3166-1 alpha-2, "XX"
 # when unknown), and X-Vmd1-Geo-Source says which ("cloudflare", "geoip" or "none"). Whatever the client sent is
 # discarded. The database is /var/lib/geoip/GeoLite2-Country.mmdb on the node, kept fresh by the geoip-updater and

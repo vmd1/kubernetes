@@ -16,7 +16,7 @@ oauth2-proxy provides Traefik ForwardAuth for every protected domain, using [Aut
 
 | File | Description |
 | :--- | :--- |
-| [manifest.yaml](manifest.yaml) | Namespace `oauth2-proxy`; per domain a Deployment (2 replicas), ClusterIP Service on `:4180`, and a Traefik `forwardAuth` Middleware. |
+| [manifest.yaml](manifest.yaml) | per domain a Deployment (2 replicas), ClusterIP Service on `:4180`, and a Traefik `forwardAuth` Middleware. |
 | [ingressroute.yaml](ingressroute.yaml) | Traefik `IngressRoute` exposing `/oauth2/` on each `secure.<domain>` host. |
 | [secrets.sops.yaml](secrets.sops.yaml) | SOPS-encrypted Secret `oauth2-proxy-secrets` (client secret and cookie secret per domain). |
 | [kustomization.yaml](kustomization.yaml) | Kustomize entrypoint. |

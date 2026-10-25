@@ -6,7 +6,7 @@ Lldap is a simplified, lightweight LDAP server designed for user management. It 
 
 | File | Description |
 | :--- | :--- |
-| [manifest.yaml](manifest.yaml) | Defines Lldap Namespace, Secrets (JWT, Seed key, Database details, and TLS certificates), Deployment (2 replicas), Services (HTTP, LDAP, LDAPS), and Traefik `IngressRoute`. |
+| [manifest.yaml](manifest.yaml) | Defines Secrets (JWT, Seed key, Database details, and TLS certificates), Deployment (2 replicas), Services (HTTP, LDAP, LDAPS), and Traefik `IngressRoute`. |
 
 ## Design Decisions
 

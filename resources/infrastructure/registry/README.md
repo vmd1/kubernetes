@@ -6,7 +6,7 @@ This folder deploys a private self-hosted Docker registry (`registry:3`). It pro
 
 | File | Description |
 | :--- | :--- |
-| [manifest.yaml](manifest.yaml) | Namespace `registry`, PersistentVolumeClaim, `registry` Deployment and Service (token auth), `docker-auth` ConfigMap, Deployment and Service. |
+| [manifest.yaml](manifest.yaml) | PersistentVolumeClaim, `registry` Deployment and Service (token auth), `docker-auth` ConfigMap, Deployment and Service. |
 | [ingressroute.yaml](ingressroute.yaml) | Traefik `IngressRoute` for `registry.vmd1.homelab` (registry) and `registry.vmd1.homelab/auth` (token endpoint). |
 | [secrets.sops.yaml](secrets.sops.yaml) | SOPS-encrypted Secret `docker-auth-secrets` (token signing key and certificate, lldap bind password). |
 

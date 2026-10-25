@@ -1,0 +1,15 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Labels only. Taints stay in each node's k3s flags: Node.spec.taints is an atomic list, so Flux would own the
+# whole list and strip the node.kubernetes.io/unreachable and not-ready taints the node controller adds.
+# node.vmd1.homelab/public-ip is left out on purpose: a script keeps it current, and Flux would fight it.
+resources:
+  - ares-01.yaml
+  - ares-02.yaml
+  - hades-01.yaml
+  - hades-02.yaml
+  - hera-01.yaml
+  - hera-02.yaml
+  - zeus-01.yaml
+  - zeus-02.yaml

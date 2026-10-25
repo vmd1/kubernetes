@@ -6,7 +6,7 @@ Homelable is a self-hosted homelab diagram app with live status monitoring and a
 
 | File | Description |
 | :--- | :--- |
-| [manifest.yaml](manifest.yaml) | Namespace, ServiceAccount, read-only ClusterRole/Binding, PVC, backend and frontend Deployments and Services. |
+| [manifest.yaml](manifest.yaml) | ServiceAccount, read-only ClusterRole/Binding, PVC, backend and frontend Deployments and Services. |
 | [ingressroute.yaml](ingressroute.yaml) | Traefik `IngressRoute` exposing `lab.vmd1.homelab` (frontend only; WebSockets pass through). |
 | [secrets.sops.yaml](secrets.sops.yaml) | SOPS-encrypted Secret `homelable-secrets`: `SECRET_KEY` and `OIDC_CLIENT_SECRET`. |
 | [kustomization.yaml](kustomization.yaml) | Kustomize manifest. |

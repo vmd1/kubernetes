@@ -6,8 +6,7 @@ Uptime Kuma is a self-hosted monitoring tool that monitors service availability 
 
 | File | Description |
 | :--- | :--- |
-| [manifest.yaml](manifest.yaml) | Defines the Namespace `uptime-kuma`, the `longhorn-single-replica` StorageClass override, PVC, Deployment running `louislam/uptime-kuma:2`, Service, and Traefik `IngressRoute` configuration. |
-| [sa.ps1](sa.ps1) | PowerShell script to configure a service account and long-lived auth token (`uptime-kuma-monitor`) to allow Uptime Kuma to query cluster APIs for Kubernetes pod/node status. |
+| [manifest.yaml](manifest.yaml) | Defines `longhorn-single-replica` StorageClass override, PVC, Deployment running `louislam/uptime-kuma:2`, Service, and Traefik `IngressRoute` configuration. |
 
 ## Design Decisions
 
@@ -19,7 +18,6 @@ Uptime Kuma is a self-hosted monitoring tool that monitors service availability 
 ## Dependencies
 
 - **Storage Class**: Longhorn driver (`driver.longhorn.io`).
-- **Cluster APIs**: Uses token created by `sa.ps1` for advanced K8s health checks.
 
 ## Services & Routers
 
@@ -44,7 +42,3 @@ Uptime Kuma is a self-hosted monitoring tool that monitors service availability 
   - Request: `50m` CPU, `128Mi` RAM.
   - Limit: `500m` CPU, `512Mi` RAM.
 - **Memory tuning**: Configured with `MALLOC_TRIM_THRESHOLD_=100000` to lower Node.js memory overhead.
-
-## Configs & Credentials
-
-- Custom service accounts are configured via the `sa.ps1` helper script.
