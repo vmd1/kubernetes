@@ -60,8 +60,6 @@ namespaces ──► crds ──► operators ──► nodes ──► infrastr
 
 > Every layer uses `interval: 10m` and `prune: true`; all but `node-labels` use `wait: true`. Objects that must never be deleted by a prune (Namespaces, CRDs, Nodes) carry `kustomize.toolkit.fluxcd.io/prune: disabled`.
 
-> **Temporary (2026-10-25)**: `infrastructure` and `applications` run with `prune: false` while ownership moves to the new layers, so nothing that moved to `edge` or `namespaces` can be deleted in between. It is switched back on once every layer is Ready.
-
 ## Related
 
 - [flux-system/README.md](flux-system/README.md) — how Flux itself is bootstrapped and synced to this repository.
