@@ -51,6 +51,8 @@ oauth2-proxy provides Traefik ForwardAuth for every protected domain, using [Aut
 
 Hosts currently gated by the `oauth2-proxy-kmnet-uk` middleware: `headlamp.vmd1.homelab`, `longhorn.vmd1.homelab`, `traefik.vmd1.homelab`, `edit-home.vmd1.homelab`, `matter.vmd1.homelab`, `lldap.vmd1.homelab`, `unifi.vmd1.homelab` and `status.vmd1.homelab`. Access requires membership of the lldap group `Domain: vmd1.homelab` plus Authelia two-factor.
 
+**Tailnet only**: the route has the `tailnet-only` middleware first ([proxy/traefik](../../proxy/traefik/README.md)), so it is reachable only with Tailscale on; everyone else gets the branded 403. Of these, `traefik`, `edit-home`, `matter`, `unifi`, `status` (vmd1.homelab) and `lab.vmd1.homelab` also have `tailnet-only` in front of the login.
+
 ## Using the Middleware
 
 Reference the middleware for the route's domain from any `IngressRoute`:

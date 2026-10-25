@@ -16,6 +16,7 @@ Vaultwarden is an alternative Bitwarden server API implementation written in Rus
 - **Strict Registration Limits**: Disables new signups (`"signups_allowed": false`) to prevent unauthorized public registrations, while leaving organization invitations open (`"invitations_allowed": true`).
 - **SMTP relaying**: Connects to SMTP2Go using encrypted STARTTLS over port 587 for dispatching secure 2FA tokens, organizational invitations, and vault sharing emails.
 - **Admin Panel Behind SSO**: a second route (`PathPrefix(`/admin`)`, priority 100) adds the `oauth2-proxy-vmd1-dev` forward-auth middleware (Authelia, 2FA, `Domain: vmd1.homelab` group) in front of Vaultwarden's own `ADMIN_TOKEN` prompt. No Bitwarden client uses `/admin`, so vault access is unaffected.
+- **Tailnet only**: the route has the `tailnet-only` middleware first ([proxy/traefik](../../proxy/traefik/README.md)), so it is reachable only with Tailscale on; everyone else gets the branded 403. Applies to the `/admin` route only; the vault and the Bitwarden clients stay public.
 
 
 ## Dependencies

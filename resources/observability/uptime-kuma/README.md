@@ -13,6 +13,7 @@ Uptime Kuma is a self-hosted monitoring tool that monitors service availability 
 - **Dedicated Storage Class**: Declares a custom StorageClass `longhorn-single-replica` pointing to Longhorn with replica factor of `1` to bypass default multi-replica replication. This keeps disk IO footprint low for simple sqlite operations.
 - **Node Co-Location**: Pinned to home node (`hades-01` in `region: uk-home`) to monitor local devices and home server availability reliably.
 - **Public status vs gated host**: `up.vmd1.homelab`, `up.vmd1.homelab`, `up.vmd1.homelab` and `up.vmd1.homelab` stay public. `status.vmd1.homelab` is behind the `oauth2-proxy-kmnet-uk` middleware (Authelia) as its own route. Uptime Kuma has no OIDC support, so this is an extra gate in front of its own login.
+- **Tailnet only**: the route has the `tailnet-only` middleware first ([proxy/traefik](../../proxy/traefik/README.md)), so it is reachable only with Tailscale on; everyone else gets the branded 403. Applies to `status.vmd1.homelab` only; the public `up.*` status page is unchanged. Monitors that fetch a tailnet-only URL from inside the cluster arrive from a node IP and see the 403.
 - **Multiple Domain Ingress**: Exposes the status page on multiple domains (`up.vmd1.homelab`, `up.vmd1.homelab`, `up.vmd1.homelab`, `up.vmd1.homelab`, `status.vmd1.homelab`) via Traefik to allow public checking of homelab health.
 
 ## Dependencies
