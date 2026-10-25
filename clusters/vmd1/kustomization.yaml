@@ -3,11 +3,20 @@ kind: Kustomization
 
 resources:
   - flux-system
+  # Foundation, in dependency order
   - node-labels.yaml
   - namespaces.yaml
   - crds.yaml
   - operators.yaml
-  - nodes.yaml
-  - infrastructure.yaml
-  - applications.yaml
+  # Purpose groups: each depends only on operators, so one broken group cannot hold up another
+  - vpn.yaml
+  - oci.yaml
+  - proxy.yaml
+  - auth.yaml
+  - platform.yaml
+  - observability.yaml
+  - home.yaml
+  - media.yaml
+  - personal.yaml
+  - projects.yaml
   - edge.yaml

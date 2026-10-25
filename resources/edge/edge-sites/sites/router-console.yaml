@@ -1,0 +1,20 @@
+# The uk-home router's own admin UI (network/uk-home/router/ in this repo; source of truth and
+# history live there -- vmd1/router-console is just a mirror the edge platform builds from).
+# Gated behind Authelia end to end since it's a live admin tool for the house router, not public
+# content (see network/uk-home/router/README.md).
+apiVersion: edge.vmd1.homelab/v1alpha1
+kind: EdgeSite
+metadata:
+  name: router-console
+  namespace: vmd1-web
+spec:
+  domain: router.vmd1.homelab
+  repo: https://github.com/vmd1/router-console
+  branch: main
+  auth: {}
+  serve:
+    version: "1"
+
+    build:
+      engine: static
+      output_dir: .

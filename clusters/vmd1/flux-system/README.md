@@ -20,7 +20,7 @@ This folder bootstraps **FluxCD** on the `vmd1` cluster and connects it to this 
 
 1. `gotk-sync.yaml` creates a `GitRepository` named `flux-system` that clones this repository (using the SSH deploy key stored in the `flux-system` secret).
 2. The `flux-system` `Kustomization` applies the contents of `./clusters/vmd1` (the entrypoint described in [../README.md](../README.md)).
-3. The four layer Kustomizations (`operators`, `nodes`, `infrastructure`, `applications`) then reconcile the [resources/](../../../resources/README.md) tree.
+3. The layer and group Kustomizations (`node-labels`, `namespaces`, `crds`, `operators`, then the ten purpose groups and `edge`) then reconcile the [resources/](../../../resources/README.md) tree.
 
 ## Related
 

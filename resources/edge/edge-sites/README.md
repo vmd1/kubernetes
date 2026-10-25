@@ -21,14 +21,14 @@ Deploys the CRD-driven edge serving platform: the `edge-operator`, and the state
 - **Fast path:** plain static sites (no `install`/`command`) are built by the operator itself (clone, validate, one layer, push to the registry); no Job runs. Sites with commands, and Workers, use a build Job.
 - **Strict node isolation:** build Jobs are pinned to `topology.kubernetes.io/zone=uk-home` and `kubernetes.io/arch=amd64` (so currently `hades-02` only) and never tolerate the ingress taint; the operator asserts this before creating a Job.
 - **amd64 only:** the DaemonSet excludes arm64 `hades-01`.
-- **Registry:** everything uses `registry.vmd1.homelab` (token auth against lldap, see [registry](../../infrastructure/registry/README.md)). Kaniko and the operator's fast path push `edge/site-<name>`; the edge agents pull from it. The URL is configured once, in the operator's env (`REGISTRY_HOST`, `REGISTRY_URL` in [operator-deployment.yaml](operator-deployment.yaml)), and reaches the edge pods through the `registry` field of `ConfigMap/edge-manifest`. Only the runtime image is pulled by the kubelet, from public ghcr.
+- **Registry:** everything uses `registry.vmd1.homelab` (token auth against lldap, see [registry](../../platform/registry/README.md)). Kaniko and the operator's fast path push `edge/site-<name>`; the edge agents pull from it. The URL is configured once, in the operator's env (`REGISTRY_HOST`, `REGISTRY_URL` in [operator-deployment.yaml](operator-deployment.yaml)), and reaches the edge pods through the `registry` field of `ConfigMap/edge-manifest`. Only the runtime image is pulled by the kubelet, from public ghcr.
 - **Auth (`spec.auth`):** `auth: {}` gates the whole site and `auth: {paths: ["/admin"]}` only those prefixes. The operator adds the domain's `oauth2-proxy-<domain>` Authelia middleware (first, before the backend) plus `edge-no-store` (Cloudflare caches static file types regardless of auth, and a cache hit would skip the login); path rules get `priority: 10000`. Access needs the lldap group `Domain: <domain>`. Supported domains are those with an oauth2-proxy (`EDGE_AUTH_DOMAINS`, default `vmd1.homelab, vmd1.homelab, vmd1.homelab, vmd1.homelab`). An invalid auth block marks the site `Invalid` and **removes its route** (fail closed: it is never served ungated). Edits to `auth` apply within seconds, without a rebuild.
 - **Hostnames/TLS:** hostnames must be covered by `cluster-wildcard-tls` and DNS (`dns/domains`). A hostname must not also be routed by another IngressRoute (Traefik picks by rule length, so a longer rule elsewhere would shadow the edge route).
 
 ## Dependencies
 
 - `edgesite` CRD ([crds/edgesite](../../crds/edgesite/README.md)); Traefik CRDs and the `edge-retry`, `static-cache-headers` (vmd1-web), `compress` (traefik) middlewares and `edge-transport` ServersTransport.
-- The `registry` and `docker-auth` apps (infrastructure), and images `ghcr.io/vmd1/edge-{operator,builder,runtime}` built by [`.github/workflows/edge-images.yaml`](../../../../.github/workflows/edge-images.yaml) (make the ghcr packages public).
+- The `registry` and `docker-auth` apps (platform group), and images `ghcr.io/vmd1/edge-{operator,builder,runtime}` built by [`.github/workflows/edge-images.yaml`](../../../../.github/workflows/edge-images.yaml) (make the ghcr packages public).
 
 ## Services & Routers
 

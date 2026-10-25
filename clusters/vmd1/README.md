@@ -12,17 +12,24 @@ This folder is the **Flux entrypoint for the `vmd1` k3s cluster**. It declares t
 
 ## Reconciliation Layers
 
-The cluster is split into eight layers, plus Flux managing its own install:
+Four foundation layers run in order; everything else is a purpose group that depends only on `operators`:
 
 | Flux Kustomization | Path | `dependsOn` | Purpose |
 | :--- | :--- | :--- | :--- |
 | [node-labels.yaml](node-labels.yaml) | `./resources/node-labels` | — | Labels on the eight Nodes (no taints). `wait: false`. |
 | [namespaces.yaml](namespaces.yaml) | `./resources/namespaces` | — | Every Namespace except `default`, `kube-*` and `flux-system` |
 | [crds.yaml](crds.yaml) | `./resources/crds` | `namespaces` | Vendored CRDs (CNPG, EdgeSite, OCIPortRule), never pruned |
-| [operators.yaml](operators.yaml) | `./resources/operators` | `crds`, `node-labels` | Operators and charts (cert-manager, CNPG, Longhorn, Traefik, Multus, OCI controllers, Redis, Kube-VIP) |
-| [nodes.yaml](nodes.yaml) | `./resources/nodes` | `operators` | `OCIPortRule` instances that open firewall ports on ingress nodes |
-| [infrastructure.yaml](infrastructure.yaml) | `./resources/infrastructure` | `nodes` | Cluster infrastructure (Tailscale, Traefik middleware/LB, Longhorn UI + backup target, registry, lldap, cf-ddns, OCI reboot) |
-| [applications.yaml](applications.yaml) | `./resources/applications` | `infrastructure` | User-facing applications (Authelia, Matrix, Media, Monitoring, Nextcloud, etc.) |
+| [operators.yaml](operators.yaml) | `./resources/operators` | `crds`, `node-labels` | Operators and charts (cert-manager, CNPG, Longhorn, Traefik, Multus, OCI port controller, Redis, Kube-VIP) |
+| [vpn.yaml](vpn.yaml) | `./resources/vpn` | `operators` | Tailscale operator and region controller |
+| [oci.yaml](oci.yaml) | `./resources/oci` | `operators` | OCI reboot watchdog and the ingress nodes' `OCIPortRule`s |
+| [proxy.yaml](proxy.yaml) | `./resources/proxy` | `operators` | Traefik Middlewares, TLS options, uk-home LB, dashboard and guard routes; cf-ddns |
+| [auth.yaml](auth.yaml) | `./resources/auth` | `operators` | lldap, Authelia, oauth2-proxy |
+| [platform.yaml](platform.yaml) | `./resources/platform` | `operators` | Private registry; Longhorn UI and backup target |
+| [observability.yaml](observability.yaml) | `./resources/observability` | `operators` | Loki, Prometheus, Grafana, kube-state-metrics, Uptime Kuma, ntfy, Headlamp, Homelable |
+| [home.yaml](home.yaml) | `./resources/home` | `operators` | Home Assistant, Mosquitto, UniFi |
+| [media.yaml](media.yaml) | `./resources/media` | `operators` | Jellyfin, BookOrbit, Cinepro |
+| [personal.yaml](personal.yaml) | `./resources/personal` | `operators` | Nextcloud, Obsidian, Vaultwarden, Matrix |
+| [projects.yaml](projects.yaml) | `./resources/projects` | `operators` | QEComp, Gossip |
 | [edge.yaml](edge.yaml) | `./resources/edge` | `operators` | DaemonSets on the ingress nodes (PowerDNS, GeoIP updater, edge-sites, error pages, podflow, node-exporter, promtail) |
 | [flux-system/](flux-system/README.md) | `./clusters/vmd1/flux-system` | — | Flux's own components and sync, applied by the `flux-system` Kustomization itself |
 
@@ -30,35 +37,28 @@ The cluster is split into eight layers, plus Flux managing its own install:
 
 ```
 node-labels ─┐
-namespaces ──► crds ──► operators ──► nodes ──► infrastructure ──► applications
-                            │
-                            └──► edge   (nothing depends on edge)
+namespaces ──► crds ──► operators ──┬──► vpn, oci, proxy, auth, platform,
+                                    │    observability, home, media, personal, projects
+                                    └──► edge
 ```
 
 - **Node labels** and **namespaces** come first, so no layer has to create the namespace it deploys into and every pod can find the nodes it selects.
-- **CRDs** come next, so the custom resources in later layers (e.g. `OCIPortRule`, `Cluster`, `EdgeSite`) always have their types. Chart-installed CRDs (Traefik `IngressRoute`, cert-manager) still come from their HelmCharts in `operators`.
-- **Operators** run the controllers for those CRDs.
-- **Nodes** creates the `OCIPortRule` instances consumed by `oci-port-controller`.
-- **Infrastructure** provides ingress, auth, storage, and registry primitives that applications depend on.
-- **Applications** is reconciled last on the main chain.
-- **Edge** holds every Flux-applied DaemonSet that runs on the 1 GB ingress nodes. Nothing depends on it, so a NotReady ingress node only marks `edge` NotReady instead of stalling infrastructure and applications.
+- **CRDs** come next, so custom resources (`OCIPortRule`, `Cluster`, `EdgeSite`) always have their types. Chart-installed CRDs (Traefik `IngressRoute`, cert-manager) come from their HelmCharts in `operators`.
+- **Operators** run the controllers and databases (CNPG, Redis) the groups use.
+- **Purpose groups** depend only on `operators`. Links between groups (an IngressRoute using a `proxy` Middleware or the `auth` ForwardAuth, an app pulling from `platform`'s registry) are resolved at request time, not at apply time, so they are deliberately not `dependsOn`: a broken manifest in one group cannot stop another from reconciling, and `flux suspend kustomization <group>` pauses just that group.
+- **Edge** holds every Flux-applied DaemonSet on the 1 GB ingress nodes, so a NotReady ingress node only marks `edge` NotReady.
 
 ## Files
 
 | File | Description |
 | :--- | :--- |
-| [kustomization.yaml](kustomization.yaml) | Kustomize entrypoint; references `flux-system/` and the eight Flux Kustomization manifests. |
-| [node-labels.yaml](node-labels.yaml) | Flux `Kustomization` for `./resources/node-labels` (`wait: false`, 2m timeout). |
-| [namespaces.yaml](namespaces.yaml) | Flux `Kustomization` for `./resources/namespaces` (2m timeout). |
-| [crds.yaml](crds.yaml) | Flux `Kustomization` for `./resources/crds` (2m timeout). |
-| [operators.yaml](operators.yaml) | Flux `Kustomization` for `./resources/operators`, with SOPS decryption. |
-| [nodes.yaml](nodes.yaml) | Flux `Kustomization` for `./resources/nodes`, with SOPS decryption. |
-| [infrastructure.yaml](infrastructure.yaml) | Flux `Kustomization` for `./resources/infrastructure`, with SOPS decryption. |
-| [applications.yaml](applications.yaml) | Flux `Kustomization` for `./resources/applications`, with SOPS decryption. |
-| [edge.yaml](edge.yaml) | Flux `Kustomization` for `./resources/edge`, with SOPS decryption. |
-| [flux-system/](flux-system/README.md) | Flux bootstrap manifests (components + GitRepository sync), now reconciled by Flux. |
+| [kustomization.yaml](kustomization.yaml) | Kustomize entrypoint; references `flux-system/` and the 15 Flux Kustomization manifests. |
+| [node-labels.yaml](node-labels.yaml), [namespaces.yaml](namespaces.yaml), [crds.yaml](crds.yaml) | Foundation layers (no SOPS, 2m timeout; `node-labels` has `wait: false`). |
+| [operators.yaml](operators.yaml) | Operators layer, with SOPS decryption. |
+| `<group>.yaml` (10) and [edge.yaml](edge.yaml) | One Flux `Kustomization` per purpose group: `./resources/<group>`, `dependsOn: operators`, SOPS decryption, 5m timeout. |
+| [flux-system/](flux-system/README.md) | Flux bootstrap manifests (components + GitRepository sync), reconciled by Flux. |
 
-> Every layer uses `interval: 10m` and `prune: true`; all but `node-labels` use `wait: true`. Objects that must never be deleted by a prune (Namespaces, CRDs, Nodes) carry `kustomize.toolkit.fluxcd.io/prune: disabled`.
+> Every layer uses `interval: 10m` and `prune: true`; all but `node-labels` use `wait: true`. Objects that must never be deleted by a prune (Namespaces, CRDs, Nodes) carry `kustomize.toolkit.fluxcd.io/prune: disabled`. To move objects between Kustomizations, pause pruning on the source in git first; see [docs/history/flux-layer-split-2026-10-25.md](../../../docs/history/flux-layer-split-2026-10-25.md).
 
 ## Related
 

@@ -124,10 +124,10 @@ spec:
       - "--accesslog=true"
       - "--accesslog.format=json"
       - "--providers.kubernetescrd.allowCrossNamespace=true"
-      # Replace Traefik-generated 429/502/503/504 with the branded pages (Middleware error-pages, infrastructure/traefik).
+      # Replace Traefik-generated 429/502/503/504 with the branded pages (Middleware error-pages, edge/error-pages).
       # The middleware must exist before this rolls out: merge the infrastructure change first.
       # Order matters: geo-country first, so every route (and the error pages) sees a trustworthy CF-IPCountry.
-      # Both Middlewares are in infrastructure/traefik and must exist before this rolls out.
+      # geo-country is in proxy/traefik and error-pages in edge/error-pages; both must exist before this rolls out.
       - "--entrypoints.websecure.http.middlewares=traefik-geo-country@kubernetescrd,traefik-error-pages@kubernetescrd"
       # Country and where it came from in every access-log line (request_CF-IPCountry, request_X-Vmd1-Geo-Source)
       - "--accesslog.fields.headers.names.CF-IPCountry=keep"
@@ -139,7 +139,7 @@ spec:
       - "--serverstransport.forwardingtimeouts.responseheadertimeout=15s"
       - "--serverstransport.forwardingtimeouts.idleconntimeout=90s"
 
-    # Local (inline) plugin serving /.vmd1/trace, see infrastructure/traefik/trace.yaml
+    # Local (inline) plugin serving /.vmd1/trace, see proxy/traefik/trace.yaml
     env:
       - name: NODE_NAME
         valueFrom:

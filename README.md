@@ -15,17 +15,13 @@ This directory contains all the Kubernetes manifests, FluxCD GitOps definitions,
 ```
 kubernetes/
 ├── clusters/                     <- Flux cluster definitions and entrypoints
-│   └── vmd1/                     <- Primary cluster definition & reconciliation layers
-│       ├── flux-system/          <- Flux bootstrap manifests
-│       ├── operators.yaml
-│       ├── nodes.yaml
-│       ├── infrastructure.yaml
-│       └── applications.yaml
-├── resources/                    <- Manifests reconciled by Flux across 4 layers
-│   ├── operators/       <- CRDs, operators, controllers
-│   ├── nodes/                    <- Node firewall & port rules
-│   ├── infrastructure/           <- Cluster-wide infrastructure & internal services
-│   └── applications/             <- User-facing applications and workloads
+│   └── vmd1/                     <- Primary cluster definition: one Flux Kustomization per layer/group
+│       ├── flux-system/          <- Flux bootstrap manifests (reconciled by Flux)
+│       ├── node-labels.yaml, namespaces.yaml, crds.yaml, operators.yaml
+│       └── <group>.yaml          <- vpn, oci, proxy, auth, platform, observability, home, media, personal, projects, edge
+├── resources/                    <- Manifests reconciled by Flux
+│   ├── node-labels/, namespaces/, crds/, operators/   <- foundation, applied in order
+│   └── <group>/                  <- purpose groups, each depending only on operators
 └── _scripts/                     <- Standalone helper scripts (SOPS secret helper, load tests)
 ```
 
@@ -35,11 +31,9 @@ See [clusters/README.md](clusters/README.md) and [clusters/vmd1/README.md](clust
 
 ## Resources
 
-See [resources/README.md](resources/README.md) for details on the four deployment layers and their dependency chain:
-1. [operators/](resources/operators/README.md)
-2. [nodes/](resources/nodes/README.md)
-3. [infrastructure/](resources/infrastructure/README.md)
-4. [applications/](resources/applications/README.md)
+See [resources/README.md](resources/README.md) for the layers and how they depend on each other:
+- Foundation: [node-labels/](resources/node-labels/README.md), [namespaces/](resources/namespaces/README.md), [crds/](resources/crds/README.md), [operators/](resources/operators/README.md)
+- Purpose groups: [vpn/](resources/vpn/README.md), [oci/](resources/oci/README.md), [proxy/](resources/proxy/README.md), [auth/](resources/auth/README.md), [platform/](resources/platform/README.md), [observability/](resources/observability/README.md), [home/](resources/home/README.md), [media/](resources/media/README.md), [personal/](resources/personal/README.md), [projects/](resources/projects/README.md), [edge/](resources/edge/README.md)
 
 ## Scripts
 

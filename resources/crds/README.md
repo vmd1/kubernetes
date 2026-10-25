@@ -8,7 +8,7 @@ CustomResourceDefinitions that are vendored as plain manifests, applied by the `
 | :--- | :--- |
 | [cnpg/](cnpg/README.md) | The 9 CloudNativePG CRDs (`clusters.postgresql.cnpg.io`, `backups`, `poolers`, ...). |
 | [edgesite/](edgesite/README.md) | `EdgeSite` CRD for the edge-services platform. |
-| [oci-port-controller/](oci-port-controller/README.md) | `OCIPortRule` CRD used by the `nodes` layer. |
+| [oci-port-controller/](oci-port-controller/README.md) | `OCIPortRule` CRD used by [../oci/port-rules/](../oci/port-rules/README.md). |
 
 ## Design Decisions
 

@@ -2,7 +2,7 @@
 
 Longhorn is a lightweight, reliable, and powerful distributed block storage system for Kubernetes. It aggregates local storage from designated nodes and provisions persistent volumes (PVCs) for applications in the cluster.
 
-This folder holds the **operator chart, recurring backup jobs, and the backup credential secret**. The Longhorn UI `IngressRoute` and the S3 `BackupTarget` live in [infrastructure/longhorn/](../../infrastructure/longhorn/README.md).
+This folder holds the **operator chart, recurring backup jobs, and the backup credential secret**. The Longhorn UI `IngressRoute` and the S3 `BackupTarget` live in [platform/longhorn/](../../platform/longhorn/README.md).
 
 ## Table of Contents
 
@@ -26,7 +26,7 @@ This folder holds the **operator chart, recurring backup jobs, and the backup cr
 
 - **Node Filtering for Storage**: `createDefaultDiskLabeledNodes: true` and `systemManagedComponentsNodeSelector: "storage.vmd1.homelab/longhorn-client:true"` keep Longhorn components and disks on nodes explicitly designated for storage duties.
 - **Dedicated Storage Network**: `defaultSettings.storageNetwork: "longhorn-system/storage-macvlan-eth0"` routes storage replication traffic over the dedicated `192.168.11.0/24` macvlan network (see [multus](../multus/README.md)) instead of the Tailscale overlay.
-- **S3 Backups to Backblaze B2**: Backups target `s3://homelab-longhorn@eu-central-003/` (Backblaze B2), with credentials from `longhorn-backup-secret`. The `BackupTarget` CR itself is defined in [infrastructure/longhorn/manifest.yaml](../../infrastructure/longhorn/manifest.yaml).
+- **S3 Backups to Backblaze B2**: Backups target `s3://homelab-longhorn@eu-central-003/` (Backblaze B2), with credentials from `longhorn-backup-secret`. The `BackupTarget` CR itself is defined in [platform/longhorn/manifest.yaml](../../platform/longhorn/manifest.yaml).
 - **Layered Recurring Backup Groups**:
   - `default` group: hourly (retain 6), daily (retain 3), weekly (retain 2) backups.
   - `rca-daily` group (used by high-churn volumes like `prometheus-pvc`/`loki-pvc`): daily + weekly only, plus nightly snapshot cleanup/delete and a weekly filesystem trim.
@@ -40,7 +40,7 @@ This folder holds the **operator chart, recurring backup jobs, and the backup cr
 ## Storage & Backups
 
 - **Provisioner**: Registers StorageClasses `longhorn` and `longhorn-single-replica` for dynamic volume provisioning.
-- **Backup target**: `s3://homelab-longhorn@eu-central-003/` (polled every 5m — see [infrastructure/longhorn](../../infrastructure/longhorn/README.md)).
+- **Backup target**: `s3://homelab-longhorn@eu-central-003/` (polled every 5m — see [platform/longhorn](../../platform/longhorn/README.md)).
 - **Recurring jobs**:
   - `backup-hourly`: minute 0, retain 6 (`default`).
   - `backup-daily`: 02:00, retain 3 (`default`, `rca-daily`).
@@ -54,6 +54,6 @@ This folder holds the **operator chart, recurring backup jobs, and the backup cr
 
 ## Related
 
-- [infrastructure/longhorn/README.md](../../infrastructure/longhorn/README.md) — UI ingress and `BackupTarget` resource.
+- [platform/longhorn/README.md](../../platform/longhorn/README.md) — UI ingress and `BackupTarget` resource.
 - [multus/README.md](../multus/README.md) — the `storage-macvlan-eth0` storage network.
 - [../README.md](../README.md) — the CRDs & operators layer this folder belongs to.

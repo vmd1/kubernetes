@@ -1,6 +1,6 @@
 # OCI Controller Secrets (`resources/operators/oci-controller/`)
 
-This folder holds the **shared SOPS-encrypted secrets** for the `oci-controller` namespace. It contains no workloads itself — the controllers that consume these secrets are [oci-reboot](../../infrastructure/oci-reboot/README.md) and [oci-port-controller](../oci-port-controller/README.md).
+This folder holds the **shared SOPS-encrypted secrets** for the `oci-controller` namespace. It contains no workloads itself — the controllers that consume these secrets are [oci-reboot](../../oci/oci-reboot/README.md) and [oci-port-controller](../oci-port-controller/README.md).
 
 ## Table of Contents
 
@@ -32,10 +32,10 @@ Per [docs/manifests.md](../../../../docs/manifests.md), the encrypted file conta
 | Consumer | Location | Uses |
 | :--- | :--- | :--- |
 | [oci-port-controller](../oci-port-controller/README.md) | `resources/operators/oci-port-controller/` | `node-ssh-key` + all `oci-credentials-<region>*` for security list / firewall sync. |
-| [oci-reboot](../../infrastructure/oci-reboot/README.md) | `resources/infrastructure/oci-reboot/` | `oci-credentials-<region>*` for OCI instance resets (via the `oci-account` node label). |
+| [oci-reboot](../../oci/oci-reboot/README.md) | `resources/oci/oci-reboot/` | `oci-credentials-<region>*` for OCI instance resets (via the `oci-account` node label). |
 
 ## Related
 
 - [../oci-port-controller/README.md](../oci-port-controller/README.md) — the port-opening controller.
-- [../../infrastructure/oci-reboot/README.md](../../infrastructure/oci-reboot/README.md) — the reboot watchdog controller.
-- [../../nodes/README.md](../../nodes/README.md) — the `OCIPortRule` instances reconciled by `oci-port-controller`.
+- [../../oci/oci-reboot/README.md](../../oci/oci-reboot/README.md) — the reboot watchdog controller.
+- [../../oci/port-rules/README.md](../../oci/port-rules/README.md) — the `OCIPortRule` instances reconciled by `oci-port-controller`.

@@ -26,7 +26,7 @@ _scripts/apply-secrets.sh --diff      # show diff between SOPS secrets and live 
 _scripts/apply-secrets.sh --apply     # decrypt and apply to the cluster (default)
 ```
 
-- Discovers every `secrets.sops.yaml` under `resources/applications` and `resources/infrastructure` and pipes the decrypted output into `kubectl`.
+- Discovers every `secrets.sops.yaml` under `resources/` and pipes the decrypted output into `kubectl`.
 - Requires the Age key (`SOPS_AGE_KEY_FILE` or `~/.config/sops/age/keys.txt`) and a working `kubectl` context.
 - Note: SOPS decryption happens automatically in-cluster via Flux, so this script is only needed for manual/one-off operations.
 

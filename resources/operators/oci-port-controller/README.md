@@ -22,7 +22,7 @@ The `oci-port-controller` automates opening specified TCP/UDP ports across OCI C
    - Reports per-node sync status in `.status.syncedNodes` / `.status.conditions`.
 
 2. **OCI Subnet Security List Sync**:
-   - Loads OCI API credentials from secret `oci-credentials-<region><account>` in the `oci-controller` namespace (shared with [oci-reboot](../../infrastructure/oci-reboot/README.md)).
+   - Loads OCI API credentials from secret `oci-credentials-<region><account>` in the `oci-controller` namespace (shared with [oci-reboot](../../oci/oci-reboot/README.md)).
    - Resolves the instance OCID, VNICs, and Subnet Security Lists using the OCI Python SDK (`ComputeClient` and `VirtualNetworkClient`).
    - Dynamically adds missing ingress security rules for the requested ports (`0.0.0.0/0`), supporting both TCP and UDP.
 
@@ -41,7 +41,7 @@ The `oci-port-controller` automates opening specified TCP/UDP ports across OCI C
 
 ## OCIPortRule Instances
 
-The `OCIPortRule` instances consumed by this controller are defined in the [nodes/](../../nodes/README.md) layer (reconciled after this layer):
+The `OCIPortRule` instances consumed by this controller are defined in the [nodes/](../../oci/port-rules/README.md) layer (reconciled after this layer):
 
 - `web-ports` — TCP 80, 443
 - `dns-port` — TCP 53
@@ -68,7 +68,7 @@ spec:
 
 ## Related
 
-- [nodes/README.md](../../nodes/README.md) — the `OCIPortRule` instances this controller reconciles.
+- [nodes/README.md](../../oci/port-rules/README.md) — the `OCIPortRule` instances this controller reconciles.
 - [oci-controller/README.md](../oci-controller/README.md) — shared secrets for the `oci-controller` namespace.
-- [infrastructure/oci-reboot/README.md](../../infrastructure/oci-reboot/README.md) — sibling controller sharing the OCI credentials.
+- [oci/oci-reboot/README.md](../../oci/oci-reboot/README.md) — sibling controller sharing the OCI credentials.
 - [../README.md](../README.md) — the CRDs & operators layer this folder belongs to.

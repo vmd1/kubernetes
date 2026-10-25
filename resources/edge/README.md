@@ -15,7 +15,7 @@ Traefik is not here: Flux applies only its `HelmChart` (in [../operators/traefik
 | [edge-sites/](edge-sites/README.md) | Edge serving platform: `edge-sites` DaemonSet, edge-operator, shared `vmd1-web` Middlewares, EdgeSites. |
 | [error-pages/](error-pages/README.md) | Branded error pages DaemonSet, its Middleware and the catch-all IngressRoutes. |
 | [geoip-updater/](geoip-updater/README.md) | Keeps the GeoLite2 databases in `/var/lib/geoip` fresh on every node. |
-| [monitoring-agents/](monitoring-agents/README.md) | `node-exporter` and `promtail` DaemonSets (the rest of monitoring is in [../applications/monitoring/](../applications/monitoring/README.md)). |
+| [monitoring-agents/](monitoring-agents/README.md) | `node-exporter` and `promtail` DaemonSets (the rest of monitoring is in [../observability/monitoring/](../observability/monitoring/README.md)). |
 | [podflow/](podflow/README.md) | Per-pod network flow agent DaemonSet. |
 | [powerdns/](powerdns/README.md) | GeoIP DNS DaemonSet on the ingress nodes and the powerdns-operator. |
 

@@ -20,6 +20,6 @@ Flux watches this repository via the `flux-system` GitRepository (defined in [vm
 ## Related
 
 - [vmd1/README.md](vmd1/README.md) — cluster-level configuration and the four reconciliation layers.
-- [../resources/README.md](../resources/README.md) — the manifest layers Flux reconciles (CRDs & operators, nodes, infrastructure, applications).
+- [../resources/README.md](../resources/README.md) — the foundation layers and purpose groups Flux reconciles.
 - [../../README.md](../../README.md) — repository overview, secrets management, and maintenance policy.
 - [../../cluster-info.md](../../cluster-info.md) — machine-readable cluster inventory (nodes, helm charts, namespaces).

@@ -69,4 +69,4 @@ CloudNativePG (CNPG) is an operator designed to manage PostgreSQL database clust
 ## Related
 
 - [../README.md](../README.md) — the CRDs & operators layer this folder belongs to.
-- [infrastructure/lldap/README.md](../../infrastructure/lldap/README.md) and the applications under [applications/](../../applications/README.md) — consumers of the `pg-cluster` database.
+- [auth/lldap/README.md](../../auth/lldap/README.md) and the apps in the purpose groups under [../../](../../README.md) — consumers of the `pg-cluster` database.
