@@ -51,7 +51,8 @@ Nothing changes for any client until this is done, and removing it is the rollba
    ```
 2. **DNS → Nameservers → Add nameserver → Custom**, once per domain, with **Restrict to domain** on: `vmd1.homelab`, `vmd1.homelab`, `vmd1.homelab`, `vmd1.homelab`. Nameserver IPs (same for each): `100.100.91.41` (zeus-01), `100.90.255.74` (ares-01), `100.90.0.8` (hera-01). Do one domain first (`vmd1.homelab` is the least used) and test.
 3. Clients need **Use Tailscale DNS settings** on. Browsers using their own secure DNS (DoH) bypass it and will hit `tailnet-only` as a non-tailnet client; turn that off or select the system resolver.
-4. Check the cluster nodes (and anything that resolves these domains on them) do not accept Tailscale DNS (`tailscale set --accept-dns=false`), or they would get tailnet answers too. cert-manager's self-check already uses `1.1.1.1`/`8.8.8.8` explicitly.
+4. The cluster nodes must not accept Tailscale DNS, or they (and pods, through CoreDNS) would get tailnet answers too. Done: all 8 nodes run `tailscale set --accept-dns=false` (see [docs/host-config.md](../../../../docs/host-config.md), including the CoreDNS restart gotcha). cert-manager's self-check also uses `1.1.1.1`/`8.8.8.8` explicitly.
+5. The ACL grant for `autogroup:member` to `tag:k3s` (53, 80, 443, 853, 8448) is in `tailscale/policy.hujson`.
 
 Verify from a tailnet device: `dig app.vmd1.homelab` returns `ts.ingress.vmd1.homelab` and `100.x` addresses, and `curl -I https://<service>` works; with Tailscale off the same name resolves to Cloudflare and a `tailnet-only` route answers 403.
 
