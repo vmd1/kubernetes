@@ -8,6 +8,8 @@ PowerDNS is configured as an Authoritative DNS server running on the ingress nod
 | :--- | :--- |
 | [manifest.yaml](manifest.yaml) | Defines ConfigMap (`powerdns-config`) containing python zone-generators and configurations, DaemonSet running PowerDNS (`dl010/powerdns-auth:5.0.5`), and internal volumes. |
 | [secrets.sops.yaml](secrets.sops.yaml) | SOPS-encrypted Secret `powerdns-secrets` holding `PDNS_API_KEY`, a random 64-character hex key read by the `pdns` container via `secretKeyRef`. |
+| [kustomization.yaml](kustomization.yaml) | Generates ConfigMap `powerdns-shadow-zones` from `shadow-zones/` (no name hash, so a zone edit reloads in place instead of restarting the DaemonSet). |
+| [shadow-zones/](shadow-zones) | **Generated, do not edit:** `named.conf` plus one BIND zone file each for `vmd1.homelab`, `vmd1.homelab`, `vmd1.homelab`, `vmd1.homelab` and `ts.ingress.vmd1.homelab`. Rendered by [`dns/shadow/render.js`](../../../../dns/README.md#shadow-zones-for-tailnet-split-dns) from the DNSControl source. |
 | [operator.yaml](operator.yaml) | ServiceAccount, RBAC and Deployment for `powerdns-operator`, which turns the nodes' `node.vmd1.homelab/public-ip` and zone labels into the `geoip-zones.yaml` ConfigMap PowerDNS reads. Runs the image `ghcr.io/vmd1/powerdns-operator` (pinned by digest, built from [`controllers/powerdns-operator`](../../../../controllers/powerdns-operator)). |
 
 ## Design Decisions
@@ -22,6 +24,40 @@ PowerDNS is configured as an Authoritative DNS server running on the ingress nod
 - **AXFR Whitelist**: Restricts zone transfers (`PDNS_allow_axfr_ips`) strictly to Cloudflare's IP ranges to sync changes to secondary name servers.
 - **No Version Disclosure**: `PDNS_version_string=anonymous` makes `version.bind`/`version.pdns` queries return REFUSED instead of the exact PowerDNS build string. Recursion and AXFR were already refused on all ingress nodes.
 
+
+## Shadow zones (tailnet split DNS)
+
+Goal: attach the `tailnet-only` middleware ([proxy/traefik](../../proxy/traefik/README.md)) to a route and the service is reachable only with Tailscale on, with no per-service DNS change.
+
+How: PowerDNS also serves a copy of each public zone (the `bind` backend, next to `geoip`). Tailscale split DNS (admin console, below) sends tailnet clients' queries for the four domains to the PowerDNS nodes' tailnet IPs. In that copy, every name that points at `ingress.vmd1.homelab` is a `LUA` record that looks at the source address: a tailnet source (`100.64.0.0/10`, `fd7a:115c:a1e0::/48`) gets `CNAME ts.ingress.vmd1.homelab.`, anyone else gets `CNAME ingress.vmd1.homelab.` (apex and names that share a name with MX/TXT get the equivalent `A` records, because a CNAME cannot sit there). `ts.ingress.vmd1.homelab` is its own zone: `ifurlup('https://vmd1.homelab/health', {zeus-01, hades-01, hera-01 tailnet IPs}, selector='all')`, so a dead node drops out within a health-check interval. Traefik then sees a `100.x` peer and `tailnet-only` lets the request through; with Tailscale off, the name resolves publicly through Cloudflare and `tailnet-only` returns 403.
+
+- **Everything else is copied verbatim** (MX, TXT, SRV, Pages CNAMEs, plain A), so a tailnet client loses no record type. Names IGNOREd by dnscontrol are not in its output: `home.d-ingress.vmd1.homelab` and `home.locations.vmd1.homelab` (dynamic home WAN IP) are defined in the shadow zones as `CNAME uk-home.ingress.vmd1.homelab.`, and records that reference them are repointed there; the rest (`_acme-challenge`, Cloudflare DKIM, `gcse-results`) are listed in `dns/shadow/config.json` `allowMissing` with the reason.
+- **Source address**: PowerDNS' Lua `netmask()` uses the query's source, or the EDNS client subnet when present (`PDNS_edns_subnet_processing=yes`). Tailscale's resolver sends no ECS. Spoofing a tailnet ECS from the public internet only returns tailnet IPs, which are unroutable without the tailnet. Answers differ per client and PowerDNS does not serve them from its packet cache (checked by alternating tailnet and non-tailnet queries on one name).
+- **Most specific zone wins**: `ingress.vmd1.homelab` (geoip) and `ts.ingress.vmd1.homelab` (bind) are hosted here as their own zones, so they never fall into the `vmd1.homelab` shadow zone's `*` wildcard (without them it would loop). The `ingress`/`*.ingress` NS delegations are therefore omitted from the shadow `vmd1.homelab`.
+- **Reload**: the `config-watcher` sidecar notices the `powerdns-shadow-zones` ConfigMap change (`..data` symlink) and runs `pdns_control rediscover` plus `bind-reload-now <zone>`; no restart.
+- **Verified in throwaway pods before merge** (image `dl010/powerdns-auth:5.0.7`, the production env incl. `geoip,bind` and a copy of the live `geoip-zones.yaml`): all zones load with 0 rejected; `app.vmd1.homelab` returns `ts.ingress.vmd1.homelab` + the three tailnet IPs for a tailnet source and `ingress.vmd1.homelab` for a non-tailnet source (via ECS); apex/MX/TXT/SRV, wildcards (`*`, `*.vmd1`), `jellyfin.vmd1.homelab` → `uk-home.ingress`, and an in-place zone reload all behave. The first query after a cold start returns one tailnet IP (health state still warming up), then all three.
+
+### Enabling split DNS (manual, Tailscale admin console)
+
+Nothing changes for any client until this is done, and removing it is the rollback.
+
+1. **ACL first.** Split DNS is tailnet-wide and the queries go over the tailnet, so every member's devices must be allowed to reach the nameservers, and then the nodes' web ports (otherwise `vmd1.homelab` resolves to a tailnet IP they cannot connect to). Today only `vmodi1009@gmail.com` has `ip: *` to everything and `group:admin` only has `tag:servers:22`. Suggested grant for `tailscale/policy.hujson` (these ports are already public on the ingress nodes):
+   ```
+   {
+     "src": ["autogroup:member"],
+     "dst": ["tag:k3s"],
+     "ip":  ["53", "80", "443", "853", "8448"],
+   },
+   ```
+2. **DNS → Nameservers → Add nameserver → Custom**, once per domain, with **Restrict to domain** on: `vmd1.homelab`, `vmd1.homelab`, `vmd1.homelab`, `vmd1.homelab`. Nameserver IPs (same for each): `100.100.91.41` (zeus-01), `100.90.255.74` (ares-01), `100.90.0.8` (hera-01). Do one domain first (`vmd1.homelab` is the least used) and test.
+3. Clients need **Use Tailscale DNS settings** on. Browsers using their own secure DNS (DoH) bypass it and will hit `tailnet-only` as a non-tailnet client; turn that off or select the system resolver.
+4. Check the cluster nodes (and anything that resolves these domains on them) do not accept Tailscale DNS (`tailscale set --accept-dns=false`), or they would get tailnet answers too. cert-manager's self-check already uses `1.1.1.1`/`8.8.8.8` explicitly.
+
+Verify from a tailnet device: `dig app.vmd1.homelab` returns `ts.ingress.vmd1.homelab` and `100.x` addresses, and `curl -I https://<service>` works; with Tailscale off the same name resolves to Cloudflare and a `tailnet-only` route answers 403.
+
+### Adding or removing a tailnet-only service
+
+Add `- {name: tailnet-only, namespace: traefik}` to the route's `middlewares` (and remove it to make the service public again). No DNS change. After editing `dns/domains/*.js` or `dns/shadow/config.json`, run `node dns/shadow/render.js` and commit the generated `shadow-zones/` (CI fails otherwise).
 
 ## Dependencies
 
