@@ -23,6 +23,7 @@ Headlamp is an easy-to-use, extensible Kubernetes web UI. It provides a visual d
 - **Kubernetes Service**: `headlamp` (ClusterIP, exposing port `80` mapping to container port `4466`).
 - **Ingress Route**:
   - Host `headlamp.vmd1.homelab` on `websecure` entrypoint.
+  - **Tailnet only**: the route has the `tailnet-only` middleware first ([proxy/traefik](../../proxy/traefik/README.md)), so it is reachable only with Tailscale on; everyone else gets the branded 403.
   - Middlewares: `oauth2-proxy-kmnet-uk` in `oauth2-proxy` namespace.
 
 ## Storage

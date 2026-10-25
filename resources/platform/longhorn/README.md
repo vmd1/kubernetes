@@ -32,6 +32,7 @@ This folder complements the [Longhorn operator](../../operators/longhorn/README.
 ## Services & Routers
 
 - **Ingress Route**: `longhorn.vmd1.homelab` on `websecure` → service `longhorn-frontend` port `80`, wrapped in the middleware chain above.
+- **Tailnet only**: the route has the `tailnet-only` middleware first ([proxy/traefik](../../proxy/traefik/README.md)), so it is reachable only with Tailscale on; everyone else gets the branded 403.
 
 ## Related
 
