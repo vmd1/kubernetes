@@ -4,18 +4,53 @@
 #     - name: tailnet-only
 #       namespace: traefik
 #
-# ipAllowList with no ipStrategy checks the TCP peer (RemoteAddr), never X-Forwarded-For, so it cannot be spoofed.
+# `tailnet-only` is a chain of two parts so that a refused client gets the branded 403 page without touching 403s that
+# the apps themselves send (Matrix, the registry and Nextcloud answer 403 with JSON that clients parse):
+#   1. tailnet-allowlist: ipAllowList on the TCP peer (RemoteAddr, never X-Forwarded-For, so it cannot be spoofed)
+#      that refuses with the sentinel status 418 instead of 403. No app sends 418.
+#   2. tailnet-only-page: errors middleware, outermost, that catches only 418, fetches /403.html from error-pages
+#      (edge/error-pages) and rewrites the status to 403. The client sees HTTP 403 and the branded page.
 # The peer is a tailnet address only when the client reached the node over Tailscale, which the DNS side arranges:
-# tailnet clients resolve every ingress name to the tailnet IPs of zeus-01, hades-01, hades-02 and hera-01 (edge/powerdns,
-# shadow zones; see its README). Everyone else (Cloudflare edge IPs, direct public clients) gets a 403. With
-# Tailscale off the name still resolves publicly, so the request arrives via Cloudflare and is refused here.
+# tailnet clients resolve every ingress name to the tailnet IPs of zeus-01, hades-01, hades-02 and hera-01
+# (edge/powerdns, shadow zones; see its README). Everyone else (Cloudflare edge IPs, direct public clients) is refused.
+# With Tailscale off the name still resolves publicly, so the request arrives via Cloudflare or straight at a node
+# and is refused here.
 apiVersion: traefik.io/v1alpha1
 kind: Middleware
 metadata:
-  name: tailnet-only
+  name: tailnet-allowlist
   namespace: traefik
 spec:
   ipAllowList:
     sourceRange:
       - 100.64.0.0/10
       - fd7a:115c:a1e0::/48
+    rejectStatusCode: 418
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: tailnet-only-page
+  namespace: traefik
+spec:
+  errors:
+    status:
+      - "418"
+    statusRewrites:
+      "418": 403
+    query: "/403.html"
+    service:
+      name: error-pages
+      port: pages
+      nativeLB: true
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: tailnet-only
+  namespace: traefik
+spec:
+  chain:
+    middlewares:
+      - name: tailnet-only-page
+      - name: tailnet-allowlist
