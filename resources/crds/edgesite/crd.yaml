@@ -92,6 +92,13 @@ spec:
                       items:
                         type: string
                         pattern: '^/[A-Za-z0-9._~/-]*$'
+                tailnetOnly:
+                  type: boolean
+                  description: >-
+                    Make the whole site reachable only from the tailnet: the tailnet-only Traefik middleware is put
+                    first on every route of the site (also when auth only covers some paths), and any other client gets
+                    the branded 403. Combines with auth (the login stays behind it). Applies to the live spec like auth,
+                    without a rebuild.
                 serve:
                   type: object
                   x-kubernetes-preserve-unknown-fields: true
