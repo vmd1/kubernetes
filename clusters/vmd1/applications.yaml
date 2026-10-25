@@ -8,7 +8,7 @@ spec:
     - name: infrastructure
   interval: 10m0s
   path: ./resources/applications
-  prune: true
+  prune: false
   wait: true
   timeout: 5m0s
   sourceRef:

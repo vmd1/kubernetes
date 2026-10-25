@@ -6,7 +6,7 @@ metadata:
 spec:
   interval: 10m0s
   path: ./resources/crds-and-operators
-  prune: true
+  prune: false
   wait: true
   timeout: 5m0s
   sourceRef:

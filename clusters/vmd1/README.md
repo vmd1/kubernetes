@@ -43,6 +43,8 @@ crds-and-operators ──► nodes ──► infrastructure ──► applicatio
 | [applications.yaml](applications.yaml) | Flux `Kustomization` for `./resources/applications`, with SOPS decryption. |
 | [flux-system/](flux-system/README.md) | Flux bootstrap manifests (components + GitRepository sync). |
 
+> **Temporary (2026-10-25)**: `crds-and-operators`, `infrastructure` and `applications` run with `prune: false` while the Flux layers are split, so deleting or moving objects between Kustomizations cannot delete anything. It is switched back on once the new layers are Ready.
+
 > All four layer Kustomizations use `interval: 10m`, `prune: true`, `wait: true`, and SOPS decryption via the `sops-age` secret in the `flux-system` namespace.
 
 ## Related
