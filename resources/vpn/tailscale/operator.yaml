@@ -9,10 +9,15 @@ spec:
   version: 1.104.2
   targetNamespace: tailscale
   valuesContent: |-
+    # kubectl over the tailnet: the operator pod itself serves the API server proxy on the
+    # tailscale-operator device (tag:k8s-operator, 443). Callers are impersonated; the group comes
+    # from the tailnet policy grant (tailscale/policy.hujson) and is bound in rbac.yaml.
+    apiServerProxyConfig:
+      mode: "true"
     resources:
       requests:
         cpu: 10m
         memory: 64Mi
       limits:
         cpu: 100m
-        memory: 128Mi
+        memory: 256Mi

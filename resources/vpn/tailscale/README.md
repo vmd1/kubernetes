@@ -6,10 +6,13 @@ Tailscale integrates the local Kubernetes cluster with a secure Tailscale overla
 
 | File | Description |
 | :--- | :--- |
-| [operator.yaml](operator.yaml) | Defines the HelmChart custom resource to deploy `tailscale-operator` version `1.102.3` into the `tailscale` namespace. |
+| [operator.yaml](operator.yaml) | Defines the HelmChart custom resource to deploy `tailscale-operator` version `1.104.2` into the `tailscale` namespace, with the in-process API server proxy on (`apiServerProxyConfig.mode: "true"`) so `kubectl` works over the tailnet. |
+| [rbac.yaml](rbac.yaml) | `ClusterRoleBinding` `tailnet-admins`: group `tailnet-admins` (added by the tailnet policy grant `tailscale.com/cap/kubernetes` for `group:admin`) is `cluster-admin`. Group names come from the policy, so this is the only place that decides what a tailnet identity may do in the cluster. |
 | [automation.yaml](automation.yaml) | Deploys a custom controller (`tailscale-region-controller`) including RBAC ServiceAccount and the Deployment. The controller runs the image `ghcr.io/vmd1/tailscale-region-controller` (pinned by digest, built from [`controllers/tailscale-region-controller`](../../../../controllers/tailscale-region-controller)). |
 
 ## Design Decisions
+
+- **kubectl over Tailscale**: the operator's in-process API server proxy impersonates the caller (user devices become their login, grant groups are added), so RBAC is per person and audited by Kubernetes rather than one shared kubeconfig credential. Direct `10.0.0.10:6443` stays as break-glass because the proxy is a single replica in the operator pod. Needs HTTPS enabled for the tailnet. See [tailscale/README.md](../../../../tailscale/README.md).
 
 - **Region-Aware Network Orchestration**:
   - The custom controller (`watcher.py`) scans Kubernetes node objects for the `region` label (e.g. `region=uk-home`, `region=uk-london-cloud`).

@@ -1,0 +1,14 @@
+# Group tailnet-admins is added by the tailnet policy grant `tailscale.com/cap/kubernetes`
+# (group:admin -> tag:k8s-operator) when kubectl goes through the operator's API server proxy.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: tailnet-admins
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-admin
+subjects:
+  - apiGroup: rbac.authorization.k8s.io
+    kind: Group
+    name: tailnet-admins
