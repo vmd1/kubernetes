@@ -1,0 +1,118 @@
+# One binding per policy. Warn + Audit only in PR 1: nothing is denied. A tier selector picks the namespaces;
+# cluster-scoped kinds (RBAC, Namespaces) have none. Flip validationActions to [Deny] per policy in PR 3.
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: vmd1-baseline
+spec:
+  policyName: vmd1-baseline
+  validationActions: [Warn, Audit]
+  matchResources:
+    namespaceSelector:
+      matchExpressions:
+        - key: vmd1.homelab/tier
+          operator: In
+          values: [app, infra]
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: vmd1-app-hardening
+spec:
+  policyName: vmd1-app-hardening
+  validationActions: [Warn, Audit]
+  matchResources:
+    namespaceSelector:
+      matchExpressions:
+        - key: vmd1.homelab/tier
+          operator: In
+          values: [app]
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: vmd1-service-accounts
+spec:
+  policyName: vmd1-service-accounts
+  validationActions: [Warn, Audit]
+  matchResources:
+    namespaceSelector:
+      matchExpressions:
+        - key: vmd1.homelab/tier
+          operator: In
+          values: [app]
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: vmd1-rbac-bindings
+spec:
+  policyName: vmd1-rbac-bindings
+  paramRef:
+    name: policy-cluster-admin-subjects
+    namespace: kube-system
+    parameterNotFoundAction: Deny
+  validationActions: [Warn, Audit]
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: vmd1-rbac-roles
+spec:
+  policyName: vmd1-rbac-roles
+  validationActions: [Warn, Audit]
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: vmd1-storage
+spec:
+  policyName: vmd1-storage
+  paramRef:
+    name: policy-hostpath-allowlist
+    namespace: kube-system
+    parameterNotFoundAction: Deny
+  validationActions: [Warn, Audit]
+  matchResources:
+    namespaceSelector:
+      matchExpressions:
+        - key: vmd1.homelab/tier
+          operator: In
+          values: [app, infra]
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: vmd1-metadata
+spec:
+  policyName: vmd1-metadata
+  validationActions: [Warn, Audit]
+  matchResources:
+    namespaceSelector:
+      matchExpressions:
+        - key: vmd1.homelab/tier
+          operator: In
+          values: [app]
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: vmd1-namespace-tier
+spec:
+  policyName: vmd1-namespace-tier
+  validationActions: [Warn, Audit]
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: vmd1-resource-limits
+spec:
+  policyName: vmd1-resource-limits
+  validationActions: [Warn, Audit]
+  matchResources:
+    namespaceSelector:
+      matchExpressions:
+        - key: vmd1.homelab/tier
+          operator: In
+          values: [app]

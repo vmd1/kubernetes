@@ -3,3 +3,17 @@ kind: Kustomization
 resources:
 - gotk-components.yaml
 - gotk-sync.yaml
+# Labels on the flux-system Namespace (declared in gotk-components.yaml, which `flux bootstrap` regenerates).
+# `flux bootstrap` rewrites this file too: re-add this patch afterwards.
+patches:
+- target:
+    kind: Namespace
+    name: flux-system
+  patch: |-
+    apiVersion: v1
+    kind: Namespace
+    metadata:
+      name: flux-system
+      labels:
+        vmd1.homelab/tier: system
+        pod-security.kubernetes.io/audit: restricted

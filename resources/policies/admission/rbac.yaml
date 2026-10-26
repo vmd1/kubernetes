@@ -1,0 +1,46 @@
+# rbac-bindings: only subjects listed in the policy-cluster-admin-subjects ConfigMap may be bound to cluster-admin.
+# rbac-roles: no wildcard verbs or resources in Roles/ClusterRoles (system: roles and cluster-admin excepted).
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: vmd1-rbac-bindings
+spec:
+  failurePolicy: Ignore
+  paramKind:
+    apiVersion: v1
+    kind: ConfigMap
+  matchConstraints:
+    resourceRules:
+      - apiGroups: ["rbac.authorization.k8s.io"]
+        apiVersions: ["v1"]
+        operations: ["CREATE", "UPDATE"]
+        resources: ["clusterrolebindings", "rolebindings"]
+  matchConditions:
+    - name: cluster-admin-only
+      expression: "object.roleRef.name == 'cluster-admin'"
+  validations:
+    - expression: >-
+        object.?subjects.orValue([]).all(s,
+        (s.kind + '/' + s.?namespace.orValue('') + '/' + s.name) in params.data['subjects'].split(','))
+      message: "cluster-admin may only be bound to subjects listed in kube-system/policy-cluster-admin-subjects"
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: vmd1-rbac-roles
+spec:
+  failurePolicy: Ignore
+  matchConstraints:
+    resourceRules:
+      - apiGroups: ["rbac.authorization.k8s.io"]
+        apiVersions: ["v1"]
+        operations: ["CREATE", "UPDATE"]
+        resources: ["clusterroles", "roles"]
+  matchConditions:
+    - name: not-built-in
+      expression: "!object.metadata.name.startsWith('system:') && object.metadata.name != 'cluster-admin'"
+  validations:
+    - expression: >-
+        object.?rules.orValue([]).all(r,
+        !('*' in r.?verbs.orValue([])) && !('*' in r.?resources.orValue([])))
+      message: "wildcard verbs or resources are not allowed in roles"

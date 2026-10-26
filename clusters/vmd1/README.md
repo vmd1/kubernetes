@@ -18,6 +18,7 @@ Four foundation layers run in order; everything else is a purpose group that dep
 | :--- | :--- | :--- | :--- |
 | [node-labels.yaml](node-labels.yaml) | `./resources/node-labels` | — | Labels on the eight Nodes (no taints). `wait: false`. |
 | [namespaces.yaml](namespaces.yaml) | `./resources/namespaces` | — | Every Namespace except `default`, `kube-*` and `flux-system` |
+| [policies.yaml](policies.yaml) | `./resources/policies` | `namespaces` | Admission policies and quotas. Nothing depends on it. |
 | [crds.yaml](crds.yaml) | `./resources/crds` | `namespaces` | Vendored CRDs (CNPG, EdgeSite, OCIPortRule), never pruned |
 | [operators.yaml](operators.yaml) | `./resources/operators` | `crds`, `node-labels` | Operators and charts (cert-manager, CNPG, Longhorn, Traefik, Multus, OCI port controller, Redis, Kube-VIP) |
 | [vpn.yaml](vpn.yaml) | `./resources/vpn` | `operators` | Tailscale operator and region controller |

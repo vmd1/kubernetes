@@ -1,12 +1,21 @@
-# Every Namespace in the cluster except the k3s built-ins (default, kube-*) and flux-system
-# (flux-system/gotk-components.yaml). Applied by the namespaces Flux Kustomization before every other layer.
+# Every Namespace in the cluster except flux-system (flux-system/gotk-components.yaml, labelled by a patch in
+# flux-system/kustomization.yaml). Applied by the namespaces Flux Kustomization before every other layer.
 # prune: disabled so removing a namespace from this file never deletes it and everything in it;
 # delete a namespace by hand once its workloads are gone.
+# The k3s built-ins (default, kube-*) are listed for their labels only; k3s creates them.
+# vmd1.homelab/tier (app|infra|system) drives the admission policies in resources/policies/ and the netpol
+# components. policy.vmd1.homelab/allow-* are namespace-level exemptions, owned here in Git, never on a pod.
+# vmd1.homelab/db-server=true marks the namespaces that hold databases (cnpg, redis); the netpol-db-client component
+# selects them. Client namespaces get vmd1.homelab/db-client=true when they are enrolled in the netpol rollout.
 ---
 apiVersion: v1
 kind: Namespace
 metadata:
   name: authelia
+  labels:
+    pod-security.kubernetes.io/audit: "restricted"
+    pod-security.kubernetes.io/warn: "restricted"
+    vmd1.homelab/tier: "infra"
   annotations:
     kustomize.toolkit.fluxcd.io/prune: disabled
 ---
@@ -14,6 +23,11 @@ apiVersion: v1
 kind: Namespace
 metadata:
   name: bookorbit
+  labels:
+    pod-security.kubernetes.io/audit: "restricted"
+    pod-security.kubernetes.io/enforce: "baseline"
+    pod-security.kubernetes.io/warn: "restricted"
+    vmd1.homelab/tier: "app"
   annotations:
     kustomize.toolkit.fluxcd.io/prune: disabled
 ---
@@ -23,6 +37,9 @@ metadata:
   name: cert-manager
   labels:
     name: cert-manager
+    pod-security.kubernetes.io/audit: "restricted"
+    pod-security.kubernetes.io/warn: "restricted"
+    vmd1.homelab/tier: "infra"
   annotations:
     kustomize.toolkit.fluxcd.io/prune: disabled
 ---
@@ -30,6 +47,10 @@ apiVersion: v1
 kind: Namespace
 metadata:
   name: cf-ddns
+  labels:
+    pod-security.kubernetes.io/audit: "restricted"
+    pod-security.kubernetes.io/warn: "restricted"
+    vmd1.homelab/tier: "infra"
   annotations:
     kustomize.toolkit.fluxcd.io/prune: disabled
 ---
@@ -37,6 +58,11 @@ apiVersion: v1
 kind: Namespace
 metadata:
   name: cinepro
+  labels:
+    pod-security.kubernetes.io/audit: "restricted"
+    pod-security.kubernetes.io/enforce: "baseline"
+    pod-security.kubernetes.io/warn: "restricted"
+    vmd1.homelab/tier: "app"
   annotations:
     kustomize.toolkit.fluxcd.io/prune: disabled
 ---
@@ -44,6 +70,11 @@ apiVersion: v1
 kind: Namespace
 metadata:
   name: cnpg
+  labels:
+    vmd1.homelab/db-server: "true"
+    pod-security.kubernetes.io/audit: "restricted"
+    pod-security.kubernetes.io/warn: "restricted"
+    vmd1.homelab/tier: "infra"
   annotations:
     kustomize.toolkit.fluxcd.io/prune: disabled
 ---
@@ -53,6 +84,20 @@ metadata:
   name: cnpg-system
   labels:
     app.kubernetes.io/name: cloudnative-pg
+    pod-security.kubernetes.io/audit: "restricted"
+    pod-security.kubernetes.io/warn: "restricted"
+    vmd1.homelab/tier: "infra"
+  annotations:
+    kustomize.toolkit.fluxcd.io/prune: disabled
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: default
+  labels:
+    pod-security.kubernetes.io/audit: "restricted"
+    pod-security.kubernetes.io/warn: "restricted"
+    vmd1.homelab/tier: "system"
   annotations:
     kustomize.toolkit.fluxcd.io/prune: disabled
 ---
@@ -60,6 +105,10 @@ apiVersion: v1
 kind: Namespace
 metadata:
   name: geoip
+  labels:
+    pod-security.kubernetes.io/audit: "restricted"
+    pod-security.kubernetes.io/warn: "restricted"
+    vmd1.homelab/tier: "infra"
   annotations:
     kustomize.toolkit.fluxcd.io/prune: disabled
 ---
@@ -67,6 +116,11 @@ apiVersion: v1
 kind: Namespace
 metadata:
   name: gossip
+  labels:
+    pod-security.kubernetes.io/audit: "restricted"
+    pod-security.kubernetes.io/enforce: "baseline"
+    pod-security.kubernetes.io/warn: "restricted"
+    vmd1.homelab/tier: "app"
   annotations:
     kustomize.toolkit.fluxcd.io/prune: disabled
 ---
@@ -74,6 +128,11 @@ apiVersion: v1
 kind: Namespace
 metadata:
   name: headlamp
+  labels:
+    pod-security.kubernetes.io/audit: "restricted"
+    pod-security.kubernetes.io/enforce: "baseline"
+    pod-security.kubernetes.io/warn: "restricted"
+    vmd1.homelab/tier: "app"
   annotations:
     kustomize.toolkit.fluxcd.io/prune: disabled
 ---
@@ -81,6 +140,11 @@ apiVersion: v1
 kind: Namespace
 metadata:
   name: home-assistant
+  labels:
+    pod-security.kubernetes.io/audit: "restricted"
+    pod-security.kubernetes.io/warn: "restricted"
+    policy.vmd1.homelab/allow-host-network: "true"
+    vmd1.homelab/tier: "app"
   annotations:
     kustomize.toolkit.fluxcd.io/prune: disabled
 ---
@@ -88,6 +152,43 @@ apiVersion: v1
 kind: Namespace
 metadata:
   name: homelable
+  labels:
+    pod-security.kubernetes.io/audit: "restricted"
+    pod-security.kubernetes.io/warn: "restricted"
+    vmd1.homelab/tier: "app"
+  annotations:
+    kustomize.toolkit.fluxcd.io/prune: disabled
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: kube-node-lease
+  labels:
+    pod-security.kubernetes.io/audit: "restricted"
+    pod-security.kubernetes.io/warn: "restricted"
+    vmd1.homelab/tier: "system"
+  annotations:
+    kustomize.toolkit.fluxcd.io/prune: disabled
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: kube-public
+  labels:
+    pod-security.kubernetes.io/audit: "restricted"
+    pod-security.kubernetes.io/warn: "restricted"
+    vmd1.homelab/tier: "system"
+  annotations:
+    kustomize.toolkit.fluxcd.io/prune: disabled
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: kube-system
+  labels:
+    pod-security.kubernetes.io/audit: "restricted"
+    pod-security.kubernetes.io/warn: "restricted"
+    vmd1.homelab/tier: "system"
   annotations:
     kustomize.toolkit.fluxcd.io/prune: disabled
 ---
@@ -95,6 +196,10 @@ apiVersion: v1
 kind: Namespace
 metadata:
   name: lldap
+  labels:
+    pod-security.kubernetes.io/audit: "restricted"
+    pod-security.kubernetes.io/warn: "restricted"
+    vmd1.homelab/tier: "infra"
   annotations:
     kustomize.toolkit.fluxcd.io/prune: disabled
 ---
@@ -102,6 +207,10 @@ apiVersion: v1
 kind: Namespace
 metadata:
   name: longhorn-system
+  labels:
+    pod-security.kubernetes.io/audit: "restricted"
+    pod-security.kubernetes.io/warn: "restricted"
+    vmd1.homelab/tier: "system"
   annotations:
     kustomize.toolkit.fluxcd.io/prune: disabled
 ---
@@ -109,6 +218,11 @@ apiVersion: v1
 kind: Namespace
 metadata:
   name: matrix
+  labels:
+    pod-security.kubernetes.io/audit: "restricted"
+    pod-security.kubernetes.io/enforce: "baseline"
+    pod-security.kubernetes.io/warn: "restricted"
+    vmd1.homelab/tier: "app"
   annotations:
     kustomize.toolkit.fluxcd.io/prune: disabled
 ---
@@ -116,6 +230,10 @@ apiVersion: v1
 kind: Namespace
 metadata:
   name: media
+  labels:
+    pod-security.kubernetes.io/audit: "restricted"
+    pod-security.kubernetes.io/warn: "restricted"
+    vmd1.homelab/tier: "app"
   annotations:
     kustomize.toolkit.fluxcd.io/prune: disabled
 ---
@@ -123,6 +241,12 @@ apiVersion: v1
 kind: Namespace
 metadata:
   name: monitoring
+  labels:
+    pod-security.kubernetes.io/audit: "restricted"
+    pod-security.kubernetes.io/warn: "restricted"
+    policy.vmd1.homelab/allow-host-network: "true"
+    policy.vmd1.homelab/allow-privileged: "true"
+    vmd1.homelab/tier: "infra"
   annotations:
     kustomize.toolkit.fluxcd.io/prune: disabled
 ---
@@ -130,6 +254,11 @@ apiVersion: v1
 kind: Namespace
 metadata:
   name: mqtt
+  labels:
+    pod-security.kubernetes.io/audit: "restricted"
+    pod-security.kubernetes.io/enforce: "baseline"
+    pod-security.kubernetes.io/warn: "restricted"
+    vmd1.homelab/tier: "app"
   annotations:
     kustomize.toolkit.fluxcd.io/prune: disabled
 ---
@@ -137,6 +266,10 @@ apiVersion: v1
 kind: Namespace
 metadata:
   name: nextcloud
+  labels:
+    pod-security.kubernetes.io/audit: "restricted"
+    pod-security.kubernetes.io/warn: "restricted"
+    vmd1.homelab/tier: "app"
   annotations:
     kustomize.toolkit.fluxcd.io/prune: disabled
 ---
@@ -144,6 +277,11 @@ apiVersion: v1
 kind: Namespace
 metadata:
   name: ntfy
+  labels:
+    pod-security.kubernetes.io/audit: "restricted"
+    pod-security.kubernetes.io/enforce: "baseline"
+    pod-security.kubernetes.io/warn: "restricted"
+    vmd1.homelab/tier: "app"
   annotations:
     kustomize.toolkit.fluxcd.io/prune: disabled
 ---
@@ -151,6 +289,10 @@ apiVersion: v1
 kind: Namespace
 metadata:
   name: oauth2-proxy
+  labels:
+    pod-security.kubernetes.io/audit: "restricted"
+    pod-security.kubernetes.io/warn: "restricted"
+    vmd1.homelab/tier: "infra"
   annotations:
     kustomize.toolkit.fluxcd.io/prune: disabled
 ---
@@ -158,6 +300,11 @@ apiVersion: v1
 kind: Namespace
 metadata:
   name: obsidian
+  labels:
+    pod-security.kubernetes.io/audit: "restricted"
+    pod-security.kubernetes.io/enforce: "baseline"
+    pod-security.kubernetes.io/warn: "restricted"
+    vmd1.homelab/tier: "app"
   annotations:
     kustomize.toolkit.fluxcd.io/prune: disabled
 ---
@@ -165,6 +312,10 @@ apiVersion: v1
 kind: Namespace
 metadata:
   name: oci-controller
+  labels:
+    pod-security.kubernetes.io/audit: "restricted"
+    pod-security.kubernetes.io/warn: "restricted"
+    vmd1.homelab/tier: "infra"
   annotations:
     kustomize.toolkit.fluxcd.io/prune: disabled
 ---
@@ -172,6 +323,10 @@ apiVersion: v1
 kind: Namespace
 metadata:
   name: powerdns
+  labels:
+    pod-security.kubernetes.io/audit: "restricted"
+    pod-security.kubernetes.io/warn: "restricted"
+    vmd1.homelab/tier: "system"
   annotations:
     kustomize.toolkit.fluxcd.io/prune: disabled
 ---
@@ -179,6 +334,11 @@ apiVersion: v1
 kind: Namespace
 metadata:
   name: qecomp
+  labels:
+    pod-security.kubernetes.io/audit: "restricted"
+    pod-security.kubernetes.io/enforce: "baseline"
+    pod-security.kubernetes.io/warn: "restricted"
+    vmd1.homelab/tier: "app"
   annotations:
     kustomize.toolkit.fluxcd.io/prune: disabled
 ---
@@ -186,6 +346,11 @@ apiVersion: v1
 kind: Namespace
 metadata:
   name: redis
+  labels:
+    vmd1.homelab/db-server: "true"
+    pod-security.kubernetes.io/audit: "restricted"
+    pod-security.kubernetes.io/warn: "restricted"
+    vmd1.homelab/tier: "infra"
   annotations:
     kustomize.toolkit.fluxcd.io/prune: disabled
 ---
@@ -193,6 +358,10 @@ apiVersion: v1
 kind: Namespace
 metadata:
   name: redis-operator
+  labels:
+    pod-security.kubernetes.io/audit: "restricted"
+    pod-security.kubernetes.io/warn: "restricted"
+    vmd1.homelab/tier: "infra"
   annotations:
     kustomize.toolkit.fluxcd.io/prune: disabled
 ---
@@ -200,6 +369,10 @@ apiVersion: v1
 kind: Namespace
 metadata:
   name: registry
+  labels:
+    pod-security.kubernetes.io/audit: "restricted"
+    pod-security.kubernetes.io/warn: "restricted"
+    vmd1.homelab/tier: "infra"
   annotations:
     kustomize.toolkit.fluxcd.io/prune: disabled
 ---
@@ -207,6 +380,10 @@ apiVersion: v1
 kind: Namespace
 metadata:
   name: tailscale
+  labels:
+    pod-security.kubernetes.io/audit: "restricted"
+    pod-security.kubernetes.io/warn: "restricted"
+    vmd1.homelab/tier: "system"
   annotations:
     kustomize.toolkit.fluxcd.io/prune: disabled
 ---
@@ -214,6 +391,10 @@ apiVersion: v1
 kind: Namespace
 metadata:
   name: traefik
+  labels:
+    pod-security.kubernetes.io/audit: "restricted"
+    pod-security.kubernetes.io/warn: "restricted"
+    vmd1.homelab/tier: "system"
   annotations:
     kustomize.toolkit.fluxcd.io/prune: disabled
 ---
@@ -221,6 +402,11 @@ apiVersion: v1
 kind: Namespace
 metadata:
   name: unifi
+  labels:
+    pod-security.kubernetes.io/audit: "restricted"
+    pod-security.kubernetes.io/enforce: "baseline"
+    pod-security.kubernetes.io/warn: "restricted"
+    vmd1.homelab/tier: "app"
   annotations:
     kustomize.toolkit.fluxcd.io/prune: disabled
 ---
@@ -228,6 +414,11 @@ apiVersion: v1
 kind: Namespace
 metadata:
   name: uptime-kuma
+  labels:
+    pod-security.kubernetes.io/audit: "restricted"
+    pod-security.kubernetes.io/enforce: "baseline"
+    pod-security.kubernetes.io/warn: "restricted"
+    vmd1.homelab/tier: "app"
   annotations:
     kustomize.toolkit.fluxcd.io/prune: disabled
 ---
@@ -235,6 +426,11 @@ apiVersion: v1
 kind: Namespace
 metadata:
   name: vaultwarden
+  labels:
+    pod-security.kubernetes.io/audit: "restricted"
+    pod-security.kubernetes.io/enforce: "baseline"
+    pod-security.kubernetes.io/warn: "restricted"
+    vmd1.homelab/tier: "app"
   annotations:
     kustomize.toolkit.fluxcd.io/prune: disabled
 ---
@@ -242,5 +438,10 @@ apiVersion: v1
 kind: Namespace
 metadata:
   name: vmd1-web
+  labels:
+    pod-security.kubernetes.io/audit: "restricted"
+    pod-security.kubernetes.io/enforce: "baseline"
+    pod-security.kubernetes.io/warn: "restricted"
+    vmd1.homelab/tier: "app"
   annotations:
     kustomize.toolkit.fluxcd.io/prune: disabled

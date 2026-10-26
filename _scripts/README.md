@@ -6,6 +6,7 @@ This folder contains standalone helper scripts used when operating the cluster o
 
 - [Files](#files)
 - [apply-secrets.sh](#apply-secretssh)
+- [apply-k3s-config.sh](#apply-k3s-configsh)
 - [load-test.js](#load-testjs)
 - [Related](#related)
 
@@ -14,6 +15,7 @@ This folder contains standalone helper scripts used when operating the cluster o
 | File | Description |
 | :--- | :--- |
 | [apply-secrets.sh](apply-secrets.sh) | Decrypts and applies SOPS-encrypted `secrets.sops.yaml` files to the cluster. |
+| [apply-k3s-config.sh](apply-k3s-config.sh) | Diffs or installs the k3s control-plane config from [../resources/k3s-config/](../resources/k3s-config/README.md) over SSH (never restarts k3s). |
 | [load-test.js](load-test.js) | [k6](https://k6.io) load-test script that hammers the ingress edge nodes and asserts latency/error thresholds. |
 
 ## apply-secrets.sh
@@ -29,6 +31,16 @@ _scripts/apply-secrets.sh --apply     # decrypt and apply to the cluster (defaul
 - Discovers every `secrets.sops.yaml` under `resources/` and pipes the decrypted output into `kubectl`.
 - Requires the Age key (`SOPS_AGE_KEY_FILE` or `~/.config/sops/age/keys.txt`) and a working `kubectl` context.
 - Note: SOPS decryption happens automatically in-cluster via Flux, so this script is only needed for manual/one-off operations.
+
+## apply-k3s-config.sh
+
+```bash
+_scripts/apply-k3s-config.sh <ssh-target>           # diff the host against Git (default)
+_scripts/apply-k3s-config.sh <ssh-target> --apply   # copy the files to the host
+```
+
+- `<ssh-target>` is anything `ssh` accepts for the control-plane node; no host is hard-coded. Needs passwordless `sudo` there.
+- Installs the files only. Restart k3s yourself after an etcd snapshot; see [../resources/k3s-config/README.md](../resources/k3s-config/README.md).
 
 ## load-test.js
 

@@ -1,0 +1,10 @@
+# k3s server drop-in (control plane only): API audit logging and secrets encryption at rest.
+# Installed as /etc/rancher/k3s/config.yaml.d/10-hardening.yaml by _scripts/apply-k3s-config.sh.
+# The `+` suffix appends to the arrays already set in /etc/rancher/k3s/config.yaml instead of replacing them.
+secrets-encryption: true
+kube-apiserver-arg+:
+  - audit-policy-file=/etc/rancher/k3s/audit-policy.yaml
+  - audit-log-path=/var/lib/rancher/k3s/server/logs/audit.log
+  - audit-log-maxage=7
+  - audit-log-maxbackup=5
+  - audit-log-maxsize=100

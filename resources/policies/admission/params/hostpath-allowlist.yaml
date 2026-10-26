@@ -1,0 +1,22 @@
+# Parameters for the storage policy and the rbac-bindings policy (paramKind: v1 ConfigMap).
+# Param objects live in kube-system (tier=system, outside every policy binding).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: policy-hostpath-allowlist
+  namespace: kube-system
+data:
+  # Comma-separated path prefixes that tier=app/infra pods may mount as hostPath. A prefix matches itself and
+  # anything below it. Namespaces labelled policy.vmd1.homelab/allow-privileged=true (monitoring: node-exporter,
+  # promtail) may mount any path.
+  prefixes: "/var/lib/geoip,/var/lib/powerdns,/mnt/huge/media,/run/promtail,/var/log"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: policy-cluster-admin-subjects
+  namespace: kube-system
+data:
+  # Comma-separated kind/namespace/name subjects that may be bound to cluster-admin. Namespace is empty for
+  # cluster-scoped subjects (Group/User). Add a subject here in the same PR that binds it.
+  subjects: "ServiceAccount/flux-system/kustomize-controller,ServiceAccount/flux-system/helm-controller,Group//system:masters"

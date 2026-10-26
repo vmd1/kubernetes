@@ -15,6 +15,8 @@ This directory contains all the Kubernetes manifests that Flux reconciles into t
 | :--- | :--- | :--- |
 | [node-labels/](node-labels/README.md) | `./resources/node-labels` | Labels on each Node (no taints), Flux pruning disabled. |
 | [namespaces/](namespaces/README.md) | `./resources/namespaces` | Every Namespace the cluster uses (except `default`, `kube-*`, `flux-system`), with Flux pruning disabled. |
+| [policies/](policies/README.md) | `./resources/policies` | Admission policies (Warn + Audit) and namespace quotas. Nothing depends on it. |
+| [k3s-config/](k3s-config/README.md) | not Flux | Control-plane config for the host (audit logging, secrets encryption), installed by `_scripts/apply-k3s-config.sh`. |
 | [crds/](crds/README.md) | `./resources/crds` | Vendored CRDs: CloudNativePG, EdgeSite, OCIPortRule. Never pruned. |
 | [operators/](operators/README.md) | `./resources/operators` | Operators and charts: cert-manager, CloudNativePG, Kube-VIP, Longhorn, Multus, OCI controller secrets, OCI port controller, Redis, Traefik. |
 | [vpn/](vpn/README.md) | `./resources/vpn` | Tailscale operator and region controller. |

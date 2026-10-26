@@ -8,6 +8,8 @@ resources:
   - namespaces.yaml
   - crds.yaml
   - operators.yaml
+  # Admission policies and quotas: nothing depends on this layer, so a broken policy cannot hold up a group
+  - policies.yaml
   # Purpose groups: each depends only on operators, so one broken group cannot hold up another
   - vpn.yaml
   - oci.yaml

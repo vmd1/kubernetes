@@ -1,0 +1,34 @@
+# kube-apiserver audit policy. Secret and ConfigMap bodies are never logged (Metadata only); RBAC and admission
+# changes are logged with request and response; routine reads by nodes and system components are dropped.
+# Installed as /etc/rancher/k3s/audit-policy.yaml by _scripts/apply-k3s-config.sh.
+apiVersion: audit.k8s.io/v1
+kind: Policy
+omitStages:
+  - RequestReceived
+rules:
+  - level: None
+    nonResourceURLs: ["/healthz*", "/readyz*", "/livez*", "/version", "/metrics"]
+  - level: None
+    userGroups: ["system:nodes"]
+    verbs: ["get", "list", "watch"]
+  - level: None
+    users: ["system:kube-proxy", "system:kube-scheduler", "system:kube-controller-manager"]
+    verbs: ["get", "list", "watch"]
+  - level: None
+    resources:
+      - group: ""
+        resources: ["events"]
+  - level: Metadata
+    resources:
+      - group: ""
+        resources: ["secrets", "configmaps", "serviceaccounts/token"]
+      - group: "authentication.k8s.io"
+        resources: ["tokenreviews"]
+  - level: RequestResponse
+    verbs: ["create", "update", "patch", "delete"]
+    resources:
+      - group: "rbac.authorization.k8s.io"
+      - group: "admissionregistration.k8s.io"
+  - level: Request
+    verbs: ["create", "update", "patch", "delete", "deletecollection"]
+  - level: Metadata

@@ -1,0 +1,395 @@
+# Object-count and storage quotas for every tier=app and tier=infra namespace. Sized from usage on 2026-10-25:
+#   pods = max(10, 3 x running pods), persistentvolumeclaims = max(3, 2 x PVCs + 2), requests.storage = max(20Gi, 2 x requested + 10Gi),
+# each rounded up to 5. Raise a value here, in the same PR, when an app legitimately grows.
+# Deliberately no cpu/memory quota and no LimitRange: a compute quota rejects pods that omit requests, and a
+# LimitRange would inject default limits into running apps. Neither can run in a warn-only mode.
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: default-quota
+  namespace: authelia
+  labels:
+    vmd1.homelab/policy: quota-default
+spec:
+  hard:
+    pods: "10"
+    persistentvolumeclaims: "5"
+    requests.storage: "20Gi"
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: default-quota
+  namespace: bookorbit
+  labels:
+    vmd1.homelab/policy: quota-default
+spec:
+  hard:
+    pods: "10"
+    persistentvolumeclaims: "10"
+    requests.storage: "130Gi"
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: default-quota
+  namespace: cert-manager
+  labels:
+    vmd1.homelab/policy: quota-default
+spec:
+  hard:
+    pods: "10"
+    persistentvolumeclaims: "5"
+    requests.storage: "20Gi"
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: default-quota
+  namespace: cf-ddns
+  labels:
+    vmd1.homelab/policy: quota-default
+spec:
+  hard:
+    pods: "10"
+    persistentvolumeclaims: "5"
+    requests.storage: "20Gi"
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: default-quota
+  namespace: cinepro
+  labels:
+    vmd1.homelab/policy: quota-default
+spec:
+  hard:
+    pods: "10"
+    persistentvolumeclaims: "5"
+    requests.storage: "20Gi"
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: default-quota
+  namespace: cnpg
+  labels:
+    vmd1.homelab/policy: quota-default
+spec:
+  hard:
+    pods: "10"
+    persistentvolumeclaims: "10"
+    requests.storage: "50Gi"
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: default-quota
+  namespace: cnpg-system
+  labels:
+    vmd1.homelab/policy: quota-default
+spec:
+  hard:
+    pods: "10"
+    persistentvolumeclaims: "5"
+    requests.storage: "20Gi"
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: default-quota
+  namespace: geoip
+  labels:
+    vmd1.homelab/policy: quota-default
+spec:
+  hard:
+    pods: "25"
+    persistentvolumeclaims: "5"
+    requests.storage: "20Gi"
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: default-quota
+  namespace: gossip
+  labels:
+    vmd1.homelab/policy: quota-default
+spec:
+  hard:
+    pods: "10"
+    persistentvolumeclaims: "5"
+    requests.storage: "20Gi"
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: default-quota
+  namespace: headlamp
+  labels:
+    vmd1.homelab/policy: quota-default
+spec:
+  hard:
+    pods: "10"
+    persistentvolumeclaims: "5"
+    requests.storage: "20Gi"
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: default-quota
+  namespace: home-assistant
+  labels:
+    vmd1.homelab/policy: quota-default
+spec:
+  hard:
+    pods: "10"
+    persistentvolumeclaims: "5"
+    requests.storage: "30Gi"
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: default-quota
+  namespace: homelable
+  labels:
+    vmd1.homelab/policy: quota-default
+spec:
+  hard:
+    pods: "10"
+    persistentvolumeclaims: "5"
+    requests.storage: "20Gi"
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: default-quota
+  namespace: lldap
+  labels:
+    vmd1.homelab/policy: quota-default
+spec:
+  hard:
+    pods: "10"
+    persistentvolumeclaims: "5"
+    requests.storage: "20Gi"
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: default-quota
+  namespace: matrix
+  labels:
+    vmd1.homelab/policy: quota-default
+spec:
+  hard:
+    pods: "25"
+    persistentvolumeclaims: "5"
+    requests.storage: "50Gi"
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: default-quota
+  namespace: media
+  labels:
+    vmd1.homelab/policy: quota-default
+spec:
+  hard:
+    pods: "10"
+    persistentvolumeclaims: "5"
+    requests.storage: "20Gi"
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: default-quota
+  namespace: monitoring
+  labels:
+    vmd1.homelab/policy: quota-default
+spec:
+  hard:
+    pods: "85"
+    persistentvolumeclaims: "10"
+    requests.storage: "130Gi"
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: default-quota
+  namespace: mqtt
+  labels:
+    vmd1.homelab/policy: quota-default
+spec:
+  hard:
+    pods: "10"
+    persistentvolumeclaims: "5"
+    requests.storage: "20Gi"
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: default-quota
+  namespace: nextcloud
+  labels:
+    vmd1.homelab/policy: quota-default
+spec:
+  hard:
+    pods: "10"
+    persistentvolumeclaims: "5"
+    requests.storage: "30Gi"
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: default-quota
+  namespace: ntfy
+  labels:
+    vmd1.homelab/policy: quota-default
+spec:
+  hard:
+    pods: "10"
+    persistentvolumeclaims: "10"
+    requests.storage: "20Gi"
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: default-quota
+  namespace: oauth2-proxy
+  labels:
+    vmd1.homelab/policy: quota-default
+spec:
+  hard:
+    pods: "25"
+    persistentvolumeclaims: "5"
+    requests.storage: "20Gi"
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: default-quota
+  namespace: obsidian
+  labels:
+    vmd1.homelab/policy: quota-default
+spec:
+  hard:
+    pods: "10"
+    persistentvolumeclaims: "5"
+    requests.storage: "30Gi"
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: default-quota
+  namespace: oci-controller
+  labels:
+    vmd1.homelab/policy: quota-default
+spec:
+  hard:
+    pods: "10"
+    persistentvolumeclaims: "5"
+    requests.storage: "20Gi"
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: default-quota
+  namespace: qecomp
+  labels:
+    vmd1.homelab/policy: quota-default
+spec:
+  hard:
+    pods: "10"
+    persistentvolumeclaims: "5"
+    requests.storage: "20Gi"
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: default-quota
+  namespace: redis
+  labels:
+    vmd1.homelab/policy: quota-default
+spec:
+  hard:
+    pods: "25"
+    persistentvolumeclaims: "5"
+    requests.storage: "20Gi"
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: default-quota
+  namespace: redis-operator
+  labels:
+    vmd1.homelab/policy: quota-default
+spec:
+  hard:
+    pods: "10"
+    persistentvolumeclaims: "5"
+    requests.storage: "20Gi"
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: default-quota
+  namespace: registry
+  labels:
+    vmd1.homelab/policy: quota-default
+spec:
+  hard:
+    pods: "10"
+    persistentvolumeclaims: "5"
+    requests.storage: "30Gi"
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: default-quota
+  namespace: unifi
+  labels:
+    vmd1.homelab/policy: quota-default
+spec:
+  hard:
+    pods: "10"
+    persistentvolumeclaims: "10"
+    requests.storage: "40Gi"
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: default-quota
+  namespace: uptime-kuma
+  labels:
+    vmd1.homelab/policy: quota-default
+spec:
+  hard:
+    pods: "10"
+    persistentvolumeclaims: "5"
+    requests.storage: "20Gi"
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: default-quota
+  namespace: vaultwarden
+  labels:
+    vmd1.homelab/policy: quota-default
+spec:
+  hard:
+    pods: "10"
+    persistentvolumeclaims: "5"
+    requests.storage: "20Gi"
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: default-quota
+  namespace: vmd1-web
+  labels:
+    vmd1.homelab/policy: quota-default
+spec:
+  hard:
+    pods: "25"
+    persistentvolumeclaims: "5"
+    requests.storage: "20Gi"

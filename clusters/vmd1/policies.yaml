@@ -1,0 +1,16 @@
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: policies
+  namespace: flux-system
+spec:
+  dependsOn:
+    - name: namespaces
+  interval: 10m0s
+  path: ./resources/policies
+  prune: true
+  wait: true
+  timeout: 2m0s
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
