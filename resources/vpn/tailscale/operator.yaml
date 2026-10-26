@@ -9,12 +9,9 @@ spec:
   version: 1.104.2
   targetNamespace: tailscale
   valuesContent: |-
-    # kubectl over the tailnet: the operator pod itself serves the API server proxy on the
-    # tailscale-operator device (tag:k8s-operator, 443). Callers are impersonated; the group comes
-    # from the tailnet policy grant (tailscale/policy.hujson) and is bound in rbac.yaml.
+    # kubectl over the tailnet is the dedicated ProxyGroup k8s-api (apiserver-proxygroup.yaml), not an
+    # in-process proxy in this pod. allowImpersonation gives the ProxyGroup pods the RBAC to impersonate callers.
     apiServerProxyConfig:
-      mode: "true"
-      # RBAC for the ProxyGroup pods to impersonate callers; kept explicit so it survives dropping mode.
       allowImpersonation: "true"
     resources:
       requests:
@@ -22,4 +19,4 @@ spec:
         memory: 64Mi
       limits:
         cpu: 100m
-        memory: 256Mi
+        memory: 128Mi
