@@ -3,3 +3,20 @@ kind: Kustomization
 
 resources:
   - secrets.sops.yaml
+
+components:
+  - ../../policies/components/netpol-baseline
+  # the OCI API and SSH to the nodes' public addresses (egress-public), the Kubernetes API
+  - ../../policies/components/netpol-egress-public
+  - ../../policies/components/netpol-api-server
+
+patches:
+  # Components carry no namespace; the ports Traefik routes to (and the kubelet or API server call) replace the closed placeholder.
+  - target: {kind: NetworkPolicy}
+    patch: |-
+      - {op: add, path: /metadata/namespace, value: oci-controller}
+  # Each component's private vars ConfigMap (a replacement source, never rendered on its own) also needs the namespace, so two
+  # enrolled apps in one Flux group do not collide on its name.
+  - target: {kind: ConfigMap, name: "cluster-ranges-.*"}
+    patch: |-
+      - {op: add, path: /metadata/namespace, value: oci-controller}

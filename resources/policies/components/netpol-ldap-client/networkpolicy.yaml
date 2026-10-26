@@ -1,0 +1,18 @@
+# netpol-ldap-client: egress to the LDAP server namespace (LLDAP), selected by the namespace label
+# vmd1.homelab/ldap-server=true. Apps that authenticate against LLDAP (Authelia, the registry's docker-auth) include it
+# and their namespace carries vmd1.homelab/ldap-client=true (the label the server side matches).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-egress-ldap
+spec:
+  podSelector: {}
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              vmd1.homelab/ldap-server: "true"
+      ports:
+        - {protocol: TCP, port: 3890}
+        - {protocol: TCP, port: 6360}

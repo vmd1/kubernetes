@@ -1,0 +1,17 @@
+# netpol-ldap-server: ingress to the LDAP ports (LDAP 3890, LDAPS 6360) from namespaces labelled
+# vmd1.homelab/ldap-client=true. Include it in the LLDAP namespace, which carries vmd1.homelab/ldap-server=true.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ingress-ldap
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              vmd1.homelab/ldap-client: "true"
+      ports:
+        - {protocol: TCP, port: 3890}
+        - {protocol: TCP, port: 6360}

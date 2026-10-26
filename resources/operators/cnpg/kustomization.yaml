@@ -6,3 +6,23 @@ resources:
   - operator.yaml
   - scheduled-backup.yaml
   - secrets.sops.yaml
+
+components:
+  - ../../policies/components/netpol-baseline
+  # the Kubernetes API, and the database pods (status 8000, Postgres 5432); the API server calls the webhook (9443)
+  - ../../policies/components/netpol-api-server
+  - ../../policies/components/netpol-db-operator
+
+patches:
+  # Components carry no namespace; the ports Traefik routes to (and the kubelet or API server call) replace the closed placeholder.
+  - target: {kind: NetworkPolicy}
+    patch: |-
+      - {op: add, path: /metadata/namespace, value: cnpg-system}
+  # Each component's private vars ConfigMap (a replacement source, never rendered on its own) also needs the namespace, so two
+  # enrolled apps in one Flux group do not collide on its name.
+  - target: {kind: ConfigMap, name: "cluster-ranges-.*"}
+    patch: |-
+      - {op: add, path: /metadata/namespace, value: cnpg-system}
+  - target: {kind: NetworkPolicy, name: allow-ingress-traefik}
+    patch: |-
+      - {op: replace, path: /spec/ingress/0/ports, value: [{protocol: TCP, port: 9443}, {protocol: TCP, port: 8080}]}

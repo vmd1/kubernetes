@@ -329,14 +329,14 @@ includes an `allow-intra-namespace` rule. Profiles were checked against three da
 | headlamp | baseline + API server | no internet |
 | homelable, uptime-kuma, qecomp | baseline + egress-any | scans / probes / LAN + internet |
 | vmd1-web | baseline + egress-public + api-server | the edge-operator calls the API server and the build Jobs reach the registry and GitHub (podflow); the kubelet pulls images, so the registry is only needed for those calls |
-| authelia | baseline + db-client + egress-public | lldap, Postgres, Redis, SMTP |
-| lldap | baseline + db-client | Postgres (CNPG, seen in podflow); ingress from Authelia and registry on 3890 |
+| authelia | baseline + db-client + ldap-client + egress-public | LLDAP (ldap-client), Postgres, Redis, SMTP |
+| lldap | baseline + db-client + ldap-server | Postgres (CNPG, seen in podflow); LDAP (3890, 6360) in from the `ldap-client` namespaces (Authelia, registry) |
 | oauth2-proxy | baseline + egress-public | `identity.vmd1.homelab` |
-| registry | baseline | lldap egress |
-| cnpg | db namespace + egress-public | Postgres clients in, replication inside the namespace, Backblaze S3 backups out |
-| cnpg-system | baseline + API server | operator; also egress to the `cnpg` pods |
-| redis | db namespace | clients in, replication inside the namespace; no API server |
-| redis-operator | baseline + API server | operator; also egress to the `redis` pods |
+| registry | baseline + ldap-client | docker-auth authenticates against LLDAP |
+| cnpg | db namespace + egress-public | Postgres clients in, replication inside the namespace, Backblaze S3 backups out. **Not enrolled yet**: the `pg-cluster-rw-lb` LoadBalancer (kube-vip VIP on the LAN) may have LAN clients, and its masqueraded source address would defeat per-namespace client isolation; identify who uses the VIP first |
+| cnpg-system | baseline + api-server + db-operator | operator; egress to the `cnpg` pods (status 8000, Postgres 5432); the API server's webhook calls (9443) arrive from the node's flannel address |
+| redis | db namespace | clients in, replication inside the namespace; no API server. **Not enrolled yet**, same reason as `cnpg` (`redis-master-lb` VIP) |
+| redis-operator | baseline + api-server + db-client | operator; egress to the `redis` pods (6379, 26379) |
 | monitoring | baseline + egress-any | scrapes everything |
 | cert-manager | baseline + egress-public + API server | Let's Encrypt, DNS-01 provider |
 | cf-ddns | baseline + egress-public + API server | `api.ipify.org`, Cloudflare, patches node labels |
