@@ -5,3 +5,22 @@ resources:
   - manifest.yaml
   - ingressroute.yaml
   - secrets.sops.yaml
+
+components:
+  - ../../policies/components/netpol-baseline
+  # scans the LAN and reaches the internet; frontend and backend talk inside the namespace
+  - ../../policies/components/netpol-egress-any
+
+patches:
+  # Components carry no namespace; the ports Traefik routes to (and the kubelet probes) replace the closed placeholder.
+  - target: {kind: NetworkPolicy}
+    patch: |-
+      - {op: add, path: /metadata/namespace, value: homelable}
+  # Each component's private vars ConfigMap (a replacement source, never rendered on its own) also needs the namespace, so two
+  # enrolled apps in one Flux group do not collide on its name.
+  - target: {kind: ConfigMap, name: "cluster-ranges-.*"}
+    patch: |-
+      - {op: add, path: /metadata/namespace, value: homelable}
+  - target: {kind: NetworkPolicy, name: allow-ingress-traefik}
+    patch: |-
+      - {op: replace, path: /spec/ingress/0/ports, value: [{protocol: TCP, port: 80}, {protocol: TCP, port: 8000}]}

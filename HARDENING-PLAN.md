@@ -308,27 +308,29 @@ key (PR 1 moves it out of the plaintext config).
 Agreed 2026-10-25 from a manifest read plus the owner's corrections. "Baseline" is
 `netpol-baseline` (default-deny, DNS, ingress from Traefik via the pod CIDR, Prometheus scrape).
 Image pulls are done by the kubelet on the node, not by the pod, so NetworkPolicy never needs a
-registry allow for them.
+registry allow for them. Default-deny also cuts traffic between pods of the same namespace, so the baseline
+includes an `allow-intra-namespace` rule. Profiles were checked against three days of podflow traffic categories
+(2026-10-26).
 
 | Namespace | Profile | Notes |
 | --- | --- | --- |
 | gossip | baseline | **pilot** |
 | obsidian | baseline | **pilot** (CouchDB, inbound only) |
 | ntfy | baseline + egress-public | **pilot**; web push to browser push services needs outbound. The SMTP relay (smtp2go, 587) and the listener on 25 are configured but unused (`emails_sent=0`); drop them from the config when convenient. Its ConfigMap holds the SMTP password and web-push private key in plaintext: move them to a SOPS Secret and rotate |
-| vaultwarden | baseline + egress-public | outbound SMTP |
+| vaultwarden | baseline + db-client + egress-public | Postgres (CNPG, seen in podflow); outbound SMTP |
 | bookorbit | baseline + db-client + egress-public | internet for book metadata |
 | cinepro | baseline + db-client + egress-public | Redis, `api.vmd1.homelab` |
 | media | baseline + egress-public | Jellyfin metadata |
-| nextcloud | baseline + egress-public | confirm the database during PR 3 flow capture; add db-client if it uses CNPG |
-| matrix | baseline + db-client + egress-public | bridges use the database; federation to the internet |
-| mqtt | baseline + LAN-ingress | LAN devices on 1883/9001 |
-| unifi | baseline + LAN-ingress + egress-public | LAN devices in; Ubiquiti SSO and cloud out |
+| nextcloud | baseline + db-client + egress-public | Postgres (CNPG, seen in podflow); Backblaze B2 and the app store out; Collabora is in the same namespace |
+| matrix | baseline + egress-public | no database traffic in podflow (the bridges use files, not CNPG); federation to the internet |
+| mqtt | baseline + LAN-ingress | LAN devices on 1883/9001; **not enrolled yet**: the source address of LAN clients through the kube-vip VIP is unverified |
+| unifi | baseline + LAN-ingress + egress-public | LAN devices in; Ubiquiti SSO and cloud out; **not enrolled yet**, same reason as mqtt (MongoDB runs in the namespace, covered by the intra-namespace rule) |
 | home-assistant | not enrolled | hostNetwork |
 | headlamp | baseline + API server | no internet |
 | homelable, uptime-kuma, qecomp | baseline + egress-any | scans / probes / LAN + internet |
-| vmd1-web | baseline | static sites; no registry egress needed |
+| vmd1-web | baseline + egress-public + api-server | the edge-operator calls the API server and the build Jobs reach the registry and GitHub (podflow); the kubelet pulls images, so the registry is only needed for those calls |
 | authelia | baseline + db-client + egress-public | lldap, Postgres, Redis, SMTP |
-| lldap | baseline | ingress from Authelia and registry |
+| lldap | baseline + db-client | Postgres (CNPG, seen in podflow); ingress from Authelia and registry on 3890 |
 | oauth2-proxy | baseline + egress-public | `identity.vmd1.homelab` |
 | registry | baseline | lldap egress |
 | cnpg | db namespace + egress-public | Postgres clients in, replication inside the namespace, Backblaze S3 backups out |

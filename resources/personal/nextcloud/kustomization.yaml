@@ -5,3 +5,23 @@ resources:
   - ingressroute.yaml
   - manifest.yaml
   - secrets.sops.yaml
+
+components:
+  - ../../policies/components/netpol-baseline
+  # Postgres (CNPG); Backblaze B2, app store and federation on the internet; Collabora (9980) is in the same namespace
+  - ../../policies/components/netpol-db-client
+  - ../../policies/components/netpol-egress-public
+
+patches:
+  # Components carry no namespace; the ports Traefik routes to (and the kubelet probes) replace the closed placeholder.
+  - target: {kind: NetworkPolicy}
+    patch: |-
+      - {op: add, path: /metadata/namespace, value: nextcloud}
+  # Each component's private vars ConfigMap (a replacement source, never rendered on its own) also needs the namespace, so two
+  # enrolled apps in one Flux group do not collide on its name.
+  - target: {kind: ConfigMap, name: "cluster-ranges-.*"}
+    patch: |-
+      - {op: add, path: /metadata/namespace, value: nextcloud}
+  - target: {kind: NetworkPolicy, name: allow-ingress-traefik}
+    patch: |-
+      - {op: replace, path: /spec/ingress/0/ports, value: [{protocol: TCP, port: 80}, {protocol: TCP, port: 9980}]}
