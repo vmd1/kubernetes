@@ -71,7 +71,7 @@ spec:
       serviceAccountName: oci-reboot-controller
       containers:
         - name: controller
-          image: ghcr.io/vmd1/oci-reboot-controller:latest@sha256:eb4dc987988e752a86df0fdfcd668c8242f4673847a95528ed1d05c90933e3dd
+          image: ghcr.io/vmd1/oci-reboot-controller:latest@sha256:bfa3e4ecc946fb5c234bc1e0a697500e37e979881948dc3d3f939066bdc6c442
           imagePullPolicy: IfNotPresent
           env:
             - name: MALLOC_TRIM_THRESHOLD_
