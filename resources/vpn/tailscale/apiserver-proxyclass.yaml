@@ -1,0 +1,19 @@
+# Placement for the kubectl ProxyGroup (apiserver-proxygroup.yaml): home (uk-home) nodes only, one replica per
+# node. Without it the pods only avoided the cloud nodes because those carry the node-role=ingress taint.
+apiVersion: tailscale.com/v1alpha1
+kind: ProxyClass
+metadata:
+  name: k8s-api-uk-home
+spec:
+  statefulSet:
+    pod:
+      nodeSelector:
+        topology.kubernetes.io/zone: uk-home
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              tailscale.com/parent-resource: k8s-api
+              tailscale.com/parent-resource-type: proxygroup

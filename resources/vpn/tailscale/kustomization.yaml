@@ -5,5 +5,6 @@ resources:
   - automation.yaml
   - operator.yaml
   - rbac.yaml
+  - apiserver-proxyclass.yaml
   - apiserver-proxygroup.yaml
   - secrets.sops.yaml

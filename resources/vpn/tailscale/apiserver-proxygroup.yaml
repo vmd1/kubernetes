@@ -10,6 +10,7 @@ metadata:
 spec:
   type: kube-apiserver
   replicas: 2
+  proxyClass: k8s-api-uk-home
   tags:
     - tag:k8s-apiserver
   kubeAPIServer:
