@@ -46,3 +46,7 @@ Ntfy (pronounced "notify") is a simple HTTP-based pub-sub notification service. 
 
 - **ConfigMap**: `ntfy-server-config`
   - Mounts `server.yml` defining the base URL, ports, proxy details, WebPush public/private keys, and user authentication tables.
+
+## Network policy
+
+Enrolled in `netpol-baseline` (HTTP 2586 from Traefik, Prometheus on the same port) and `netpol-egress-public`. Unlike the hardening plan's assumption, ntfy does call out: the SMTP relay (`mail.smtp2go.com:587`, from `smtp-sender-addr`) and web-push delivery to the browser push services, so public egress is allowed. The unused SMTP listener (25) is not opened. See [policies/components](../../policies/components/README.md).

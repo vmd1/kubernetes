@@ -186,11 +186,15 @@ Each violation is fixed in the app manifest or added to a param allowlist with a
    - `default-deny-all` (Ingress + Egress).
    - Egress to DNS: CoreDNS via namespace + `k8s-app=kube-dns` selector; node-local-dns via
      `NODE_LOCAL_DNS_IP`.
-   - Ingress from the ingress controller. Traefik is hostNetwork, so its traffic arrives with the
-     source address of its node (the InternalIP / Tailscale address). **Decided (3a):** allow
-     `TAILNET_CIDR` on the app's port only. This needs no per-node data, but also admits other
-     tailnet devices to that port; the ACL change below is the compensating control. A
-     per-node reconciler (3b) is deferred and only revisited if 3a proves too broad.
+   - Ingress from the ingress controller. Traefik is hostNetwork, but flannel carries its traffic to
+     pods: to a pod on another node the source is that node's flannel address (`10.42.N.0`, from
+     `ip route get` on zeus-01: `via flannel.1 src 10.42.3.0`), and to a pod on its own node the
+     `cni0` gateway (`10.42.N.1`, also the kubelet probe source seen in pod logs). It is never a
+     Tailscale address, so the original 3a (allow `TAILNET_CIDR`) would have cut ingress.
+     **Changed 2026-10-26:** allow `POD_CIDR` on the app's port only. No per-node data, but any
+     pod can reach that port; every other port and every non-cluster source stays denied. A
+     per-node reconciler (3b) that allows only the `.0`/`.1` addresses derived from the Node
+     objects is the tighter option, deferred until that exposure matters.
    - Ingress from `monitoring` for scraping, selector-based, one allowed port per app via a patch.
    - Egress to the API server from `API_SERVER_CIDR`, as a separate opt-in component.
 2. **`netpol-egress-public`:** for internet-facing apps, egress to `0.0.0.0/0` with
@@ -254,7 +258,7 @@ That is all. No edits to any shared policy.
 | An unstable node (zeus-01) can make a bad rule look like a node fault, or the reverse | pilot first, 48 h soak, rollback = revert; `edge` isolation keeps a NotReady ingress node from stalling other groups |
 | Flux adopting existing objects removes fields not in Git (seen on 2026-10-25 with node labels) | diff live labels against the file before merging; add new keys only; keep `prune: disabled` |
 | PR 3 enrols many namespaces at once | each enrolment is one independent line; flows were captured per app beforehand; the two-commit split (app, then infra) lets a reviewer drop the infra commit; rollback is a revert |
-| hostNetwork Traefik source IP seen differently by kube-router (InternalIP vs flannel gateway address in the node's pod CIDR) | verify in the PR 2 pilot before PR 3 relies on `TAILNET_CIDR`; if the source is the node's flannel gateway, also allow `POD_CIDR` for that port |
+| hostNetwork Traefik source IP seen differently by kube-router | resolved 2026-10-26: the source is inside `POD_CIDR` (flannel or cni0 address), so ingress allows `POD_CIDR`; confirm end to end after PR 2 merges (a request through Traefik to each pilot app) |
 | Netpol or ACL changes alter the peer address the `tailnet-only` middleware sees | the `traefik` namespace stays unenrolled; after the ACL change, check an existing tailnet-only route from on and off the tailnet |
 | A default-deny egress rule breaks an app that needs broad access (uptime-kuma probes, qecomp reaches the LAN and internet) | those apps (uptime-kuma, homelable, qecomp, monitoring) use `netpol-egress-any` and are enrolled last, never in the pilot |
 | Tailnet/CGNAT range blocked by the private-range egress rule | `TAILNET_CIDR` is excepted only for public-facing tiers; apps that talk to tailnet services get a narrow allow |
@@ -302,7 +306,7 @@ key (PR 1 moves it out of the plaintext config).
 ## Appendix A. Per-namespace network profile
 
 Agreed 2026-10-25 from a manifest read plus the owner's corrections. "Baseline" is
-`netpol-baseline` (default-deny, DNS, ingress from Traefik via the tailnet CIDR, Prometheus scrape).
+`netpol-baseline` (default-deny, DNS, ingress from Traefik via the pod CIDR, Prometheus scrape).
 Image pulls are done by the kubelet on the node, not by the pod, so NetworkPolicy never needs a
 registry allow for them.
 

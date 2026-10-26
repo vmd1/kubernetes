@@ -1,0 +1,12 @@
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+
+resources:
+  - ranges
+  - networkpolicy.yaml
+
+replacements:
+  - source: {kind: ConfigMap, name: cluster-ranges-api-server, fieldPath: data.API_SERVER_CIDR}
+    targets:
+      - select: {kind: NetworkPolicy, name: allow-egress-api-server}
+        fieldPaths: [spec.egress.0.to.0.ipBlock.cidr]

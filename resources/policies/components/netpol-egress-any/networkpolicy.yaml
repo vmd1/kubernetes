@@ -1,0 +1,11 @@
+# netpol-egress-any: egress to anywhere (pods, nodes, LAN, internet) for apps whose job is to reach
+# arbitrary targets. Ingress stays denied by netpol-baseline, which must be included too.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-egress-any
+spec:
+  podSelector: {}
+  policyTypes: [Egress]
+  egress:
+    - {}

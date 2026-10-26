@@ -45,3 +45,7 @@ Obsidian Sync Server provides a self-hosted database backend for Obsidian markdo
 ## Configs & Credentials
 
 - **Admin Credentials**: Secret `obsidian-secrets` configures user `admin` with the requested password.
+
+## Network policy
+
+Enrolled in `netpol-baseline` only: inbound CouchDB 5984 from Traefik and Prometheus, DNS out, nothing else. See [policies/components](../../policies/components/README.md).

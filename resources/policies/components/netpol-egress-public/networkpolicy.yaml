@@ -1,0 +1,18 @@
+# netpol-egress-public: internet egress for public-facing apps, minus every private, tailnet and
+# link-local range (blocks the LAN, other nodes and the cloud metadata endpoint 169.254.169.254).
+# Needs netpol-baseline as well (DNS and ingress live there). Placeholders come from ../../vars.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-egress-public
+spec:
+  podSelector: {}
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except: [PRIVATE_CIDRS_1, PRIVATE_CIDRS_2, PRIVATE_CIDRS_3, TAILNET_CIDR, LINK_LOCAL_CIDR]
+        - ipBlock:
+            cidr: ::/0
+            except: [PRIVATE_CIDRS_V6, TAILNET_CIDR_V6, LINK_LOCAL_CIDR_V6]

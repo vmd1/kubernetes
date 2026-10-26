@@ -1,0 +1,74 @@
+# netpol-baseline: default-deny plus the allows every enrolled app needs.
+# No namespace is set here: the app's kustomization patches it in (see README).
+# Placeholders in capitals are replaced from ../../vars/cluster-ranges.yaml by the Component's replacements.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-all
+spec:
+  podSelector: {}
+  policyTypes: [Ingress, Egress]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-egress-dns
+spec:
+  podSelector: {}
+  policyTypes: [Egress]
+  egress:
+    # CoreDNS, selected by label (a Service IP is DNATed to the pod before the policy is checked).
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - {protocol: UDP, port: 53}
+        - {protocol: TCP, port: 53}
+    # node-local-dns (dormant until deployed): address from NODE_LOCAL_DNS_IP.
+    - to:
+        - ipBlock:
+            cidr: NODE_LOCAL_DNS_IP/32
+      ports:
+        - {protocol: UDP, port: 53}
+        - {protocol: TCP, port: 53}
+---
+# Traefik is hostNetwork. Its packets to a pod on another node leave through flannel.1 with that node's flannel
+# address (10.42.N.0) as the source, and to a pod on its own node through cni0 (10.42.N.1, also the kubelet probe
+# source); neither is a Tailscale address. Verified 2026-10-26 with `ip route get <pod IP>` on zeus-01 (via flannel.1
+# src 10.42.3.0) and kube-probe peers of 10.42.N.1 in pod logs. So the source is inside POD_CIDR, and this allows
+# POD_CIDR on the app port. Cost: any pod in the cluster can reach the app port; the policy still blocks every other
+# port and every non-cluster source. The app patches in the real port; the placeholder 1 keeps the policy closed if
+# the patch is forgotten.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ingress-traefik
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - ipBlock:
+            cidr: POD_CIDR
+      ports:
+        - {protocol: TCP, port: 1}
+---
+# Prometheus scrapes from the monitoring namespace. The app patches in its metrics port (placeholder 1 = closed).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ingress-monitoring
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+      ports:
+        - {protocol: TCP, port: 1}

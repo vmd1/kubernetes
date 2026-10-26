@@ -1,0 +1,16 @@
+# netpol-api-server (opt-in): egress to the Kubernetes API for operators and controllers. Pods reach the
+# API through the kubernetes Service (clusterIP DNATed to the API endpoint), so the policy matches the
+# endpoint address, API_SERVER_CIDR from ../../vars, on 6443. Include netpol-baseline as well.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-egress-api-server
+spec:
+  podSelector: {}
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - ipBlock:
+            cidr: API_SERVER_CIDR
+      ports:
+        - {protocol: TCP, port: 6443}

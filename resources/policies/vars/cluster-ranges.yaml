@@ -1,0 +1,36 @@
+# Cluster-wide network ranges: the single place a CIDR literal may live (policies/components/ read
+# these through kustomize `replacements`; nothing else in policies/ may contain one).
+# Marked local-config so kustomize uses it as a replacement source and never emits it.
+# Not Flux postBuild substitution: seven manifests contain literal ${...} that Flux would mangle.
+# Values verified read-only against the live cluster on 2026-10-25 (source on each line).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cluster-ranges
+  annotations:
+    config.kubernetes.io/local-config: "true"
+data:
+  # Node spec.podCIDRs are the /24s 10.42.{0..7}.0/24 (kubectl get nodes -o custom-columns=...podCIDRs).
+  # Also the source range of Traefik's traffic to pods (flannel.1 / cni0 addresses), see netpol-baseline.
+  POD_CIDR: 10.42.0.0/16
+  # kubernetes Service clusterIP 10.43.0.1 and kube-dns 10.43.0.10 (kubectl get svc -A); k3s default.
+  SERVICE_CIDR: 10.43.0.0/16
+  # Tailscale CGNAT range and tailnet ULA: the same ranges the tailnet-only Traefik middleware allows
+  # (proxy/traefik/tailnet-only.yaml). Node InternalIPs are all inside it (kubectl get nodes -o wide).
+  TAILNET_CIDR: 100.64.0.0/10
+  TAILNET_CIDR_V6: fd7a:115c:a1e0::/48
+  # RFC 1918, the members of "private ranges". Contains POD_CIDR, SERVICE_CIDR and the home LAN.
+  PRIVATE_CIDRS_1: 10.0.0.0/8
+  PRIVATE_CIDRS_2: 172.16.0.0/12
+  PRIVATE_CIDRS_3: 192.168.0.0/16
+  PRIVATE_CIDRS_V6: fc00::/7
+  # Link-local, includes the cloud metadata endpoint 169.254.169.254.
+  LINK_LOCAL_CIDR: 169.254.0.0/16
+  LINK_LOCAL_CIDR_V6: fe80::/10
+  # node-local-dns listen address (k3s/Kubernetes convention). NOT deployed today (no such pod in
+  # kube-system, clusterDNS is 10.43.0.10), so this allow is dormant until it is.
+  NODE_LOCAL_DNS_IP: 169.254.20.10
+  # Where pods reach the API after Service DNAT: the kubernetes Endpoints (kubectl get endpoints
+  # kubernetes) = the single control-plane node's Tailscale address on 6443. The only node-bound
+  # value here; update it if the control plane moves (the PR 1 drift check compares it).
+  API_SERVER_CIDR: 10.0.0.10/32

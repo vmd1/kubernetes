@@ -23,3 +23,7 @@ WebSocket relay for the Gossip apps, served at `wss://gossip.vmd1.homelab`. The 
 ## Constraints & Scheduling
 
 Pinned to `topology.kubernetes.io/zone=uk-home`. No persistent storage (optional `BAN_FILE`/`KILL_SWITCH_FILE` would need a volume).
+
+## Network policy
+
+Enrolled in `netpol-baseline` only: inbound HTTP 8080 from Traefik and Prometheus, DNS out, nothing else. See [policies/components](../../policies/components/README.md).

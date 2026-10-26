@@ -1,0 +1,19 @@
+# netpol-db-client: egress to the database namespaces (CNPG Postgres, Redis and Sentinel), selected by the
+# namespace label vmd1.homelab/db-server=true. Only apps that use a database include it, and their namespace
+# carries vmd1.homelab/db-client=true (the label the database side matches for ingress, PR 3).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-egress-db
+spec:
+  podSelector: {}
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              vmd1.homelab/db-server: "true"
+      ports:
+        - {protocol: TCP, port: 5432}
+        - {protocol: TCP, port: 6379}
+        - {protocol: TCP, port: 26379}

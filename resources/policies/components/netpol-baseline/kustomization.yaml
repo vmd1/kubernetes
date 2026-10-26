@@ -1,0 +1,21 @@
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+
+resources:
+  - ranges
+  - networkpolicies.yaml
+
+# Each placeholder in networkpolicies.yaml is replaced from vars/cluster-ranges.yaml. An unreplaced
+# placeholder is not a valid CIDR, so a broken build is rejected by the API server instead of silently
+# opening traffic.
+replacements:
+  - source: {kind: ConfigMap, name: cluster-ranges-baseline, fieldPath: data.POD_CIDR}
+    targets:
+      - select: {kind: NetworkPolicy, name: allow-ingress-traefik}
+        fieldPaths: [spec.ingress.0.from.0.ipBlock.cidr]
+  # NODE_LOCAL_DNS_IP is a bare address; the rule wants a /32 (index 0 replaces the part before "/32").
+  - source: {kind: ConfigMap, name: cluster-ranges-baseline, fieldPath: data.NODE_LOCAL_DNS_IP}
+    targets:
+      - select: {kind: NetworkPolicy, name: allow-egress-dns}
+        fieldPaths: [spec.egress.1.to.0.ipBlock.cidr]
+        options: {delimiter: "/", index: 0}

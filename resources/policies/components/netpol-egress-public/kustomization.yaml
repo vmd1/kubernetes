@@ -1,0 +1,40 @@
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+
+resources:
+  - ranges
+  - networkpolicy.yaml
+
+replacements:
+  - source: {kind: ConfigMap, name: cluster-ranges-egress-public, fieldPath: data.PRIVATE_CIDRS_1}
+    targets:
+      - select: {kind: NetworkPolicy, name: allow-egress-public}
+        fieldPaths: [spec.egress.0.to.0.ipBlock.except.0]
+  - source: {kind: ConfigMap, name: cluster-ranges-egress-public, fieldPath: data.PRIVATE_CIDRS_2}
+    targets:
+      - select: {kind: NetworkPolicy, name: allow-egress-public}
+        fieldPaths: [spec.egress.0.to.0.ipBlock.except.1]
+  - source: {kind: ConfigMap, name: cluster-ranges-egress-public, fieldPath: data.PRIVATE_CIDRS_3}
+    targets:
+      - select: {kind: NetworkPolicy, name: allow-egress-public}
+        fieldPaths: [spec.egress.0.to.0.ipBlock.except.2]
+  - source: {kind: ConfigMap, name: cluster-ranges-egress-public, fieldPath: data.TAILNET_CIDR}
+    targets:
+      - select: {kind: NetworkPolicy, name: allow-egress-public}
+        fieldPaths: [spec.egress.0.to.0.ipBlock.except.3]
+  - source: {kind: ConfigMap, name: cluster-ranges-egress-public, fieldPath: data.LINK_LOCAL_CIDR}
+    targets:
+      - select: {kind: NetworkPolicy, name: allow-egress-public}
+        fieldPaths: [spec.egress.0.to.0.ipBlock.except.4]
+  - source: {kind: ConfigMap, name: cluster-ranges-egress-public, fieldPath: data.PRIVATE_CIDRS_V6}
+    targets:
+      - select: {kind: NetworkPolicy, name: allow-egress-public}
+        fieldPaths: [spec.egress.0.to.1.ipBlock.except.0]
+  - source: {kind: ConfigMap, name: cluster-ranges-egress-public, fieldPath: data.TAILNET_CIDR_V6}
+    targets:
+      - select: {kind: NetworkPolicy, name: allow-egress-public}
+        fieldPaths: [spec.egress.0.to.1.ipBlock.except.1]
+  - source: {kind: ConfigMap, name: cluster-ranges-egress-public, fieldPath: data.LINK_LOCAL_CIDR_V6}
+    targets:
+      - select: {kind: NetworkPolicy, name: allow-egress-public}
+        fieldPaths: [spec.egress.0.to.1.ipBlock.except.2]
