@@ -1,12 +1,13 @@
 # k3s config (`resources/k3s-config/`)
 
-Canonical content of the k3s control-plane settings that Flux cannot apply because they live on the host. **Not reconciled by Flux**: [../../_scripts/apply-k3s-config.sh](../../_scripts/README.md) diffs and installs them over SSH.
+Canonical content of the k3s control-plane settings that Flux cannot apply because they live on the host. Audit logging was installed on hades-01 on 2026-10-26; secrets encryption is not installed yet. **Not reconciled by Flux**: [../../_scripts/apply-k3s-config.sh](../../_scripts/README.md) diffs and installs them over SSH.
 
 ## Files
 
 | File | Installed as | Description |
 | :--- | :--- | :--- |
-| [config.yaml.d/10-hardening.yaml](config.yaml.d/10-hardening.yaml) | `/etc/rancher/k3s/config.yaml.d/10-hardening.yaml` | `secrets-encryption: true` and the API audit-log flags (appended to the existing `kube-apiserver-arg`). |
+| [config.yaml.d/10-audit-logging.yaml](config.yaml.d/10-audit-logging.yaml) | `/etc/rancher/k3s/config.yaml.d/10-audit-logging.yaml` | The API audit-log flags (appended to the existing `kube-apiserver-arg`). |
+| [config.yaml.d/20-secrets-encryption.yaml](config.yaml.d/20-secrets-encryption.yaml) | `/etc/rancher/k3s/config.yaml.d/20-secrets-encryption.yaml` | `secrets-encryption: true`. Not installed unless `--with-encryption` is passed. |
 | [audit-policy.yaml](audit-policy.yaml) | `/etc/rancher/k3s/audit-policy.yaml` | What the API server logs: metadata only for Secrets/ConfigMaps, full request and response for RBAC and admission changes, no routine node reads or events. |
 
 ## Applying (by hand, in a window)

@@ -314,7 +314,7 @@ registry allow for them.
 | --- | --- | --- |
 | gossip | baseline | **pilot** |
 | obsidian | baseline | **pilot** (CouchDB, inbound only) |
-| ntfy | baseline | **pilot**; no outbound; the SMTP listener (25) is unused and can be dropped from the manifest |
+| ntfy | baseline + egress-public | **pilot**; web push to browser push services needs outbound. The SMTP relay (smtp2go, 587) and the listener on 25 are configured but unused (`emails_sent=0`); drop them from the config when convenient. Its ConfigMap holds the SMTP password and web-push private key in plaintext: move them to a SOPS Secret and rotate |
 | vaultwarden | baseline + egress-public | outbound SMTP |
 | bookorbit | baseline + db-client + egress-public | internet for book metadata |
 | cinepro | baseline + db-client + egress-public | Redis, `api.vmd1.homelab` |

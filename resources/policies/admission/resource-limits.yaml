@@ -12,5 +12,7 @@ spec:
         operations: ["CREATE"]
         resources: ["pods"]
   validations:
-    - expression: "object.spec.containers.all(c, c.?resources.?limits.?cpu.hasValue() && c.?resources.?limits.?memory.hasValue())"
+    - expression: >-
+        object.spec.containers.all(c, has(c.resources) && has(c.resources.limits) &&
+        'cpu' in c.resources.limits && 'memory' in c.resources.limits)
       message: "every container should set cpu and memory limits"

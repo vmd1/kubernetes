@@ -6,7 +6,7 @@
 
 | File | Applies to | Rule |
 | :--- | :--- | :--- |
-| [baseline.yaml](baseline.yaml) | pods in `tier=app`/`infra` | no privileged, hostNetwork/PID/IPC or extra capabilities (namespace labels `policy.vmd1.homelab/allow-host-network`, `allow-privileged` exempt a namespace) |
+| [baseline.yaml](baseline.yaml) | pods in `tier=app`/`infra` | no privileged, hostNetwork/PID/IPC or extra capabilities (namespace labels `policy.vmd1.homelab/allow-host-network`, `allow-privileged` and `allow-capabilities` exempt a namespace) |
 | [app-hardening.yaml](app-hardening.yaml) | pods in `tier=app` | `runAsNonRoot`, no privilege escalation, read-only root filesystem, seccomp profile, image pinned by digest or a non-`latest` tag |
 | [service-accounts.yaml](service-accounts.yaml) | pods in `tier=app` | a dedicated ServiceAccount, or `automountServiceAccountToken: false` on the default one |
 | [rbac.yaml](rbac.yaml) | cluster | `cluster-admin` only to listed subjects; no wildcard verbs/resources in roles |

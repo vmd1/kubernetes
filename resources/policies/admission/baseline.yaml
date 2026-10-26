@@ -1,4 +1,5 @@
-# baseline: no privileged containers, host namespaces or extra capabilities.
+# baseline: no privileged containers, host namespaces or extra capabilities (beyond the Pod Security baseline set and
+# the namespace's policy.vmd1.homelab/allow-capabilities).
 # Pods only (CREATE); bound to tier=app and tier=infra. Exemptions are namespace labels owned in
 # resources/namespaces/namespaces.yaml, never labels on the pod.
 apiVersion: admissionregistration.k8s.io/v1
@@ -20,6 +21,9 @@ spec:
       expression: "namespaceObject.metadata.?labels['policy.vmd1.homelab/allow-host-network'].orValue('') == 'true'"
     - name: allowPrivileged
       expression: "namespaceObject.metadata.?labels['policy.vmd1.homelab/allow-privileged'].orValue('') == 'true'"
+    # Label values cannot hold commas, so the capabilities are dot-separated: policy.vmd1.homelab/allow-capabilities: "NET_ADMIN.NET_RAW"
+    - name: extraCaps
+      expression: "namespaceObject.metadata.?labels['policy.vmd1.homelab/allow-capabilities'].orValue('').split('.')"
   validations:
     - expression: "variables.allowHostNetwork || !object.spec.?hostNetwork.orValue(false)"
       message: "hostNetwork is not allowed here (namespace needs policy.vmd1.homelab/allow-host-network=true)"
@@ -30,5 +34,6 @@ spec:
     - expression: >-
         variables.allowPrivileged || variables.containers.all(c,
         c.?securityContext.?capabilities.?add.orValue([]).all(x,
-        x in ['AUDIT_WRITE','CHOWN','DAC_OVERRIDE','FOWNER','FSETID','KILL','MKNOD','NET_BIND_SERVICE','SETFCAP','SETGID','SETPCAP','SETUID','SYS_CHROOT']))
-      message: "added capabilities beyond the Pod Security baseline set are not allowed"
+        x in ['AUDIT_WRITE','CHOWN','DAC_OVERRIDE','FOWNER','FSETID','KILL','MKNOD','NET_BIND_SERVICE','SETFCAP','SETGID','SETPCAP','SETUID','SYS_CHROOT'] ||
+        x in variables.extraCaps))
+      message: "added capabilities beyond the Pod Security baseline set are not allowed (namespace needs policy.vmd1.homelab/allow-capabilities listing them)"

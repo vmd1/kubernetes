@@ -3,6 +3,7 @@
 #
 #   apply-k3s-config.sh <ssh-target>            diff the files on the host against Git
 #   apply-k3s-config.sh <ssh-target> --apply    copy them to the host (does NOT restart k3s)
+#   add --with-encryption to include the secrets-encryption drop-in (off by default)
 #
 # <ssh-target> is whatever `ssh` accepts for the control-plane node (user@host or an ssh_config alias); it is
 # never hard-coded here. Needs passwordless sudo on the host. Restart k3s yourself, in a window, after taking an
@@ -11,12 +12,15 @@ set -euo pipefail
 
 target="${1:?usage: apply-k3s-config.sh <ssh-target> [--apply]}"
 mode="${2:-diff}"
+with_encryption=false
+[ "${3:-}" = "--with-encryption" ] && with_encryption=true
 src="$(cd "$(dirname "$0")/../resources/k3s-config" && pwd)"
 
 files=(
-  "config.yaml.d/10-hardening.yaml:/etc/rancher/k3s/config.yaml.d/10-hardening.yaml"
+  "config.yaml.d/10-audit-logging.yaml:/etc/rancher/k3s/config.yaml.d/10-audit-logging.yaml"
   "audit-policy.yaml:/etc/rancher/k3s/audit-policy.yaml"
 )
+$with_encryption && files+=("config.yaml.d/20-secrets-encryption.yaml:/etc/rancher/k3s/config.yaml.d/20-secrets-encryption.yaml")
 
 rc=0
 for pair in "${files[@]}"; do
