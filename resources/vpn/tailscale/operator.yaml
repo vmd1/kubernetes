@@ -14,6 +14,8 @@ spec:
     # from the tailnet policy grant (tailscale/policy.hujson) and is bound in rbac.yaml.
     apiServerProxyConfig:
       mode: "true"
+      # RBAC for the ProxyGroup pods to impersonate callers; kept explicit so it survives dropping mode.
+      allowImpersonation: "true"
     resources:
       requests:
         cpu: 10m

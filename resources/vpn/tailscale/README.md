@@ -8,6 +8,7 @@ Tailscale integrates the local Kubernetes cluster with a secure Tailscale overla
 | :--- | :--- |
 | [operator.yaml](operator.yaml) | Defines the HelmChart custom resource to deploy `tailscale-operator` version `1.104.2` into the `tailscale` namespace, with the in-process API server proxy on (`apiServerProxyConfig.mode: "true"`) so `kubectl` works over the tailnet. |
 | [rbac.yaml](rbac.yaml) | `ClusterRoleBinding` `tailnet-admins`: group `tailnet-admins` (added by the tailnet policy grant `tailscale.com/cap/kubernetes` for `group:admin`) is `cluster-admin`. Group names come from the policy, so this is the only place that decides what a tailnet identity may do in the cluster. |
+| [apiserver-proxygroup.yaml](apiserver-proxygroup.yaml) | `ProxyGroup` `k8s-api` (`type: kube-apiserver`, 2 replicas, tag `tag:k8s-apiserver`, hostname `k8s-api`): the dedicated kubectl proxy, advertised as a Tailscale Service so a replica can drain or fail without changing the URL. Replaces the in-process proxy in the operator pod once verified. |
 | [automation.yaml](automation.yaml) | Deploys a custom controller (`tailscale-region-controller`) including RBAC ServiceAccount and the Deployment. The controller runs the image `ghcr.io/vmd1/tailscale-region-controller` (pinned by digest, built from [`controllers/tailscale-region-controller`](../../../../controllers/tailscale-region-controller)). |
 
 ## Design Decisions

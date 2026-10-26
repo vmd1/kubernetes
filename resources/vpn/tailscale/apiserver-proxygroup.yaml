@@ -1,0 +1,17 @@
+# Dedicated, two-replica kubectl proxy (https://k8s-api.alai-tegus.ts.net), advertised as a Tailscale
+# Service. Tagged tag:k8s-apiserver (not the operator's default tag:k8s, which the policy does not
+# define) so grants can target only this proxy. Callers are impersonated; the group comes from the
+# policy grant and is bound in rbac.yaml. The in-process proxy on the operator device
+# (operator.yaml apiServerProxyConfig.mode) is the one this replaces.
+apiVersion: tailscale.com/v1alpha1
+kind: ProxyGroup
+metadata:
+  name: k8s-api
+spec:
+  type: kube-apiserver
+  replicas: 2
+  tags:
+    - tag:k8s-apiserver
+  kubeAPIServer:
+    mode: auth
+    hostname: k8s-api
