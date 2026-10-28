@@ -9,9 +9,6 @@ Reusable kustomize Components for default-deny networking (see `kubernetes/HARDE
 | [netpol-db-client](netpol-db-client/README.md) | egress to the database namespaces by label | apps using CNPG or Redis |
 | [netpol-egress-any](netpol-egress-any/README.md) | unrestricted egress (ingress stays denied) | probes, scanners, monitoring |
 | [netpol-api-server](netpol-api-server/README.md) | egress to the Kubernetes API | operators, controllers, Headlamp |
-| [netpol-ldap-client](netpol-ldap-client/README.md) | egress to the LLDAP namespace (`vmd1.homelab/ldap-server=true`) | Authelia, the registry |
-| [netpol-ldap-server](netpol-ldap-server/README.md) | ingress on the LDAP ports from `vmd1.homelab/ldap-client=true` namespaces | LLDAP |
-| [netpol-db-operator](netpol-db-operator/README.md) | egress from the CNPG operator to the database namespaces (8000, 5432) | cnpg-system |
 
 Always include `netpol-baseline`; the others only add allows on top of it.
 

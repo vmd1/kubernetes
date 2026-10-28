@@ -5,7 +5,6 @@
 # The k3s built-ins (default, kube-*) are listed for their labels only; k3s creates them.
 # vmd1.homelab/tier (app|infra|system) drives the admission policies in resources/policies/ and the netpol
 # components. policy.vmd1.homelab/allow-* are namespace-level exemptions, owned here in Git, never on a pod.
-# vmd1.homelab/ldap-server and ldap-client pair the LLDAP namespace with the namespaces that authenticate against it.
 # allow-capabilities lists the added capabilities a namespace may use, dot-separated (label values cannot hold commas).
 # vmd1.homelab/db-server=true marks the namespaces that hold databases (cnpg, redis); the netpol-db-client component
 # selects them. Client namespaces get vmd1.homelab/db-client=true when they are enrolled in the netpol rollout.
@@ -15,7 +14,6 @@ kind: Namespace
 metadata:
   name: authelia
   labels:
-    vmd1.homelab/ldap-client: "true"
     pod-security.kubernetes.io/audit: "restricted"
     pod-security.kubernetes.io/warn: "restricted"
     vmd1.homelab/tier: "infra"
@@ -202,7 +200,6 @@ kind: Namespace
 metadata:
   name: lldap
   labels:
-    vmd1.homelab/ldap-server: "true"
     pod-security.kubernetes.io/audit: "restricted"
     pod-security.kubernetes.io/warn: "restricted"
     vmd1.homelab/tier: "infra"
@@ -377,7 +374,6 @@ kind: Namespace
 metadata:
   name: registry
   labels:
-    vmd1.homelab/ldap-client: "true"
     pod-security.kubernetes.io/audit: "restricted"
     pod-security.kubernetes.io/warn: "restricted"
     vmd1.homelab/tier: "infra"

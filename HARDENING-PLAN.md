@@ -347,3 +347,21 @@ includes an `allow-intra-namespace` rule. Profiles were checked against three da
 The operator namespaces (`cnpg-system`, `redis-operator`) and the data namespaces (`cnpg`, `redis`)
 get different profiles on purpose: only the operators talk to the API server, and only the data
 namespaces accept database clients.
+
+## Appendix B. Status of the NetworkPolicy rollout (2026-10-28)
+
+The pilot (ntfy, gossip, obsidian) stays. The app-tier and infra-tier enrolments (#234, #235) were **reverted**:
+within minutes of #235 applying, `zeus-01` entered a reboot loop (about one hard reset an hour, up from about one
+a day) and `zeus-02`, `hera-01` and `ares-01` rebooted more often too. The 1 GB, 1/8-OCPU ingress nodes run close to
+their memory limit, and the logs of `zeus-01` show kube-router re-syncing about 200 NetworkPolicies (about 2,000
+iptables lines) every 10 to 30 seconds from the first minute after boot, each sync followed by growing kubelet
+housekeeping delays until the heartbeat is missed. Before the rollout no such sync appears in its journal.
+This is strong circumstantial evidence, not a measurement of the sync cost.
+
+Before re-enrolling anything:
+- cut the number of NetworkPolicy objects (drop the placeholder-only policies and the IPv6 blocks, merge the rest);
+- decide whether the small ingress nodes should run the network-policy controller at all
+  (`disable-network-policy` is a per-node k3s agent flag; their pods are DaemonSets);
+- watch `zeus-01` through a few boots with the full set applied.
+
+The enrolment commits are in history (`ce9bb94`, `e763d94`) and can be re-applied from there.

@@ -36,22 +36,6 @@ spec:
         - {protocol: UDP, port: 53}
         - {protocol: TCP, port: 53}
 ---
-# Pods of one namespace trust each other (app and its sidecars/databases/bridges; DaemonSet peers). default-deny
-# would otherwise cut them off. Cross-namespace traffic still needs an explicit allow.
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: allow-intra-namespace
-spec:
-  podSelector: {}
-  policyTypes: [Ingress, Egress]
-  ingress:
-    - from:
-        - podSelector: {}
-  egress:
-    - to:
-        - podSelector: {}
----
 # Traefik is hostNetwork. Its packets to a pod on another node leave through flannel.1 with that node's flannel
 # address (10.42.N.0) as the source, and to a pod on its own node through cni0 (10.42.N.1, also the kubelet probe
 # source); neither is a Tailscale address. Verified 2026-10-26 with `ip route get <pod IP>` on zeus-01 (via flannel.1
