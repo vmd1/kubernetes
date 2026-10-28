@@ -9,7 +9,7 @@ data:
   # Comma-separated path prefixes that tier=app/infra pods may mount as hostPath. A prefix matches itself and
   # anything below it. Namespaces labelled policy.vmd1.homelab/allow-privileged=true (monitoring: node-exporter,
   # promtail) may mount any path.
-  prefixes: "/var/lib/geoip,/var/lib/powerdns,/mnt/huge/media,/run/promtail,/var/log"
+  prefixes: "/var/lib/geoip,/var/lib/powerdns,/mnt/huge/media,/var/lib/promtail,/var/log"
 ---
 apiVersion: v1
 kind: ConfigMap

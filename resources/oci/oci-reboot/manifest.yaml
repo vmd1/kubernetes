@@ -82,10 +82,14 @@ spec:
                   fieldPath: metadata.namespace
             - name: POLL_INTERVAL
               value: "15"
+            # The 1 GB ingress nodes take up to 7 to 9 minutes after a boot to stall and recover on their own
+            # (page-cache thrash while k3s, promtail, tailscaled and containerd start). A reset after 180 s
+            # restarted that burst before the node could settle, which kept zeus-01 in a reset loop.
             - name: NOT_READY_THRESHOLD
-              value: "180"
+              value: "600"
+            # A freshly reset node gets this long before it can be reset again.
             - name: COOLDOWN_SECONDS
-              value: "300"
+              value: "1200"
           resources:
             limits:
               cpu: 200m
