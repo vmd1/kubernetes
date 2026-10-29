@@ -7,6 +7,7 @@ This folder contains standalone helper scripts used when operating the cluster o
 - [Files](#files)
 - [apply-secrets.sh](#apply-secretssh)
 - [apply-k3s-config.sh](#apply-k3s-configsh)
+- [slim-node.sh](#slim-nodesh)
 - [load-test.js](#load-testjs)
 - [Related](#related)
 
@@ -16,6 +17,7 @@ This folder contains standalone helper scripts used when operating the cluster o
 | :--- | :--- |
 | [apply-secrets.sh](apply-secrets.sh) | Decrypts and applies SOPS-encrypted `secrets.sops.yaml` files to the cluster. |
 | [apply-k3s-config.sh](apply-k3s-config.sh) | Diffs or installs the k3s control-plane config from [../resources/k3s-config/](../resources/k3s-config/README.md) over SSH (never restarts k3s). |
+| [slim-node.sh](slim-node.sh) | Removes snapd, apport, ModemManager, udisks2 and fwupd from a small Ubuntu node over SSH (dry run by default; refuses if apt would remove anything protected). |
 | [load-test.js](load-test.js) | [k6](https://k6.io) load-test script that hammers the ingress edge nodes and asserts latency/error thresholds. |
 
 ## apply-secrets.sh
@@ -41,6 +43,17 @@ _scripts/apply-k3s-config.sh <ssh-target> --apply   # copy the files to the host
 
 - `<ssh-target>` is anything `ssh` accepts for the control-plane node; no host is hard-coded. Needs passwordless `sudo` there.
 - Installs the files only. Restart k3s yourself after an etcd snapshot; see [../resources/k3s-config/README.md](../resources/k3s-config/README.md).
+
+## slim-node.sh
+
+```bash
+_scripts/slim-node.sh <ssh-target>           # apt simulation only (default)
+_scripts/slim-node.sh <ssh-target> --apply   # stop, disable and purge
+```
+
+- For the 1 GB Ubuntu ingress nodes, where `ModemManager`, `udisks2` and `fwupd` use 25 to 65 MB of the roughly 250 MB left, and `snapd` and `apport` add 20 to 25 s of boot work.
+- Refuses while any snap is installed, and if the simulated removal would also take SSH, cloud-init, networking, Tailscale, `open-iscsi`/`multipath-tools` (the OCI boot disk), a kernel or a base meta-package.
+- Run it on one node at a time and check the node is Ready afterwards. See [../../docs/host-config.md](../../docs/host-config.md) for where it has been applied.
 
 ## load-test.js
 

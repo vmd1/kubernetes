@@ -350,18 +350,29 @@ namespaces accept database clients.
 
 ## Appendix B. Status of the NetworkPolicy rollout (2026-10-28)
 
-The pilot (ntfy, gossip, obsidian) stays. The app-tier and infra-tier enrolments (#234, #235) were **reverted**:
-within minutes of #235 applying, `zeus-01` entered a reboot loop (about one hard reset an hour, up from about one
-a day) and `zeus-02`, `hera-01` and `ares-01` rebooted more often too. The 1 GB, 1/8-OCPU ingress nodes run close to
-their memory limit, and the logs of `zeus-01` show kube-router re-syncing about 200 NetworkPolicies (about 2,000
-iptables lines) every 10 to 30 seconds from the first minute after boot, each sync followed by growing kubelet
-housekeeping delays until the heartbeat is missed. Before the rollout no such sync appears in its journal.
-This is strong circumstantial evidence, not a measurement of the sync cost.
+The pilot (ntfy, gossip, obsidian) stays. The app-tier and infra-tier enrolments (#234, #235) were reverted in #246
+after the 1 GB ingress nodes started stalling right after #235 applied, and `zeus-01` fell into a reset loop (about
+one hard reset an hour, up from about one a day; 27 in 24 hours at the peak).
 
-Before re-enrolling anything:
+**The revert did not stop the stalls**, so the NetworkPolicy rollout was not the cause. What the evidence shows:
+- The nodes are 954 MB with no swap. About 6 minutes after a boot `zeus-01` showed I/O pressure around 88 % and memory
+  pressure around 41 %, with `k3s-agent` reading 27 MB/s, `promtail` 19 MB/s, plus `tailscaled`, containerd, PowerDNS and
+  podflow: a page-cache thrash. "Available" memory (about 350 MB) overstated the headroom.
+- Left alone, a node stalls for a few minutes and recovers. Two things kept `zeus-01` looping: the reboot controller reset
+  it after 180 s (restarting the burst on a cold cache) and `promtail` kept its positions under `/run` (a tmpfs), so it
+  re-read every container log after each boot. Both were fixed in #247 (reset threshold 600 s, cooldown 1200 s, positions
+  in `/var/lib/promtail`).
+- `zeus-01` and `zeus-02` began stalling in the same minute on 2026-10-26 (about 16:56), which points at a shared or
+  platform cause; the trigger is not identified. An OCI stop/start of `zeus-01` on 2026-10-28 was followed by 30+ minutes
+  of stable uptime. The kube-router resync of about 200 policies every 10 to 30 seconds seen in its journal is real load on
+  these nodes, but it is not shown to be the cause.
+- Ruled out: growth of the k3s agent (flat at about 105 MB), Tailscale traffic (low and unchanged), the ACL change.
+
+**Before re-enrolling NetworkPolicies:**
+- keep the small nodes stable for several days with the fixes above;
 - cut the number of NetworkPolicy objects (drop the placeholder-only policies and the IPv6 blocks, merge the rest);
 - decide whether the small ingress nodes should run the network-policy controller at all
   (`disable-network-policy` is a per-node k3s agent flag; their pods are DaemonSets);
-- watch `zeus-01` through a few boots with the full set applied.
+- consider swap or zram on the 1 GB nodes (kubelet needs `fail-swap-on=false`).
 
-The enrolment commits are in history (`ce9bb94`, `e763d94`) and can be re-applied from there.
+The enrolment commits stay in history (`ce9bb94`, `e763d94`) and can be re-applied from there.
