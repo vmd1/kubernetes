@@ -63,7 +63,7 @@ spec:
           tolerationSeconds: 60
       containers:
         - name: nextcloud
-          image: nextcloud:35-apache@sha256:0347adaf2fa460aa9589f8c2b1ed246788d11a72ad9918d55ca288f3137fe5ca
+          image: nextcloud:35-apache@sha256:e0b1a2af52c82c07b7a0e8e59878bd8769e704447734d5d238a836982f51b9c8
           ports:
             - name: http
               containerPort: 80
@@ -133,7 +133,7 @@ spec:
               subPath: zz-hardening.ini
               readOnly: true
         - name: nextcloud-cron
-          image: nextcloud:35-apache@sha256:0347adaf2fa460aa9589f8c2b1ed246788d11a72ad9918d55ca288f3137fe5ca
+          image: nextcloud:35-apache@sha256:e0b1a2af52c82c07b7a0e8e59878bd8769e704447734d5d238a836982f51b9c8
           command: ["/cron.sh"]
           envFrom:
             - secretRef:
