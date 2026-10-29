@@ -17,7 +17,7 @@ QEComp is an OIDC-authenticated app (API + SPA served same-origin) with Redis-ba
 
 | File | Description |
 | :--- | :--- |
-| [manifest.yaml](manifest.yaml) | ConfigMap `qecomp-config`, Deployment `qecomp` (`ghcr.io/qerobotics/vex-tm-tools:backend`, private image), ClusterIP Service on port 8000. |
+| [manifest.yaml](manifest.yaml) | ConfigMap `qecomp-config`, Deployment `qecomp` (`ghcr.io/aroboticsteam/vex-tm-tools:backend`, private image), ClusterIP Service on port 8000. |
 | [ingressroute.yaml](ingressroute.yaml) | Traefik `IngressRoute` for `tmtools.vmd1.homelab` (QEComp). |
 | [secrets.sops.yaml](secrets.sops.yaml) | SOPS-encrypted Secrets: `qecomp-secrets`, `ghcr-pull-secret` (private image pull). |
 | [kustomization.yaml](kustomization.yaml) | Kustomize manifest for QEComp. |
@@ -36,7 +36,7 @@ QEComp is an OIDC-authenticated app (API + SPA served same-origin) with Redis-ba
 - **CloudNativePG (CNPG)**: Database service `pg-cluster-rw.cnpg.svc.cluster.local:5432`, database/role `qecomp` created out-of-band via `psql` exec (not the CNPG `Database` CRD).
 - **Redis**: `redis-master.redis.svc.cluster.local:6379` (no auth), shared with `cinepro`.
 - **Backblaze B2**: S3-compatible object storage, bucket `qecomp` (private) in region `eu-central-003`.
-- **GHCR**: private image `ghcr.io/qerobotics/vex-tm-tools:backend`, pulled via `ghcr-pull-secret`.
+- **GHCR**: private image `ghcr.io/aroboticsteam/vex-tm-tools:backend`, pulled via `ghcr-pull-secret`.
 
 ## Services & Routers
 
