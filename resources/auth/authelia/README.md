@@ -75,7 +75,7 @@ The login UI is restyled to match vmd1.homelab (black background, frosted-glass 
 | `oauth2-proxy-vmd1-dev` | `https://secure.vmd1.homelab/oauth2/callback` | `domain_*` (group `Domain: <domain>`) |
 | `oauth2-proxy-010356-xyz` | `https://secure.vmd1.homelab/oauth2/callback` | `domain_*` (group `Domain: <domain>`) |
 | `oauth2-proxy-848226-xyz` | `https://secure.vmd1.homelab/oauth2/callback` | `domain_*` (group `Domain: <domain>`) |
-| `qecomp` | `https://tmtools.vmd1.homelab/auth/callback` (and the `http://` variant QEComp currently sends) | `qecomp_users` (lldap `qecomp-*` groups, `one_factor`) |
+| `qecomp` | `https://tmtools.vmd1.homelab/auth/callback` (and the `http://` variant QEComp currently sends) | `qecomp_users` (lldap `qecomp-*` groups incl. `qecomp-omnipotent`, `one_factor`) |
 | `vaultwarden` | `https://vault.vmd1.homelab/identity/connect/oidc-signin` | `one_factor` |
 | `grafana` | `https://grafana.vmd1.homelab/login/generic_oauth` | `grafana_users` (lldap `grafana-admin`, `grafana-editor`, `grafana-viewer`; `two_factor`) |
 | `nextcloud` | `https://cloud.vmd1.homelab/apps/user_oidc/code` | `nextcloud_users` (lldap `nextcloud_users`, `nextcloud_admins`) |

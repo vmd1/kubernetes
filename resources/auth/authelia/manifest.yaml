@@ -81,6 +81,7 @@ data:
                   - ["group:qecomp-admin"]
                   - ["group:qecomp-emcee"]
                   - ["group:qecomp-lighting"]
+                  - ["group:qecomp-omnipotent"]
                   - ["group:qecomp-operator"]
                   - ["group:qecomp-video"]
                   - ["group:qecomp-viewer"]
