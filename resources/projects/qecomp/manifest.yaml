@@ -63,7 +63,7 @@ spec:
               topologyKey: "kubernetes.io/hostname"
       initContainers:
         - name: migrate
-          image: ghcr.io/aroboticsteam/vex-tm-tools:backend@sha256:49731f2f4c292d06aa1da5f216b4464620526d217c98fb3033bc195e0eedae8b
+          image: ghcr.io/aroboticsteam/vex-tm-tools:backend@sha256:60ed1bf04005229fa33a2288d5f7845e4fa5c1986629d8d9955d0572582ce14d
           command: ["alembic", "upgrade", "head"]
           envFrom:
             - configMapRef: { name: qecomp-config }
@@ -72,7 +72,7 @@ spec:
               valueFrom: { secretKeyRef: { name: qecomp-secrets, key: POSTGRES_DSN } }
       containers:
         - name: qecomp
-          image: ghcr.io/aroboticsteam/vex-tm-tools:backend@sha256:49731f2f4c292d06aa1da5f216b4464620526d217c98fb3033bc195e0eedae8b
+          image: ghcr.io/aroboticsteam/vex-tm-tools:backend@sha256:60ed1bf04005229fa33a2288d5f7845e4fa5c1986629d8d9955d0572582ce14d
           ports:
             - name: http
               containerPort: 8000
