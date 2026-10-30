@@ -9,7 +9,7 @@ metadata:
     node-role.kubernetes.io/ingress: "true"
     node-type: "ingress"
     node.vmd1.homelab/oci-account: "eu-marseille-a3"
-    node.vmd1.homelab/oci-reboot: "false"
+    node.vmd1.homelab/oci-reboot: "true"
     node.vmd1.homelab/public-ip: "82.70.231.129"
     node.vmd1.homelab/username: "ubuntu"
     topology.kubernetes.io/region: "france"
