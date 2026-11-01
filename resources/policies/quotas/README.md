@@ -1,6 +1,6 @@
 # Quotas (`resources/policies/quotas/`)
 
-One `ResourceQuota` named `default-quota` in every `tier=app` and `tier=infra` namespace (30 of them).
+One `ResourceQuota` named `default-quota` in every `tier=app` and `tier=infra` namespace (31 of them).
 
 ## Files
 

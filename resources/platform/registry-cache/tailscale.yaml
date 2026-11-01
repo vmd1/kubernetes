@@ -1,0 +1,37 @@
+# Tailnet-only exposure of the cache: a Tailscale operator Ingress gives https://registry-cache.<tailnet>.ts.net with a
+# public-CA certificate, so containerd on the nodes needs no insecure-registry setting. Nothing is exposed publicly.
+#
+# Needs a tailnet policy change made by hand (tailscale/policy.hujson is not touched by this change):
+#   tagOwners: "tag:registry-cache": ["tag:k8s-operator"]
+#   grants:    {"src": ["tag:k3s"], "dst": ["tag:registry-cache"], "ip": ["tcp:443"]}
+# Until then the proxy device cannot register and the cache is simply unreachable from the nodes (they fall back).
+---
+# Placement for the Ingress proxy pod: uk-home only, next to the cache, never on the flaky free-tier cloud nodes.
+apiVersion: tailscale.com/v1alpha1
+kind: ProxyClass
+metadata:
+  name: registry-cache-uk-home
+spec:
+  statefulSet:
+    pod:
+      nodeSelector:
+        topology.kubernetes.io/zone: uk-home
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: registry-cache
+  namespace: registry-cache
+  annotations:
+    tailscale.com/tags: "tag:registry-cache"
+    tailscale.com/proxy-class: registry-cache-uk-home
+spec:
+  ingressClassName: tailscale
+  defaultBackend:
+    service:
+      name: registry-cache
+      port:
+        name: http
+  tls:
+    - hosts:
+        - registry-cache

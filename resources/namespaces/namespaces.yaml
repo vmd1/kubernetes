@@ -372,6 +372,17 @@ metadata:
 apiVersion: v1
 kind: Namespace
 metadata:
+  name: registry-cache
+  labels:
+    pod-security.kubernetes.io/audit: "restricted"
+    pod-security.kubernetes.io/warn: "restricted"
+    vmd1.homelab/tier: "infra"
+  annotations:
+    kustomize.toolkit.fluxcd.io/prune: disabled
+---
+apiVersion: v1
+kind: Namespace
+metadata:
   name: registry
   labels:
     pod-security.kubernetes.io/audit: "restricted"
