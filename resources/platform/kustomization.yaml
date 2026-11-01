@@ -3,5 +3,4 @@ kind: Kustomization
 
 resources:
   - registry
-  - registry-cache
   - longhorn
