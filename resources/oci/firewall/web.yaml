@@ -1,0 +1,14 @@
+apiVersion: network.vmd1.homelab/v1alpha1
+kind: FirewallRule
+metadata:
+  name: web
+spec:
+  type: OCI
+  description: HTTP/HTTPS ingress (Traefik)
+  nodeSelector:
+    node-role.kubernetes.io/ingress: "true"
+  ports:
+    - port: 80
+      protocol: TCP
+    - port: 443
+      protocol: TCP

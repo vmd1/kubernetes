@@ -1,0 +1,118 @@
+# FirewallRule CRD, reconciled by oci-port-controller (operators/oci-port-controller) for type OCI.
+# type Host is accepted by the schema but only enforced from Phase F (node agent); the controller ignores it.
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: firewallrules.network.vmd1.homelab
+spec:
+  group: network.vmd1.homelab
+  scope: Cluster
+  names:
+    plural: firewallrules
+    singular: firewallrule
+    kind: FirewallRule
+    shortNames:
+      - fr
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      subresources:
+        status: {}
+      additionalPrinterColumns:
+        - name: Type
+          type: string
+          jsonPath: .spec.type
+        - name: Ready
+          type: string
+          jsonPath: .status.conditions[?(@.type=="Ready")].status
+        - name: Reason
+          type: string
+          jsonPath: .status.conditions[?(@.type=="Ready")].reason
+        - name: Age
+          type: date
+          jsonPath: .metadata.creationTimestamp
+      schema:
+        openAPIV3Schema:
+          type: object
+          required: [spec]
+          properties:
+            spec:
+              type: object
+              required: [type, ports]
+              properties:
+                type:
+                  type: string
+                  enum: [OCI, Host]
+                  description: Where the rule is enforced. OCI = cloud security list (oci-port-controller). Host = node firewall (Phase F).
+                nodeName:
+                  type: string
+                nodeSelector:
+                  type: object
+                  additionalProperties:
+                    type: string
+                ports:
+                  type: array
+                  minItems: 1
+                  items:
+                    type: object
+                    required: [port]
+                    properties:
+                      port:
+                        type: integer
+                        minimum: 1
+                        maximum: 65535
+                      protocol:
+                        type: string
+                        enum: [TCP, UDP]
+                        default: TCP
+                sources:
+                  type: array
+                  description: Source CIDRs. Defaults to 0.0.0.0/0.
+                  items:
+                    type: string
+                description:
+                  type: string
+                oci:
+                  type: object
+                  description: Settings for type OCI.
+                  properties:
+                    account:
+                      type: string
+                      description: Overrides the node label node.vmd1.homelab/oci-account (credentials secret oci-credentials-<region><account>).
+            status:
+              type: object
+              properties:
+                observedGeneration:
+                  type: integer
+                  format: int64
+                conditions:
+                  type: array
+                  items:
+                    type: object
+                    required: [type, status]
+                    properties:
+                      type:
+                        type: string
+                      status:
+                        type: string
+                      lastTransitionTime:
+                        type: string
+                      reason:
+                        type: string
+                      message:
+                        type: string
+                nodes:
+                  type: array
+                  items:
+                    type: object
+                    required: [name, state]
+                    properties:
+                      name:
+                        type: string
+                      state:
+                        type: string
+                      message:
+                        type: string
+                      lastSyncTime:
+                        type: string

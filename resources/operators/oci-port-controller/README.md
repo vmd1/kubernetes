@@ -1,13 +1,13 @@
 # OCI Port Controller (`resources/operators/oci-port-controller/`)
 
-The `oci-port-controller` automates opening specified TCP/UDP ports across OCI Cloud Infrastructure Subnet Security Lists and host-level OS firewalls (`iptables`).
+The `oci-port-controller` opens specified TCP/UDP ports in OCI subnet security lists (and, for the legacy non-image nodes, host `iptables` over SSH) from `FirewallRule` objects of `type: OCI`.
 
 ## Table of Contents
 
 - [Namespace](#namespace)
 - [Architecture & Features](#architecture--features)
 - [Files](#files)
-- [OCIPortRule Instances](#ociportrule-instances)
+- [FirewallRule Instances](#firewallrule-instances)
 - [Related](#related)
 
 ## Namespace
@@ -16,59 +16,52 @@ The `oci-port-controller` automates opening specified TCP/UDP ports across OCI C
 
 ## Architecture & Features
 
-1. **Custom Resource Definition (`OCIPortRule`)**:
-   - Allows declaring open port requirements cluster-wide using `nodeSelector` (e.g. `node-role.kubernetes.io/ingress: "true"`) or `nodeName`.
-   - Custom resource group: `network.vmd1.homelab/v1alpha1` (Cluster-scoped, shortname `opr`).
-   - Reports per-node sync status in `.status.syncedNodes` / `.status.conditions`.
+1. **Custom Resource Definition (`FirewallRule`)** ([crds/oci-port-controller](../../crds/oci-port-controller/README.md)):
+   - `network.vmd1.homelab/v1alpha1`, cluster-scoped, short name `fr`. `spec.type` is `OCI` or `Host`; this controller reconciles `OCI` and ignores `Host` (Phase F).
+   - `nodeSelector` (e.g. `node-role.kubernetes.io/ingress: "true"`) or `nodeName`; `ports: [{port, protocol}]`; `sources` (CIDRs, default `0.0.0.0/0`); `description`; `oci.account` overrides the node label `node.vmd1.homelab/oci-account`.
+   - Status: `observedGeneration`, `conditions` (`Ready`), and per-node results in `status.nodes[]`.
+   - **Deprecated `OCIPortRule`** objects are still reconciled as implicit `FirewallRule`s of type OCI (`spec.protocol` applied to every port, source `0.0.0.0/0`); their status gets a `Deprecated` condition and keeps the legacy `syncedNodes` map.
 
 2. **OCI Subnet Security List Sync**:
    - Loads OCI API credentials from secret `oci-credentials-<region><account>` in the `oci-controller` namespace (shared with [oci-reboot](../../oci/oci-reboot/README.md)).
-   - Resolves the instance OCID, VNICs, and Subnet Security Lists using the OCI Python SDK (`ComputeClient` and `VirtualNetworkClient`).
-   - Dynamically adds missing ingress security rules for the requested ports (`0.0.0.0/0`), supporting both TCP and UDP.
+   - Resolves the instance, VNIC and subnet security lists with the OCI Python SDK, then adds each missing ingress rule per (port, protocol, source). It never removes rules.
 
-3. **Node Host Firewall Sync (SSH)**:
-   - Reads the node public IP and SSH username from node labels (`node.vmd1.homelab/public-ip`, `node.vmd1.homelab/username`).
-   - Uses the private SSH key stored in Secret `node-ssh-key` (namespace `oci-controller`).
-   - Executes OpenSSH commands to add missing `iptables` rules and persists them with `netfilter-persistent save`.
+3. **Node Host Firewall Sync (SSH, legacy)**:
+   - Only for nodes without the `node.vmd1.homelab/image-version` annotation (none are left); uses the key in Secret `node-ssh-key` and `node.vmd1.homelab/public-ip` / `username` labels to add `iptables` rules.
 
 ## Files
 
 | File | Description |
 | :--- | :--- |
-| [manifest.yaml](manifest.yaml) | CustomResourceDefinition (`ociportrules.network.vmd1.homelab`), ServiceAccount, ClusterRole & Binding, and the Deployment, which runs the image `ghcr.io/vmd1/oci-port-controller` (pinned by digest, built from [`controllers/oci-port-controller`](../../../../controllers/oci-port-controller); runs as root because it reads the 0600 SSH key; `openssh-client`, `oci` and `kubernetes` are baked in, so a pod start no longer runs `apt-get`/`pip`). |
+| [manifest.yaml](manifest.yaml) | ServiceAccount, ClusterRole & Binding (`firewallrules`, `ociportrules` and their status), and the Deployment, which runs the image `ghcr.io/vmd1/oci-port-controller` (pinned by digest, built from [`controllers/oci-port-controller`](../../../../controllers/oci-port-controller); runs as root because it reads the 0600 SSH key). Unit tests: `python3 -m unittest test_controller` in that directory. |
 | [kustomization.yaml](kustomization.yaml) | Kustomize entrypoint for this folder. |
 | [secrets.sops.yaml](../oci-controller/secrets.sops.yaml) | Shared SOPS-encrypted secrets (`node-ssh-key`, `oci-credentials-<region>*`) — see [oci-controller/](../oci-controller/README.md). |
 
-## OCIPortRule Instances
+## FirewallRule Instances
 
-The `OCIPortRule` instances consumed by this controller are defined in the [nodes/](../../oci/port-rules/README.md) layer (reconciled after this layer):
-
-- `web-ports` — TCP 80, 443
-- `dns-port` — TCP 53
-- `dns-port-udp` — UDP 53
-- `dot-port` — TCP 853 (DNS over TLS)
-- `tailscale-wireguard` — UDP 41641, 41642
+Defined in [oci/firewall](../../oci/firewall/README.md) (reconciled after this layer): `web` (80/tcp, 443/tcp), `dns` (53/tcp, 53/udp), `tailscale-wireguard` (41641/udp, 41642/udp).
 
 ## Sample Resource
 
 ```yaml
 apiVersion: network.vmd1.homelab/v1alpha1
-kind: OCIPortRule
+kind: FirewallRule
 metadata:
-  name: ingress-nodes-ports
+  name: web
 spec:
+  type: OCI
   nodeSelector:
     node-role.kubernetes.io/ingress: "true"
-  protocol: tcp
   ports:
-    - 80
-    - 443
-    - 53
+    - port: 80
+      protocol: TCP
+    - port: 443
+      protocol: TCP
 ```
 
 ## Related
 
-- [nodes/README.md](../../oci/port-rules/README.md) — the `OCIPortRule` instances this controller reconciles.
+- [oci/firewall/README.md](../../oci/firewall/README.md) — the `FirewallRule` instances this controller reconciles.
 - [oci-controller/README.md](../oci-controller/README.md) — shared secrets for the `oci-controller` namespace.
 - [oci/oci-reboot/README.md](../../oci/oci-reboot/README.md) — sibling controller sharing the OCI credentials.
 - [../README.md](../README.md) — the CRDs & operators layer this folder belongs to.

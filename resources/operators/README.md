@@ -14,7 +14,7 @@ The [kustomization.yaml](kustomization.yaml) here is the Kustomize entrypoint fo
 | [longhorn](longhorn/README.md) | Longhorn operator chart, recurring backup jobs, and the S3 backup secret. (UI + BackupTarget live in [platform/longhorn](../platform/longhorn/README.md).) |
 | [multus](multus/README.md) | Multus CNI meta-plugin and the `storage-macvlan-eth0` network attachment for Longhorn. |
 | [oci-controller](oci-controller/README.md) | Shared SOPS secrets (`node-ssh-key`, `oci-credentials-<region>*`) for the `oci-controller` namespace. |
-| [oci-port-controller](oci-port-controller/README.md) | Controller + `OCIPortRule` CRD that opens ports on OCI security lists and host firewalls. |
+| [oci-port-controller](oci-port-controller/README.md) | Controller for `FirewallRule` (type OCI) that opens ports on OCI security lists and host firewalls. |
 | [redis](redis/README.md) | Redis operator, master-replica replication, Sentinel, and HAProxy load balancer. |
 | [traefik](traefik/README.md) | Traefik ingress controller HelmChart (DaemonSet, host network). (Middlewares/LB live in [proxy/traefik](../proxy/traefik/README.md).) |
 
@@ -22,11 +22,11 @@ The [kustomization.yaml](kustomization.yaml) here is the Kustomize entrypoint fo
 
 - Some components are **split across layers**: the Longhorn and Traefik operator charts live here, while their UI and backup target live in [platform/longhorn](../platform/longhorn/README.md) and their Middlewares and routes in [proxy/traefik](../proxy/traefik/README.md).
 - The [oci-controller](oci-controller/README.md) folder contains only secrets; the actual controllers (reboot + port) live in [oci/oci-reboot](../oci/oci-reboot/README.md) and here respectively.
-- The `OCIPortRule` CRD instances consumed by `oci-port-controller` live in [oci/port-rules](../oci/port-rules/README.md).
+- The `FirewallRule` instances consumed by `oci-port-controller` live in [oci/firewall](../oci/firewall/README.md).
 
 ## Related
 
-- [../oci/port-rules/README.md](../oci/port-rules/README.md) — `OCIPortRule` instances reconciled after this layer.
+- [../oci/firewall/README.md](../oci/firewall/README.md) — `FirewallRule` instances reconciled after this layer.
 - [../README.md](../README.md) — the purpose groups that build on this layer.
 - [../../clusters/vmd1/operators.yaml](../../clusters/vmd1/operators.yaml) — the Flux Kustomization that reconciles this layer.
 - [../../../docs/manifests.md](../../../docs/manifests.md) — detailed per-component inventory.

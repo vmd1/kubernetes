@@ -19,10 +19,10 @@ Four foundation layers run in order; everything else is a purpose group that dep
 | [node-labels.yaml](node-labels.yaml) | `./resources/node-labels` | — | Labels on the eight Nodes (no taints). `wait: false`. |
 | [namespaces.yaml](namespaces.yaml) | `./resources/namespaces` | — | Every Namespace except `default`, `kube-*` and `flux-system` |
 | [policies.yaml](policies.yaml) | `./resources/policies` | `namespaces` | Admission policies and quotas. Nothing depends on it. |
-| [crds.yaml](crds.yaml) | `./resources/crds` | `namespaces` | Vendored CRDs (CNPG, EdgeSite, OCIPortRule), never pruned |
+| [crds.yaml](crds.yaml) | `./resources/crds` | `namespaces` | Vendored CRDs (CNPG, EdgeSite, FirewallRule, OCIPortRule), never pruned |
 | [operators.yaml](operators.yaml) | `./resources/operators` | `crds`, `node-labels` | Operators and charts (cert-manager, CNPG, Longhorn, Traefik, Multus, OCI port controller, Redis, Kube-VIP) |
 | [vpn.yaml](vpn.yaml) | `./resources/vpn` | `operators` | Tailscale operator and region controller |
-| [oci.yaml](oci.yaml) | `./resources/oci` | `operators` | OCI reboot watchdog and the ingress nodes' `OCIPortRule`s |
+| [oci.yaml](oci.yaml) | `./resources/oci` | `operators` | OCI reboot watchdog and the ingress nodes' `FirewallRule`s |
 | [proxy.yaml](proxy.yaml) | `./resources/proxy` | `operators` | Traefik Middlewares, TLS options, uk-home LB, dashboard and guard routes; cf-ddns |
 | [auth.yaml](auth.yaml) | `./resources/auth` | `operators` | lldap, Authelia, oauth2-proxy |
 | [platform.yaml](platform.yaml) | `./resources/platform` | `operators` | Private registry; Longhorn UI and backup target |
@@ -44,7 +44,7 @@ namespaces ──► crds ──► operators ──┬──► vpn, oci, proxy
 ```
 
 - **Node labels** and **namespaces** come first, so no layer has to create the namespace it deploys into and every pod can find the nodes it selects.
-- **CRDs** come next, so custom resources (`OCIPortRule`, `Cluster`, `EdgeSite`) always have their types. Chart-installed CRDs (Traefik `IngressRoute`, cert-manager) come from their HelmCharts in `operators`.
+- **CRDs** come next, so custom resources (`FirewallRule`, `Cluster`, `EdgeSite`) always have their types. Chart-installed CRDs (Traefik `IngressRoute`, cert-manager) come from their HelmCharts in `operators`.
 - **Operators** run the controllers and databases (CNPG, Redis) the groups use.
 - **Purpose groups** depend only on `operators`. Links between groups (an IngressRoute using a `proxy` Middleware or the `auth` ForwardAuth, an app pulling from `platform`'s registry) are resolved at request time, not at apply time, so they are deliberately not `dependsOn`: a broken manifest in one group cannot stop another from reconciling, and `flux suspend kustomization <group>` pauses just that group.
 - **Edge** holds every Flux-applied DaemonSet on the 1 GB ingress nodes, so a NotReady ingress node only marks `edge` NotReady.

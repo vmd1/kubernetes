@@ -38,4 +38,4 @@ Per [docs/manifests.md](../../../../docs/manifests.md), the encrypted file conta
 
 - [../oci-port-controller/README.md](../oci-port-controller/README.md) — the port-opening controller.
 - [../../oci/oci-reboot/README.md](../../oci/oci-reboot/README.md) — the reboot watchdog controller.
-- [../../oci/port-rules/README.md](../../oci/port-rules/README.md) — the `OCIPortRule` instances reconciled by `oci-port-controller`.
+- [../../oci/firewall/README.md](../../oci/firewall/README.md) — the `FirewallRule` instances reconciled by `oci-port-controller`.

@@ -16,7 +16,7 @@ rules:
     resources: ["secrets"]
     verbs: ["get"]
   - apiGroups: ["network.vmd1.homelab"]
-    resources: ["ociportrules", "ociportrules/status"]
+    resources: ["firewallrules", "firewallrules/status", "ociportrules", "ociportrules/status"]
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1

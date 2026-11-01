@@ -1,0 +1,14 @@
+apiVersion: network.vmd1.homelab/v1alpha1
+kind: FirewallRule
+metadata:
+  name: tailscale-wireguard
+spec:
+  type: OCI
+  description: Tailscale WireGuard (direct connections)
+  nodeSelector:
+    node-role.kubernetes.io/ingress: "true"
+  ports:
+    - port: 41641
+      protocol: UDP
+    - port: 41642
+      protocol: UDP

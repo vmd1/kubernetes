@@ -17,10 +17,10 @@ This directory contains all the Kubernetes manifests that Flux reconciles into t
 | [namespaces/](namespaces/README.md) | `./resources/namespaces` | Every Namespace the cluster uses (except `default`, `kube-*`, `flux-system`), with Flux pruning disabled. |
 | [policies/](policies/README.md) | `./resources/policies` | Admission policies (Warn + Audit) and namespace quotas. Nothing depends on it. |
 | [k3s-config/](k3s-config/README.md) | not Flux | Control-plane config for the host (audit logging, secrets encryption), installed by `_scripts/apply-k3s-config.sh`. |
-| [crds/](crds/README.md) | `./resources/crds` | Vendored CRDs: CloudNativePG, EdgeSite, OCIPortRule. Never pruned. |
+| [crds/](crds/README.md) | `./resources/crds` | Vendored CRDs: CloudNativePG, EdgeSite, FirewallRule, OCIPortRule (deprecated). Never pruned. |
 | [operators/](operators/README.md) | `./resources/operators` | Operators and charts: cert-manager, CloudNativePG, Kube-VIP, Longhorn, Multus, OCI controller secrets, OCI port controller, Redis, Traefik. |
 | [vpn/](vpn/README.md) | `./resources/vpn` | Tailscale operator and region controller. |
-| [oci/](oci/README.md) | `./resources/oci` | OCI reboot watchdog and the ingress nodes' `OCIPortRule`s. |
+| [oci/](oci/README.md) | `./resources/oci` | OCI reboot watchdog and the ingress nodes' `FirewallRule`s. |
 | [proxy/](proxy/README.md) | `./resources/proxy` | Traefik Middlewares, TLS options, uk-home LB, dashboard and guard routes; cf-ddns. |
 | [auth/](auth/README.md) | `./resources/auth` | lldap, Authelia, oauth2-proxy. |
 | [platform/](platform/README.md) | `./resources/platform` | Private registry; Longhorn UI and backup target. |

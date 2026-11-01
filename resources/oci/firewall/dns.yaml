@@ -1,0 +1,14 @@
+apiVersion: network.vmd1.homelab/v1alpha1
+kind: FirewallRule
+metadata:
+  name: dns
+spec:
+  type: OCI
+  description: DNS (PowerDNS on the ingress nodes)
+  nodeSelector:
+    node-role.kubernetes.io/ingress: "true"
+  ports:
+    - port: 53
+      protocol: TCP
+    - port: 53
+      protocol: UDP
