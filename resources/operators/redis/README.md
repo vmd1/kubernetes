@@ -24,5 +24,5 @@ This directory manages the High Availability (HA) Redis Cluster using [OT-CONTAI
 
 ## Network policy
 
-Enrolled in the NetworkPolicy baseline (HARDENING-PLAN.md, Appendix F): baseline, api-server, db-client. Ingress 8081, metrics 8080. Same-namespace traffic is allowed; everything else is denied by default.
+Enrolled in the NetworkPolicy baseline (docs/cluster-hardening-plan.md, Appendix F): baseline, api-server, db-client. Ingress 8081, metrics 8080. Same-namespace traffic is allowed; everything else is denied by default.
 

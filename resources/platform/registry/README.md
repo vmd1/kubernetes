@@ -54,5 +54,5 @@ This folder deploys a private self-hosted Docker registry (`registry:3`). It pro
 
 ## Network policy
 
-Enrolled in the NetworkPolicy baseline (HARDENING-PLAN.md, Appendix E): baseline, egress-public plus allow-egress-lldap. Ingress ports 5000 and 5001. Same-namespace traffic is allowed; everything else is denied by default.
+Enrolled in the NetworkPolicy baseline (docs/cluster-hardening-plan.md, Appendix E): baseline, egress-public plus allow-egress-lldap. Ingress ports 5000 and 5001. Same-namespace traffic is allowed; everything else is denied by default.
 

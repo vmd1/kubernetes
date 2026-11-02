@@ -51,5 +51,5 @@ This directory hosts the self-hosted Matrix federation setup, utilizing the high
 
 ## Network policy
 
-Enrolled in the NetworkPolicy baseline (HARDENING-PLAN.md, Appendix E): baseline, db-client, egress-public. Ingress ports 8008, 80 and the five bridge ports. Same-namespace traffic is allowed; everything else is denied by default.
+Enrolled in the NetworkPolicy baseline (docs/cluster-hardening-plan.md, Appendix E): baseline, db-client, egress-public. Ingress ports 8008, 80 and the five bridge ports. Same-namespace traffic is allowed; everything else is denied by default.
 

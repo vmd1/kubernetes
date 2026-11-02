@@ -74,5 +74,5 @@ middlewares:
 
 ## Network policy
 
-Enrolled in the NetworkPolicy baseline (HARDENING-PLAN.md, Appendix E): baseline, egress-any. Ingress port 4180. Same-namespace traffic is allowed; everything else is denied by default.
+Enrolled in the NetworkPolicy baseline (docs/cluster-hardening-plan.md, Appendix E): baseline, egress-any. Ingress port 4180. Same-namespace traffic is allowed; everything else is denied by default.
 

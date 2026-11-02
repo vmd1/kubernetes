@@ -50,7 +50,7 @@ Keeps the MaxMind **GeoLite2** databases up to date on every node, in one shared
 
 ## Network policy
 
-Enrolled in the NetworkPolicy baseline (HARDENING-PLAN.md, Appendix F): baseline, egress-public. No ingress. Same-namespace traffic is allowed; everything else is denied by default.
+Enrolled in the NetworkPolicy baseline (docs/cluster-hardening-plan.md, Appendix F): baseline, egress-public. No ingress. Same-namespace traffic is allowed; everything else is denied by default.
 
 ## Related
 

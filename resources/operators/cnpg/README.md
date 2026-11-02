@@ -68,7 +68,7 @@ CloudNativePG (CNPG) is an operator designed to manage PostgreSQL database clust
 
 ## Network policy
 
-Enrolled in the NetworkPolicy baseline (HARDENING-PLAN.md, Appendix F): baseline, api-server plus allow-egress-instances. Ingress 9443, metrics 8080. Same-namespace traffic is allowed; everything else is denied by default.
+Enrolled in the NetworkPolicy baseline (docs/cluster-hardening-plan.md, Appendix F): baseline, api-server plus allow-egress-instances. Ingress 9443, metrics 8080. Same-namespace traffic is allowed; everything else is denied by default.
 
 ## Related
 

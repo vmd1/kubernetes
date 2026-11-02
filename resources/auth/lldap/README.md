@@ -63,5 +63,5 @@ Service accounts: `authelia` (Authelia's bind user), `registry` (docker-auth's r
 
 ## Network policy
 
-Enrolled in the NetworkPolicy baseline (HARDENING-PLAN.md, Appendix E): baseline, db-client plus allow-ingress-ldap (authelia and registry only). Ingress port 17170. Same-namespace traffic is allowed; everything else is denied by default.
+Enrolled in the NetworkPolicy baseline (docs/cluster-hardening-plan.md, Appendix E): baseline, db-client plus allow-ingress-ldap (authelia and registry only). Ingress port 17170. Same-namespace traffic is allowed; everything else is denied by default.
 

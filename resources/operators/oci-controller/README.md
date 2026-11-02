@@ -36,7 +36,7 @@ Per [docs/manifests.md](../../../../docs/manifests.md), the encrypted file conta
 
 ## Network policy
 
-Enrolled in the NetworkPolicy baseline (HARDENING-PLAN.md, Appendix E): baseline, egress-public, api-server. No ingress. Same-namespace traffic is allowed; everything else is denied by default.
+Enrolled in the NetworkPolicy baseline (docs/cluster-hardening-plan.md, Appendix E): baseline, egress-public, api-server. No ingress. Same-namespace traffic is allowed; everything else is denied by default.
 
 ## Related
 

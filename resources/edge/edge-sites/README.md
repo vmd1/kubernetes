@@ -54,5 +54,5 @@ None persistent. Edge pods keep a node-local `emptyDir` cache (content-addressed
 
 ## Network policy
 
-Enrolled in the NetworkPolicy baseline (HARDENING-PLAN.md, Appendix F): baseline, egress-any, api-server. Ingress ports 80 and 9100. Same-namespace traffic is allowed; everything else is denied by default.
+Enrolled in the NetworkPolicy baseline (docs/cluster-hardening-plan.md, Appendix F): baseline, egress-any, api-server. Ingress ports 80 and 9100. Same-namespace traffic is allowed; everything else is denied by default.
 

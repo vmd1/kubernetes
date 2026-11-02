@@ -109,5 +109,5 @@ sops -d resources/auth/authelia/secrets.sops.yaml | grep ldap_password
 
 ## Network policy
 
-Enrolled in the NetworkPolicy baseline (HARDENING-PLAN.md, Appendix E): baseline, db-client, egress-public plus allow-egress-lldap. Ingress ports 8080 and 9091. Same-namespace traffic is allowed; everything else is denied by default.
+Enrolled in the NetworkPolicy baseline (docs/cluster-hardening-plan.md, Appendix E): baseline, db-client, egress-public plus allow-egress-lldap. Ingress ports 8080 and 9091. Same-namespace traffic is allowed; everything else is denied by default.
 

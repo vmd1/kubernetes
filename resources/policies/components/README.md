@@ -1,6 +1,6 @@
 # NetworkPolicy components
 
-Reusable kustomize Components for default-deny networking (see `kubernetes/HARDENING-PLAN.md`, PR 2). An app includes them from its own `kustomization.yaml`; no shared policy is edited when an app is added.
+Reusable kustomize Components for default-deny networking (see `docs/cluster-hardening-plan.md`, PR 2). An app includes them from its own `kustomization.yaml`; no shared policy is edited when an app is added.
 
 | Component | Adds | Use for |
 | :--- | :--- | :--- |

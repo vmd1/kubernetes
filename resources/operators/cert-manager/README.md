@@ -43,5 +43,5 @@ Cert-Manager automatically provisions, renews, and manages TLS certificates in t
 
 ## Network policy
 
-Enrolled in the NetworkPolicy baseline (HARDENING-PLAN.md, Appendix F): baseline, egress-public, api-server. Ingress 10250, 6080, 9403, metrics 9402. Same-namespace traffic is allowed; everything else is denied by default.
+Enrolled in the NetworkPolicy baseline (docs/cluster-hardening-plan.md, Appendix F): baseline, egress-public, api-server. Ingress 10250, 6080, 9403, metrics 9402. Same-namespace traffic is allowed; everything else is denied by default.
 

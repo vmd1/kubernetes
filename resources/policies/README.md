@@ -1,6 +1,6 @@
 # Policies (`resources/policies/`)
 
-Admission policies and namespace quotas for the `vmd1` cluster, applied by the `policies` Flux Kustomization ([../../clusters/vmd1/policies.yaml](../../clusters/vmd1/policies.yaml)). Nothing depends on this layer, so a broken policy cannot hold up an app group. Part of the cluster hardening plan (`kubernetes/HARDENING-PLAN.md`, added by the plan PR), PR 1 of 3.
+Admission policies and namespace quotas for the `vmd1` cluster, applied by the `policies` Flux Kustomization ([../../clusters/vmd1/policies.yaml](../../clusters/vmd1/policies.yaml)). Nothing depends on this layer, so a broken policy cannot hold up an app group. Part of the cluster hardening plan (`docs/cluster-hardening-plan.md`, added by the plan PR), PR 1 of 3.
 
 ## Files
 
@@ -19,5 +19,5 @@ Admission policies and namespace quotas for the `vmd1` cluster, applied by the `
 
 ## Related
 
-- `kubernetes/HARDENING-PLAN.md` — the plan and rollout (added by the plan PR).
+- `docs/cluster-hardening-plan.md` — the plan and rollout (added by the plan PR).
 - [../README.md](../README.md) — the layer order.

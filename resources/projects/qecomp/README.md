@@ -60,7 +60,7 @@ QEComp is an OIDC-authenticated app (API + SPA served same-origin) with Redis-ba
 
 ## Network policy
 
-Enrolled in the NetworkPolicy baseline (HARDENING-PLAN.md, Appendix D): components baseline, egress-any. Ingress is allowed from Traefik and Prometheus on port 8000 (Service 80 maps to 8000) only; same-namespace traffic is allowed; everything else is denied by default.
+Enrolled in the NetworkPolicy baseline (docs/cluster-hardening-plan.md, Appendix D): components baseline, egress-any. Ingress is allowed from Traefik and Prometheus on port 8000 (Service 80 maps to 8000) only; same-namespace traffic is allowed; everything else is denied by default.
 
 ## Related
 

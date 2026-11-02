@@ -47,5 +47,5 @@ Nextcloud signs in through the cluster-wide Authelia using the `user_oidc` app. 
 
 ## Network policy
 
-Enrolled in the NetworkPolicy baseline (HARDENING-PLAN.md, Appendix D): components baseline, db-client, egress-public. Ingress is allowed from Traefik and Prometheus on port 80, 9980 (Collabora) only; same-namespace traffic is allowed; everything else is denied by default.
+Enrolled in the NetworkPolicy baseline (docs/cluster-hardening-plan.md, Appendix D): components baseline, db-client, egress-public. Ingress is allowed from Traefik and Prometheus on port 80, 9980 (Collabora) only; same-namespace traffic is allowed; everything else is denied by default.
 

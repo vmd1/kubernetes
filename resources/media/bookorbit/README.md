@@ -55,7 +55,7 @@ BookOrbit is a self-hosted digital library and reading platform for ebooks, audi
 
 ## Network policy
 
-Enrolled in the NetworkPolicy baseline (HARDENING-PLAN.md, Appendix D): components baseline, db-client, egress-public. Ingress is allowed from Traefik and Prometheus on port 3000 only; same-namespace traffic is allowed; everything else is denied by default.
+Enrolled in the NetworkPolicy baseline (docs/cluster-hardening-plan.md, Appendix D): components baseline, db-client, egress-public. Ingress is allowed from Traefik and Prometheus on port 3000 only; same-namespace traffic is allowed; everything else is denied by default.
 
 ## Related
 

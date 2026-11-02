@@ -56,5 +56,5 @@ Vaultwarden is an alternative Bitwarden server API implementation written in Rus
 
 ## Network policy
 
-Enrolled in the NetworkPolicy baseline (HARDENING-PLAN.md, Appendix F): baseline, db-client, egress-public. Ingress port 80. Same-namespace traffic is allowed; everything else is denied by default.
+Enrolled in the NetworkPolicy baseline (docs/cluster-hardening-plan.md, Appendix F): baseline, db-client, egress-public. Ingress port 80. Same-namespace traffic is allowed; everything else is denied by default.
 
