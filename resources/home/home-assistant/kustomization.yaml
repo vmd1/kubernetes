@@ -16,3 +16,5 @@ patches:
         template:
           metadata:
             labels: {app.kubernetes.io/name: home-assistant}
+          spec:
+            securityContext: {seccompProfile: {type: RuntimeDefault}}

@@ -19,4 +19,4 @@ metadata:
 data:
   # Comma-separated kind/namespace/name subjects that may be bound to cluster-admin. Namespace is empty for
   # cluster-scoped subjects (Group/User). Add a subject here in the same PR that binds it.
-  subjects: "ServiceAccount/flux-system/kustomize-controller,ServiceAccount/flux-system/helm-controller,Group//system:masters"
+  subjects: "ServiceAccount/flux-system/kustomize-controller,ServiceAccount/flux-system/helm-controller,Group//system:masters,Group//tailnet-admins"

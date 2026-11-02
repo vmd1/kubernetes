@@ -34,6 +34,8 @@ patches:
         template:
           metadata:
             labels: {app.kubernetes.io/name: collabora}
+          spec:
+            securityContext: {seccompProfile: {type: RuntimeDefault}}
   - target: {kind: Deployment, name: nextcloud}
     patch: |-
       apiVersion: apps/v1

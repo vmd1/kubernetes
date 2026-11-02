@@ -1,6 +1,6 @@
 # Admission policies (`resources/policies/admission/`)
 
-`ValidatingAdmissionPolicy` objects and their `ValidatingAdmissionPolicyBinding`s. Every binding is `validationActions: [Warn, Audit]`, so a violation prints a warning to the client and is recorded in the API audit log, and nothing is rejected.
+`ValidatingAdmissionPolicy` objects and their `ValidatingAdmissionPolicyBinding`s. Every binding except `vmd1-resource-limits` (advisory, `[Warn, Audit]`) is `validationActions: [Deny, Audit]` since 2026-11-02, so a violation prints a warning to the client and is recorded in the API audit log, and nothing is rejected.
 
 ## Files
 
@@ -38,7 +38,7 @@ Method: every live workload in `tier=app`/`infra` (96 distinct) was re-created a
 | vmd1-rbac-roles, vmd1-rbac-bindings | 54 and 16 evaluations failed since the API server started (operator ClusterRoles with wildcards, cluster-admin bindings outside the list) | No: would block Flux applying operator RBAC |
 | vmd1-storage, vmd1-namespace-tier, vmd1-resource-limits | none seen / Warn permanently | storage and namespace-tier: yes after a re-check |
 
-Every binding therefore stays `[Warn, Audit]`. Flip one only when its row is clean, one PR per policy, `tier=app` first.
+Update 2026-11-02, later the same day: home-assistant and collabora got `seccompProfile: RuntimeDefault`, qecomp's `migrate` init container got `runAsNonRoot`, `tailnet-admins` was added to the cluster-admin allow-list, a re-audit of live pods, CronJob templates and every Flux-rendered object came back clean, and all bindings except `resource-limits` were flipped to `[Deny, Audit]`. Roll-back: see the comment at the top of [bindings.yaml](bindings.yaml).
 
 ## Exemptions and fixes (app-hardening)
 

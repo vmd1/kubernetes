@@ -38,4 +38,4 @@ patches:
             containers:
               - {name: qecomp, securityContext: {allowPrivilegeEscalation: false, runAsNonRoot: true, runAsUser: 1000}}
             initContainers:
-              - {name: migrate, securityContext: {allowPrivilegeEscalation: false}}
+              - {name: migrate, securityContext: {allowPrivilegeEscalation: false, runAsNonRoot: true, runAsUser: 1000}}
