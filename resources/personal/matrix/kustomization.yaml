@@ -121,13 +121,16 @@ patches:
             containers:
               - {name: bridge, securityContext: {allowPrivilegeEscalation: false}}
   # The pinned bridge images are no longer served by dock.mau.dev (NotFound on pull), so only the node that already has
-  # each image cached can start it. Pin the pods there until the digests are bumped to a pullable build.
+  # each image cached can start it. Pin the pods there, with IfNotPresent so the cached digest is used without asking the registry (the :latest tag defaults to Always), until the digests are bumped to a pullable build.
   - target: {kind: Deployment, name: mautrix-whatsapp}
     patch: |-
+      - {op: add, path: /spec/template/spec/containers/0/imagePullPolicy, value: IfNotPresent}
       - {op: add, path: /spec/template/spec/nodeSelector, value: {kubernetes.io/hostname: hades-01}}
   - target: {kind: Deployment, name: mautrix-gmessages}
     patch: |-
+      - {op: add, path: /spec/template/spec/containers/0/imagePullPolicy, value: IfNotPresent}
       - {op: add, path: /spec/template/spec/nodeSelector, value: {kubernetes.io/hostname: hades-02}}
   - target: {kind: Deployment, name: mautrix-linkedin}
     patch: |-
+      - {op: add, path: /spec/template/spec/containers/0/imagePullPolicy, value: IfNotPresent}
       - {op: add, path: /spec/template/spec/nodeSelector, value: {kubernetes.io/hostname: hades-02}}
