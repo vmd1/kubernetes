@@ -5,3 +5,21 @@ resources:
   - manifest.yaml
   - ingressroute.yaml
   - secrets.sops.yaml
+
+components:
+  - ../../policies/components/netpol-baseline
+  - ../../policies/components/netpol-egress-any
+
+patches:
+  # Scans the network, so egress stays open. 80 is the frontend (Traefik), 8000 the backend (kubelet probe; the frontend reaches it inside the namespace).
+  # Components carry no namespace; the app port and scrape port replace the closed placeholder (port 1).
+  - target: {kind: NetworkPolicy}
+    patch: |-
+      - {op: add, path: /metadata/namespace, value: homelable}
+  - target: {kind: NetworkPolicy, name: allow-ingress-traefik}
+    patch: |-
+      - {op: replace, path: /spec/ingress/0/ports/0/port, value: 80}
+      - {op: add, path: /spec/ingress/0/ports/-, value: {protocol: TCP, port: 8000}}
+  - target: {kind: NetworkPolicy, name: allow-ingress-monitoring}
+    patch: |-
+      - {op: replace, path: /spec/ingress/0/ports/0/port, value: 80}

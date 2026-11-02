@@ -29,6 +29,10 @@ Homelable is a self-hosted homelab diagram app with live status monitoring and a
 
 Both Deployments pin to `topology.kubernetes.io/zone: uk-home` with the standard 60s not-ready/unreachable tolerations.
 
+## Network policy
+
+Enrolled in the NetworkPolicy baseline (HARDENING-PLAN.md, Appendix D): components baseline, egress-any. Ingress is allowed from Traefik and Prometheus on port 80, 8000 only; same-namespace traffic is allowed; everything else is denied by default.
+
 ## Related
 
 - [../authelia/README.md](../../auth/authelia/README.md) — OIDC provider.

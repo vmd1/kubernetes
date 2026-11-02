@@ -5,3 +5,22 @@ resources:
   - ingressroute.yaml
   - manifest.yaml
   - secrets.sops.yaml
+
+components:
+  - ../../policies/components/netpol-baseline
+  - ../../policies/components/netpol-db-client
+  - ../../policies/components/netpol-egress-public
+
+patches:
+  # Postgres, Redis, Backblaze B2, the app store and Collabora's callbacks to the public URL. 9980 is Collabora behind its own route (kubelet probes use it too).
+  # Components carry no namespace; the app port and scrape port replace the closed placeholder (port 1).
+  - target: {kind: NetworkPolicy}
+    patch: |-
+      - {op: add, path: /metadata/namespace, value: nextcloud}
+  - target: {kind: NetworkPolicy, name: allow-ingress-traefik}
+    patch: |-
+      - {op: replace, path: /spec/ingress/0/ports/0/port, value: 80}
+      - {op: add, path: /spec/ingress/0/ports/-, value: {protocol: TCP, port: 9980}}
+  - target: {kind: NetworkPolicy, name: allow-ingress-monitoring}
+    patch: |-
+      - {op: replace, path: /spec/ingress/0/ports/0/port, value: 80}

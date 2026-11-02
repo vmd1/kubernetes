@@ -72,3 +72,19 @@ spec:
               kubernetes.io/metadata.name: monitoring
       ports:
         - {protocol: TCP, port: 1}
+---
+# Default-deny also cuts traffic between the pods of one namespace (Nextcloud to Collabora, the Matrix bridges to the
+# homeserver, an app to its own sidecar Service). Pods of the same namespace may talk to each other on any port.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-intra-namespace
+spec:
+  podSelector: {}
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - podSelector: {}
+  egress:
+    - to:
+        - podSelector: {}

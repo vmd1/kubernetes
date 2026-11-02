@@ -44,3 +44,8 @@ Nextcloud signs in through the cluster-wide Authelia using the `user_oidc` app. 
 * **Local login disabled**: `occ config:app:set user_oidc allow_multiple_user_backends --value=0` hides the password form and sends `/login` straight to Authelia. Break-glass: `https://cloud.vmd1.homelab/login?direct=1` still shows the local login. Re-enable the form by setting the value back to `1`.
 * **Admin rights**: the `nextcloud_admins` lldap group becomes a plain Nextcloud group and does **not** grant admin; admin remains the Nextcloud `admin` group (managed in Nextcloud).
 * **LDAP**: Nextcloud has no LDAP integration; the bundled `user_ldap` app is installed but disabled.
+
+## Network policy
+
+Enrolled in the NetworkPolicy baseline (HARDENING-PLAN.md, Appendix D): components baseline, db-client, egress-public. Ingress is allowed from Traefik and Prometheus on port 80, 9980 (Collabora) only; same-namespace traffic is allowed; everything else is denied by default.
+

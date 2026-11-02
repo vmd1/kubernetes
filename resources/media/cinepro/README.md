@@ -44,3 +44,8 @@ Injected via environment variables in the deployment spec:
 - `TMDB_API_KEY`: API key for TMDB connectivity.
 - `TMDB_CACHE_TTL`: Cache time-to-live set to `86400` seconds (24 hours).
 - `REDIS_HOST` / `REDIS_PORT`: Configured to point to the shared Redis cluster master endpoint.
+
+## Network policy
+
+Enrolled in the NetworkPolicy baseline (HARDENING-PLAN.md, Appendix D): components baseline, db-client, egress-public. Ingress is allowed from Traefik and Prometheus on port 3000 only; same-namespace traffic is allowed; everything else is denied by default.
+

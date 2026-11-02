@@ -5,3 +5,20 @@ resources:
   - manifest.yaml
   - ingressroute.yaml
   - secrets.sops.yaml
+
+components:
+  - ../../policies/components/netpol-baseline
+  - ../../policies/components/netpol-egress-any
+
+patches:
+  # Reaches the local network and the internet by design (profile from the hardening plan); only ingress is restricted. Pod port 8000 (the Service maps 80 -> 8000).
+  # Components carry no namespace; the app port and scrape port replace the closed placeholder (port 1).
+  - target: {kind: NetworkPolicy}
+    patch: |-
+      - {op: add, path: /metadata/namespace, value: qecomp}
+  - target: {kind: NetworkPolicy, name: allow-ingress-traefik}
+    patch: |-
+      - {op: replace, path: /spec/ingress/0/ports/0/port, value: 8000}
+  - target: {kind: NetworkPolicy, name: allow-ingress-monitoring}
+    patch: |-
+      - {op: replace, path: /spec/ingress/0/ports/0/port, value: 8000}

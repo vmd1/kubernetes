@@ -58,6 +58,10 @@ QEComp is an OIDC-authenticated app (API + SPA served same-origin) with Redis-ba
 - **Known follow-up**: Authelia's notifier is filesystem-based (no SMTP configured) — password reset/2FA enrollment links are written inside the pod and are not retrievable in production. Replace with a real `smtp:` block before relying on that flow.
 - `role_permissions` is already seeded with a wildcard (`*`) permission for `qecomp-admin` by the app's own Alembic migrations (`b2c3d4e5f6a7`) — no manual DB seed needed, confirmed live post-deploy.
 
+## Network policy
+
+Enrolled in the NetworkPolicy baseline (HARDENING-PLAN.md, Appendix D): components baseline, egress-any. Ingress is allowed from Traefik and Prometheus on port 8000 (Service 80 maps to 8000) only; same-namespace traffic is allowed; everything else is denied by default.
+
 ## Related
 
 - [../README.md](../README.md) — Applications layer.

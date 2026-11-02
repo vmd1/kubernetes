@@ -43,3 +43,8 @@ Uptime Kuma is a self-hosted monitoring tool that monitors service availability 
   - Request: `50m` CPU, `128Mi` RAM.
   - Limit: `500m` CPU, `512Mi` RAM.
 - **Memory tuning**: Configured with `MALLOC_TRIM_THRESHOLD_=100000` to lower Node.js memory overhead.
+
+## Network policy
+
+Enrolled in the NetworkPolicy baseline (HARDENING-PLAN.md, Appendix D): components baseline, egress-any. Ingress is allowed from Traefik and Prometheus on port 3001 only; same-namespace traffic is allowed; everything else is denied by default.
+

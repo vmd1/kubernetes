@@ -4,3 +4,20 @@ kind: Kustomization
 resources:
   - ingressroute.yaml
   - manifest.yaml
+
+components:
+  - ../../policies/components/netpol-baseline
+  - ../../policies/components/netpol-egress-any
+
+patches:
+  # Probes every service, so egress stays open; only ingress is restricted. Pod port 3001 (the Service maps 80 -> 3001).
+  # Components carry no namespace; the app port and scrape port replace the closed placeholder (port 1).
+  - target: {kind: NetworkPolicy}
+    patch: |-
+      - {op: add, path: /metadata/namespace, value: uptime-kuma}
+  - target: {kind: NetworkPolicy, name: allow-ingress-traefik}
+    patch: |-
+      - {op: replace, path: /spec/ingress/0/ports/0/port, value: 3001}
+  - target: {kind: NetworkPolicy, name: allow-ingress-monitoring}
+    patch: |-
+      - {op: replace, path: /spec/ingress/0/ports/0/port, value: 3001}
