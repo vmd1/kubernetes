@@ -48,3 +48,8 @@ This directory hosts the self-hosted Matrix federation setup, utilizing the high
 
 - ConfigMaps contain `continuwuity-config` and individual `mautrix-*` config and registration files.
 - Credentials and private keys are embedded in configuration files inside the persistent volumes.
+
+## Network policy
+
+Enrolled in the NetworkPolicy baseline (HARDENING-PLAN.md, Appendix E): baseline, db-client, egress-public. Ingress ports 8008, 80 and the five bridge ports. Same-namespace traffic is allowed; everything else is denied by default.
+

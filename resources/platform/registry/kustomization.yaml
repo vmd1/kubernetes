@@ -2,6 +2,24 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
 resources:
+  - networkpolicy-ldap.yaml
   - ingressroute.yaml
   - manifest.yaml
   - secrets.sops.yaml
+
+components:
+  - ../../policies/components/netpol-baseline
+  - ../../policies/components/netpol-egress-public
+
+patches:
+  # Registry 5000 and docker-auth 5001 via Traefik; docker-auth LDAP to lldap via local allow-egress-lldap.
+  - target: {kind: NetworkPolicy}
+    patch: |-
+      - {op: add, path: /metadata/namespace, value: registry}
+  - target: {kind: NetworkPolicy, name: allow-ingress-traefik}
+    patch: |-
+      - {op: replace, path: /spec/ingress/0/ports/0/port, value: 5000}
+      - {op: add, path: /spec/ingress/0/ports/-, value: {protocol: TCP, port: 5001}}
+  - target: {kind: NetworkPolicy, name: allow-ingress-monitoring}
+    patch: |-
+      - {op: replace, path: /spec/ingress/0/ports/0/port, value: 5000}

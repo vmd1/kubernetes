@@ -5,3 +5,19 @@ resources:
   - ingressroute.yaml
   - manifest.yaml
   - secrets.sops.yaml
+
+components:
+  - ../../policies/components/netpol-baseline
+  - ../../policies/components/netpol-egress-any
+
+patches:
+  # Forward-auth proxies; egress stays open (OIDC to the identity provider and upstream checks, with flows not yet explained), only ingress is restricted.
+  - target: {kind: NetworkPolicy}
+    patch: |-
+      - {op: add, path: /metadata/namespace, value: oauth2-proxy}
+  - target: {kind: NetworkPolicy, name: allow-ingress-traefik}
+    patch: |-
+      - {op: replace, path: /spec/ingress/0/ports/0/port, value: 4180}
+  - target: {kind: NetworkPolicy, name: allow-ingress-monitoring}
+    patch: |-
+      - {op: replace, path: /spec/ingress/0/ports/0/port, value: 4180}

@@ -4,3 +4,20 @@ kind: Kustomization
 resources:
   - manifest.yaml
   - operator.yaml
+
+components:
+  - ../../policies/components/netpol-baseline
+  - ../../policies/components/netpol-api-server
+  - ../../policies/components/netpol-db-client
+
+patches:
+  # Probe port 8081, metrics 8080. Egress to the Redis and Sentinel pods via db-client.
+  - target: {kind: NetworkPolicy}
+    patch: |-
+      - {op: add, path: /metadata/namespace, value: redis-operator}
+  - target: {kind: NetworkPolicy, name: allow-ingress-traefik}
+    patch: |-
+      - {op: replace, path: /spec/ingress/0/ports/0/port, value: 8081}
+  - target: {kind: NetworkPolicy, name: allow-ingress-monitoring}
+    patch: |-
+      - {op: replace, path: /spec/ingress/0/ports/0/port, value: 8080}

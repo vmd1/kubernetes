@@ -4,3 +4,13 @@ kind: Kustomization
 resources:
   - manifest.yaml
   - secrets.sops.yaml
+
+components:
+  - ../../policies/components/netpol-baseline
+  - ../../policies/components/netpol-egress-public
+
+patches:
+  # DaemonSet on every node including the edge nodes; downloads the GeoIP database from the internet. No ingress.
+  - target: {kind: NetworkPolicy}
+    patch: |-
+      - {op: add, path: /metadata/namespace, value: geoip}

@@ -390,3 +390,17 @@ Stacked on batch 2 (Appendix C); merge that first and soak it 48 h. Adds an `all
 Longhorn and Multus: Longhorn's storage network is a macvlan secondary interface (`storage-macvlan-eth0`, 192.168.11.0/24, hades-01/02) attached to pods in `longhorn-system`. NetworkPolicy is enforced on the primary (flannel) interface only, so it neither filters nor breaks that traffic, and none of the enrolled apps attach to it. Keep `longhorn-system` out of enrolment until the policies are validated against its manager and instance-manager pods; PVC attach and replica traffic on the storage network are not covered by these policies at all.
 
 Not yet done: vaultwarden (edge nodes, own PR), matrix, oauth2-proxy (unexplained LAN flows), authelia/lldap/registry (need ldap components), infra namespaces (need api-server and egress-public components).
+
+
+## Appendix E. Re-enrolment, batch 4 (2026-11-02)
+
+Stacked on batch 3 (Appendix D); merge in order and soak between merges. Enrols seven namespaces: `matrix` (baseline + db-client + egress-public; ingress on the homeserver, FluffyChat and the five bridge ports), `authelia` (db-client + egress-public for SMTP, plus a local egress to lldap:3890), `lldap` (db-client; LDAP only from authelia and registry), `oauth2-proxy` and `registry` as above (oauth2-proxy keeps open egress because its LAN flows are not yet explained), and the controller namespaces `cf-ddns` and `oci-controller` (egress-public + api-server, no ingress). LDAP consumers were checked by grep: only authelia and registry.
+
+Deliberately not enrolled: the edge DaemonSets and vaultwarden (`geoip`, `vmd1-web`, `vaultwarden`: they run on the 1 GB edge nodes, the site of the October incident, so they go in their own PR after a soak), hostNetwork namespaces (`traefik`, `powerdns`, `home-assistant`, `monitoring` agents), `mqtt` and `unifi` (reached from hostNetwork and LAN devices, which needs node/LAN ipBlock rules), the webhook operators (`cert-manager`, `cnpg-system`, `redis-operator`: the API server calls them from a node address), `kube-system`, `flux-system`, `tailscale` and `longhorn-system` (Multus storage network, see Appendix D), and `cnpg`/`redis` (database ingress policies need the db-client label first).
+
+
+## Appendix F. Re-enrolment, batch 5 (2026-11-02)
+
+Stacked on batch 4 (Appendix E). Enrols the edge-node apps (`vaultwarden`, `geoip`, `vmd1-web`) and the operators (`cert-manager`, `cnpg-system`, `redis-operator`). The edge nodes are where the October incident happened; it was later put down to memory and I/O pressure and fixed by the edge image, but the policy count on those nodes still rises, so merge this one last and watch restarts on the six ingress nodes for 48 h. `vmd1-web` keeps open egress because the router-console site proxies to the LAN. The webhook ports are allowed through the POD_CIDR rule (the API server and kubelet arrive from node addresses inside it).
+
+Still NOT enrolled, with reasons: `cnpg` and `redis` (database ingress would need every client labelled `vmd1.homelab/db-client`, and the flow data also shows unexplained node-sourced traffic into both; this cannot be validated without applying it, and a miss breaks every app), `mqtt` and `unifi` (reached from LAN devices and hostNetwork pods, source addresses unverified), `traefik`, `powerdns`, `home-assistant`, `kube-system`, `flux-system`, `tailscale`, `longhorn-system`, `monitoring`.

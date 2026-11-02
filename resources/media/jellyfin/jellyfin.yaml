@@ -17,6 +17,15 @@ spec:
 
     replicaCount: 1
 
+    # Admission hardening (policies/admission): app label, seccomp, no privilege escalation.
+    podLabels:
+      app.kubernetes.io/name: jellyfin
+    podSecurityContext:
+      seccompProfile:
+        type: RuntimeDefault
+    securityContext:
+      allowPrivilegeEscalation: false
+
     image:
       repository: docker.io/jellyfin/jellyfin
       tag: "10.11.11@sha256:aefb67e6a7ff1debdd154a78a7bbb780fd0c873d8639210a7f6a2016ad2b35db"

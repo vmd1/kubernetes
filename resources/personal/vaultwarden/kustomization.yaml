@@ -5,3 +5,34 @@ resources:
   - ingressroute.yaml
   - manifest.yaml
   - secrets.sops.yaml
+
+components:
+  - ../../policies/components/netpol-baseline
+  - ../../policies/components/netpol-db-client
+  - ../../policies/components/netpol-egress-public
+
+patches:
+  # Edge-node app (hera-01, ares-02). Postgres via db-client; push relay and SMTP on the internet.
+  - target: {kind: NetworkPolicy}
+    patch: |-
+      - {op: add, path: /metadata/namespace, value: vaultwarden}
+  - target: {kind: NetworkPolicy, name: allow-ingress-traefik}
+    patch: |-
+      - {op: replace, path: /spec/ingress/0/ports/0/port, value: 80}
+  - target: {kind: NetworkPolicy, name: allow-ingress-monitoring}
+    patch: |-
+      - {op: replace, path: /spec/ingress/0/ports/0/port, value: 80}
+  # Admission hardening (policies/admission): app label, seccomp, no privilege escalation, runAsNonRoot where the image already runs as a fixed uid
+  - target: {kind: Deployment, name: vaultwarden}
+    patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata: {name: vaultwarden}
+      spec:
+        template:
+          metadata:
+            labels: {app.kubernetes.io/name: vaultwarden}
+          spec:
+            securityContext: {seccompProfile: {type: RuntimeDefault}}
+            containers:
+              - {name: vaultwarden, securityContext: {allowPrivilegeEscalation: false}}

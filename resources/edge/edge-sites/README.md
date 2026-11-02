@@ -51,3 +51,8 @@ None persistent. Edge pods keep a node-local `emptyDir` cache (content-addressed
 - [secrets.sops.yaml](secrets.sops.yaml): `Secret/edge-registry-creds` (SOPS), the lldap account `edge-services` (member of `registry-admin`: push + pull). Keys: `username`, `password`, and `config.json` (docker auth file mounted by Kaniko). Used by the operator (env `REGISTRY_USERNAME/PASSWORD`), build Jobs (Kaniko) and the edge pods (env `EDGE_REGISTRY_USERNAME/PASSWORD`). The edge pods only need pull access, so a separate `registry-pull` account would be a safer split.
 - Repo allowlist: `EDGE_REPO_ALLOWLIST` (regex list, default `^https://github\.com/vmd1/`).
 - Optional per-site Secrets: `spec.repoSecretRef` (key `token`), `spec.secretRef` (Worker secrets).
+
+## Network policy
+
+Enrolled in the NetworkPolicy baseline (HARDENING-PLAN.md, Appendix F): baseline, egress-any, api-server. Ingress ports 80 and 9100. Same-namespace traffic is allowed; everything else is denied by default.
+

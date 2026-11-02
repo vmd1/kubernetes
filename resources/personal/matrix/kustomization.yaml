@@ -5,3 +5,118 @@ resources:
   - ingressroute.yaml
   - manifest.yaml
   - secrets.sops.yaml
+
+components:
+  - ../../policies/components/netpol-baseline
+  - ../../policies/components/netpol-db-client
+  - ../../policies/components/netpol-egress-public
+
+patches:
+  # Homeserver 8008, FluffyChat 80 and the five bridges that have their own IngressRoutes; homeserver<->bridge traffic is intra-namespace. Federation and bridge targets are on the internet.
+  - target: {kind: NetworkPolicy}
+    patch: |-
+      - {op: add, path: /metadata/namespace, value: matrix}
+  - target: {kind: NetworkPolicy, name: allow-ingress-traefik}
+    patch: |-
+      - {op: replace, path: /spec/ingress/0/ports/0/port, value: 8008}
+      - {op: add, path: /spec/ingress/0/ports/-, value: {protocol: TCP, port: 80}}
+      - {op: add, path: /spec/ingress/0/ports/-, value: {protocol: TCP, port: 29318}}
+      - {op: add, path: /spec/ingress/0/ports/-, value: {protocol: TCP, port: 29334}}
+      - {op: add, path: /spec/ingress/0/ports/-, value: {protocol: TCP, port: 29336}}
+      - {op: add, path: /spec/ingress/0/ports/-, value: {protocol: TCP, port: 29320}}
+      - {op: add, path: /spec/ingress/0/ports/-, value: {protocol: TCP, port: 29341}}
+  - target: {kind: NetworkPolicy, name: allow-ingress-monitoring}
+    patch: |-
+      - {op: replace, path: /spec/ingress/0/ports/0/port, value: 8008}
+  # Admission hardening (policies/admission): app label, seccomp, no privilege escalation, runAsNonRoot where the image already runs as a fixed uid
+  - target: {kind: Deployment, name: continuwuity}
+    patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata: {name: continuwuity}
+      spec:
+        template:
+          metadata:
+            labels: {app.kubernetes.io/name: continuwuity}
+          spec:
+            securityContext: {seccompProfile: {type: RuntimeDefault}}
+            containers:
+              - {name: continuwuity, securityContext: {allowPrivilegeEscalation: false}}
+  - target: {kind: Deployment, name: fluffychat}
+    patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata: {name: fluffychat}
+      spec:
+        template:
+          metadata:
+            labels: {app.kubernetes.io/name: fluffychat}
+          spec:
+            securityContext: {seccompProfile: {type: RuntimeDefault}}
+            containers:
+              - {name: fluffychat, securityContext: {allowPrivilegeEscalation: false}}
+  - target: {kind: Deployment, name: mautrix-discord}
+    patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata: {name: mautrix-discord}
+      spec:
+        template:
+          metadata:
+            labels: {app.kubernetes.io/name: mautrix-discord}
+          spec:
+            securityContext: {seccompProfile: {type: RuntimeDefault}}
+            containers:
+              - {name: bridge, securityContext: {allowPrivilegeEscalation: false}}
+  - target: {kind: Deployment, name: mautrix-gmessages}
+    patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata: {name: mautrix-gmessages}
+      spec:
+        template:
+          metadata:
+            labels: {app.kubernetes.io/name: mautrix-gmessages}
+          spec:
+            securityContext: {seccompProfile: {type: RuntimeDefault}}
+            containers:
+              - {name: bridge, securityContext: {allowPrivilegeEscalation: false}}
+  - target: {kind: Deployment, name: mautrix-googlechat}
+    patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata: {name: mautrix-googlechat}
+      spec:
+        template:
+          metadata:
+            labels: {app.kubernetes.io/name: mautrix-googlechat}
+          spec:
+            securityContext: {seccompProfile: {type: RuntimeDefault}}
+            containers:
+              - {name: bridge, securityContext: {allowPrivilegeEscalation: false}}
+  - target: {kind: Deployment, name: mautrix-linkedin}
+    patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata: {name: mautrix-linkedin}
+      spec:
+        template:
+          metadata:
+            labels: {app.kubernetes.io/name: mautrix-linkedin}
+          spec:
+            securityContext: {seccompProfile: {type: RuntimeDefault}}
+            containers:
+              - {name: bridge, securityContext: {allowPrivilegeEscalation: false}}
+  - target: {kind: Deployment, name: mautrix-whatsapp}
+    patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata: {name: mautrix-whatsapp}
+      spec:
+        template:
+          metadata:
+            labels: {app.kubernetes.io/name: mautrix-whatsapp}
+          spec:
+            securityContext: {seccompProfile: {type: RuntimeDefault}}
+            containers:
+              - {name: bridge, securityContext: {allowPrivilegeEscalation: false}}

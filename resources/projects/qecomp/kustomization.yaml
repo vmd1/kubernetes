@@ -22,3 +22,20 @@ patches:
   - target: {kind: NetworkPolicy, name: allow-ingress-monitoring}
     patch: |-
       - {op: replace, path: /spec/ingress/0/ports/0/port, value: 8000}
+  # Admission hardening (policies/admission): app label, seccomp, no privilege escalation, runAsNonRoot where the image already runs as a fixed uid
+  - target: {kind: Deployment, name: qecomp}
+    patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata: {name: qecomp}
+      spec:
+        template:
+          metadata:
+            labels: {app.kubernetes.io/name: qecomp}
+          spec:
+            securityContext: {seccompProfile: {type: RuntimeDefault}}
+            automountServiceAccountToken: false
+            containers:
+              - {name: qecomp, securityContext: {allowPrivilegeEscalation: false, runAsNonRoot: true, runAsUser: 1000}}
+            initContainers:
+              - {name: migrate, securityContext: {allowPrivilegeEscalation: false}}

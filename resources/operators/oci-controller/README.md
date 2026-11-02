@@ -34,6 +34,10 @@ Per [docs/manifests.md](../../../../docs/manifests.md), the encrypted file conta
 | [oci-port-controller](../oci-port-controller/README.md) | `resources/operators/oci-port-controller/` | `node-ssh-key` + all `oci-credentials-<region>*` for security list / firewall sync. |
 | [oci-reboot](../../oci/oci-reboot/README.md) | `resources/oci/oci-reboot/` | `oci-credentials-<region>*` for OCI instance resets (via the `oci-account` node label). |
 
+## Network policy
+
+Enrolled in the NetworkPolicy baseline (HARDENING-PLAN.md, Appendix E): baseline, egress-public, api-server. No ingress. Same-namespace traffic is allowed; everything else is denied by default.
+
 ## Related
 
 - [../oci-port-controller/README.md](../oci-port-controller/README.md) — the port-opening controller.

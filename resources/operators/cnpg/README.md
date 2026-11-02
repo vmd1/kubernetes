@@ -66,6 +66,10 @@ CloudNativePG (CNPG) is an operator designed to manage PostgreSQL database clust
 - **Secret**: `cnpg-backup-secret` (SOPS-encrypted in [secrets.sops.yaml](secrets.sops.yaml)) — stores `ACCESS_KEY_ID`, `SECRET_ACCESS_KEY`, and `REGION`.
 - **Env**: `BARMAN_S3_USE_PATH_STYLE: "true"` to enforce S3 path-style addressing (required by Backblaze B2).
 
+## Network policy
+
+Enrolled in the NetworkPolicy baseline (HARDENING-PLAN.md, Appendix F): baseline, api-server plus allow-egress-instances. Ingress 9443, metrics 8080. Same-namespace traffic is allowed; everything else is denied by default.
+
 ## Related
 
 - [../README.md](../README.md) — the CRDs & operators layer this folder belongs to.

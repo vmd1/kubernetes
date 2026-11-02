@@ -16,12 +16,20 @@ spec:
   variables:
     - name: containers
       expression: "object.spec.containers + object.spec.?initContainers.orValue([])"
+    # Legacy exemptions, owned in resources/namespaces/namespaces.yaml (never labels on the pod). Each label is a
+    # tracked debt: remove it once the namespace's images run non-root / with a read-only root filesystem.
+    - name: allowRoot
+      expression: "namespaceObject.metadata.?labels['policy.vmd1.homelab/allow-root'].orValue('') == 'true'"
+    - name: allowWritableRoot
+      expression: "namespaceObject.metadata.?labels['policy.vmd1.homelab/allow-writable-rootfs'].orValue('') == 'true'"
+    - name: allowEscalation
+      expression: "namespaceObject.metadata.?labels['policy.vmd1.homelab/allow-privilege-escalation'].orValue('') == 'true'"
   validations:
-    - expression: "variables.containers.all(c, c.?securityContext.?runAsNonRoot.orValue(object.spec.?securityContext.?runAsNonRoot.orValue(false)))"
+    - expression: "variables.allowRoot || variables.containers.all(c, c.?securityContext.?runAsNonRoot.orValue(object.spec.?securityContext.?runAsNonRoot.orValue(false)))"
       message: "every container must set runAsNonRoot: true (container or pod securityContext)"
-    - expression: "variables.containers.all(c, !c.?securityContext.?allowPrivilegeEscalation.orValue(true))"
+    - expression: "variables.allowEscalation || variables.containers.all(c, !c.?securityContext.?allowPrivilegeEscalation.orValue(true))"
       message: "every container must set allowPrivilegeEscalation: false"
-    - expression: "variables.containers.all(c, c.?securityContext.?readOnlyRootFilesystem.orValue(false))"
+    - expression: "variables.allowWritableRoot || variables.containers.all(c, c.?securityContext.?readOnlyRootFilesystem.orValue(false))"
       message: "every container must set readOnlyRootFilesystem: true"
     - expression: >-
         variables.containers.all(c,

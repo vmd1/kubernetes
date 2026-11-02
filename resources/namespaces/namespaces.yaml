@@ -25,6 +25,8 @@ kind: Namespace
 metadata:
   name: bookorbit
   labels:
+    policy.vmd1.homelab/allow-root: "true"
+    policy.vmd1.homelab/allow-writable-rootfs: "true"
     pod-security.kubernetes.io/audit: "restricted"
     pod-security.kubernetes.io/enforce: "baseline"
     pod-security.kubernetes.io/warn: "restricted"
@@ -60,6 +62,7 @@ kind: Namespace
 metadata:
   name: cinepro
   labels:
+    policy.vmd1.homelab/allow-writable-rootfs: "true"
     pod-security.kubernetes.io/audit: "restricted"
     pod-security.kubernetes.io/enforce: "baseline"
     pod-security.kubernetes.io/warn: "restricted"
@@ -130,6 +133,7 @@ kind: Namespace
 metadata:
   name: headlamp
   labels:
+    policy.vmd1.homelab/allow-writable-rootfs: "true"
     pod-security.kubernetes.io/audit: "restricted"
     pod-security.kubernetes.io/enforce: "baseline"
     pod-security.kubernetes.io/warn: "restricted"
@@ -142,6 +146,9 @@ kind: Namespace
 metadata:
   name: home-assistant
   labels:
+    policy.vmd1.homelab/allow-privilege-escalation: "true"
+    policy.vmd1.homelab/allow-root: "true"
+    policy.vmd1.homelab/allow-writable-rootfs: "true"
     policy.vmd1.homelab/allow-capabilities: "NET_ADMIN.NET_RAW"
     pod-security.kubernetes.io/audit: "restricted"
     pod-security.kubernetes.io/warn: "restricted"
@@ -155,6 +162,8 @@ kind: Namespace
 metadata:
   name: homelable
   labels:
+    policy.vmd1.homelab/allow-root: "true"
+    policy.vmd1.homelab/allow-writable-rootfs: "true"
     policy.vmd1.homelab/allow-capabilities: "NET_RAW"
     pod-security.kubernetes.io/audit: "restricted"
     pod-security.kubernetes.io/warn: "restricted"
@@ -222,6 +231,8 @@ kind: Namespace
 metadata:
   name: matrix
   labels:
+    policy.vmd1.homelab/allow-root: "true"
+    policy.vmd1.homelab/allow-writable-rootfs: "true"
     pod-security.kubernetes.io/audit: "restricted"
     pod-security.kubernetes.io/enforce: "baseline"
     pod-security.kubernetes.io/warn: "restricted"
@@ -234,6 +245,8 @@ kind: Namespace
 metadata:
   name: media
   labels:
+    policy.vmd1.homelab/allow-root: "true"
+    policy.vmd1.homelab/allow-writable-rootfs: "true"
     pod-security.kubernetes.io/audit: "restricted"
     pod-security.kubernetes.io/warn: "restricted"
     vmd1.homelab/tier: "app"
@@ -248,6 +261,7 @@ metadata:
     pod-security.kubernetes.io/audit: "restricted"
     pod-security.kubernetes.io/warn: "restricted"
     policy.vmd1.homelab/allow-host-network: "true"
+    policy.vmd1.homelab/allow-host-pid: "true"
     policy.vmd1.homelab/allow-privileged: "true"
     vmd1.homelab/tier: "infra"
   annotations:
@@ -258,6 +272,8 @@ kind: Namespace
 metadata:
   name: mqtt
   labels:
+    policy.vmd1.homelab/allow-root: "true"
+    policy.vmd1.homelab/allow-writable-rootfs: "true"
     pod-security.kubernetes.io/audit: "restricted"
     pod-security.kubernetes.io/enforce: "baseline"
     pod-security.kubernetes.io/warn: "restricted"
@@ -270,6 +286,9 @@ kind: Namespace
 metadata:
   name: nextcloud
   labels:
+    policy.vmd1.homelab/allow-privilege-escalation: "true"
+    policy.vmd1.homelab/allow-root: "true"
+    policy.vmd1.homelab/allow-writable-rootfs: "true"
     policy.vmd1.homelab/allow-capabilities: "MKNOD.SYS_ADMIN.SYS_CHROOT"
     pod-security.kubernetes.io/audit: "restricted"
     pod-security.kubernetes.io/warn: "restricted"
@@ -282,6 +301,8 @@ kind: Namespace
 metadata:
   name: ntfy
   labels:
+    policy.vmd1.homelab/allow-root: "true"
+    policy.vmd1.homelab/allow-writable-rootfs: "true"
     pod-security.kubernetes.io/audit: "restricted"
     pod-security.kubernetes.io/enforce: "baseline"
     pod-security.kubernetes.io/warn: "restricted"
@@ -305,6 +326,8 @@ kind: Namespace
 metadata:
   name: obsidian
   labels:
+    policy.vmd1.homelab/allow-root: "true"
+    policy.vmd1.homelab/allow-writable-rootfs: "true"
     pod-security.kubernetes.io/audit: "restricted"
     pod-security.kubernetes.io/enforce: "baseline"
     pod-security.kubernetes.io/warn: "restricted"
@@ -339,6 +362,7 @@ kind: Namespace
 metadata:
   name: qecomp
   labels:
+    policy.vmd1.homelab/allow-writable-rootfs: "true"
     pod-security.kubernetes.io/audit: "restricted"
     pod-security.kubernetes.io/enforce: "baseline"
     pod-security.kubernetes.io/warn: "restricted"
@@ -407,6 +431,8 @@ kind: Namespace
 metadata:
   name: unifi
   labels:
+    policy.vmd1.homelab/allow-root: "true"
+    policy.vmd1.homelab/allow-writable-rootfs: "true"
     pod-security.kubernetes.io/audit: "restricted"
     pod-security.kubernetes.io/enforce: "baseline"
     pod-security.kubernetes.io/warn: "restricted"
@@ -419,6 +445,8 @@ kind: Namespace
 metadata:
   name: uptime-kuma
   labels:
+    policy.vmd1.homelab/allow-root: "true"
+    policy.vmd1.homelab/allow-writable-rootfs: "true"
     pod-security.kubernetes.io/audit: "restricted"
     pod-security.kubernetes.io/enforce: "baseline"
     pod-security.kubernetes.io/warn: "restricted"
@@ -431,6 +459,8 @@ kind: Namespace
 metadata:
   name: vaultwarden
   labels:
+    policy.vmd1.homelab/allow-root: "true"
+    policy.vmd1.homelab/allow-writable-rootfs: "true"
     pod-security.kubernetes.io/audit: "restricted"
     pod-security.kubernetes.io/enforce: "baseline"
     pod-security.kubernetes.io/warn: "restricted"
@@ -443,6 +473,8 @@ kind: Namespace
 metadata:
   name: vmd1-web
   labels:
+    policy.vmd1.homelab/allow-root: "true"
+    policy.vmd1.homelab/allow-writable-rootfs: "true"
     pod-security.kubernetes.io/audit: "restricted"
     pod-security.kubernetes.io/enforce: "baseline"
     pod-security.kubernetes.io/warn: "restricted"

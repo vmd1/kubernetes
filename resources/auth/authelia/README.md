@@ -106,3 +106,8 @@ Read a secret value without printing the whole file:
 ```bash
 sops -d resources/auth/authelia/secrets.sops.yaml | grep ldap_password
 ```
+
+## Network policy
+
+Enrolled in the NetworkPolicy baseline (HARDENING-PLAN.md, Appendix E): baseline, db-client, egress-public plus allow-egress-lldap. Ingress ports 8080 and 9091. Same-namespace traffic is allowed; everything else is denied by default.
+

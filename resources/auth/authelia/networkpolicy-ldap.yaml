@@ -1,0 +1,13 @@
+# LDAP egress to lldap (user lookups). Namespace is set by the Kustomization patch.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-egress-lldap
+spec:
+  podSelector: {}
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: lldap}}
+      ports:
+        - {protocol: TCP, port: 3890}

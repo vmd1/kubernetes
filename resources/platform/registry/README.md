@@ -51,3 +51,8 @@ This folder deploys a private self-hosted Docker registry (`registry:3`). It pro
   - `token.key` / `token.crt`: key pair `docker-auth` signs tokens with; the registry mounts only `token.crt`.
   - `ldap_password`: password of the lldap `registry` bind account.
 - **Clients**: pulls from the cluster use a pull-only lldap account (`k3s-registry-pull`, member of `registry-pull`); each node's k3s `registries.yaml` must carry its credentials. Pushers need an account in `registry-admin`.
+
+## Network policy
+
+Enrolled in the NetworkPolicy baseline (HARDENING-PLAN.md, Appendix E): baseline, egress-public plus allow-egress-lldap. Ingress ports 5000 and 5001. Same-namespace traffic is allowed; everything else is denied by default.
+

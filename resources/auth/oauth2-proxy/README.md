@@ -71,3 +71,8 @@ middlewares:
 ## Configs & Credentials
 
 - **Secret `oauth2-proxy-secrets`**: `client-secret-<domain-slug>` (plaintext counterpart of the hash in Authelia's config) and `cookie-secret-<domain-slug>` (32-byte url-safe base64) for `kmnet-uk`, `vmd1-dev`, `010356-xyz`, `848226-xyz`.
+
+## Network policy
+
+Enrolled in the NetworkPolicy baseline (HARDENING-PLAN.md, Appendix E): baseline, egress-any. Ingress port 4180. Same-namespace traffic is allowed; everything else is denied by default.
+

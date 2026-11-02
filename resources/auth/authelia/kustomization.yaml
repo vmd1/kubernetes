@@ -2,7 +2,26 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
 resources:
+  - networkpolicy-ldap.yaml
   - ingressroute.yaml
   - manifest.yaml
   - secrets.sops.yaml
   - theme.yaml
+
+components:
+  - ../../policies/components/netpol-baseline
+  - ../../policies/components/netpol-db-client
+  - ../../policies/components/netpol-egress-public
+
+patches:
+  # Forward-auth and portal ports (8080 route, 9091 service). Postgres/Redis via db-client, SMTP (submission 587) via egress-public, LDAP to lldap via the local allow-egress-lldap policy.
+  - target: {kind: NetworkPolicy}
+    patch: |-
+      - {op: add, path: /metadata/namespace, value: authelia}
+  - target: {kind: NetworkPolicy, name: allow-ingress-traefik}
+    patch: |-
+      - {op: replace, path: /spec/ingress/0/ports/0/port, value: 8080}
+      - {op: add, path: /spec/ingress/0/ports/-, value: {protocol: TCP, port: 9091}}
+  - target: {kind: NetworkPolicy, name: allow-ingress-monitoring}
+    patch: |-
+      - {op: replace, path: /spec/ingress/0/ports/0/port, value: 8080}

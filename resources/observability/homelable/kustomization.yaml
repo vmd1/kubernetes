@@ -23,3 +23,30 @@ patches:
   - target: {kind: NetworkPolicy, name: allow-ingress-monitoring}
     patch: |-
       - {op: replace, path: /spec/ingress/0/ports/0/port, value: 80}
+  # Admission hardening (policies/admission): app label, seccomp, no privilege escalation, runAsNonRoot where the image already runs as a fixed uid
+  - target: {kind: Deployment, name: homelable-backend}
+    patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata: {name: homelable-backend}
+      spec:
+        template:
+          metadata:
+            labels: {app.kubernetes.io/name: homelable-backend}
+          spec:
+            securityContext: {seccompProfile: {type: RuntimeDefault}}
+            containers:
+              - {name: backend, securityContext: {allowPrivilegeEscalation: false}}
+  - target: {kind: Deployment, name: homelable-frontend}
+    patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata: {name: homelable-frontend}
+      spec:
+        template:
+          metadata:
+            labels: {app.kubernetes.io/name: homelable-frontend}
+          spec:
+            securityContext: {seccompProfile: {type: RuntimeDefault}}
+            containers:
+              - {name: frontend, securityContext: {allowPrivilegeEscalation: false}}

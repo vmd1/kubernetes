@@ -44,3 +44,8 @@ No persistent volumes (PVCs) are declared. The execution script is mounted dynam
   - `CF_RECORD_NAME`: `home.d-ingress.vmd1.homelab` (the target domain being dynamically updated).
 - **ConfigMap**: `cf-ddns-script`
   - Mounts `update.sh` containing the validation and update routine.
+
+## Network policy
+
+Enrolled in the NetworkPolicy baseline (HARDENING-PLAN.md, Appendix E): baseline, egress-public, api-server. No ingress. Same-namespace traffic is allowed; everything else is denied by default.
+

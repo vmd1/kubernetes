@@ -19,6 +19,8 @@ spec:
       expression: "object.spec.containers + object.spec.?initContainers.orValue([])"
     - name: allowHostNetwork
       expression: "namespaceObject.metadata.?labels['policy.vmd1.homelab/allow-host-network'].orValue('') == 'true'"
+    - name: allowHostPid
+      expression: "namespaceObject.metadata.?labels['policy.vmd1.homelab/allow-host-pid'].orValue('') == 'true'"
     - name: allowPrivileged
       expression: "namespaceObject.metadata.?labels['policy.vmd1.homelab/allow-privileged'].orValue('') == 'true'"
     # Label values cannot hold commas, so the capabilities are dot-separated: policy.vmd1.homelab/allow-capabilities: "NET_ADMIN.NET_RAW"
@@ -27,8 +29,8 @@ spec:
   validations:
     - expression: "variables.allowHostNetwork || !object.spec.?hostNetwork.orValue(false)"
       message: "hostNetwork is not allowed here (namespace needs policy.vmd1.homelab/allow-host-network=true)"
-    - expression: "!object.spec.?hostPID.orValue(false) && !object.spec.?hostIPC.orValue(false)"
-      message: "hostPID and hostIPC are not allowed"
+    - expression: "!object.spec.?hostIPC.orValue(false) && (variables.allowHostPid || !object.spec.?hostPID.orValue(false))"
+      message: "hostIPC is not allowed, and hostPID needs policy.vmd1.homelab/allow-host-pid=true on the namespace"
     - expression: "variables.allowPrivileged || variables.containers.all(c, !c.?securityContext.?privileged.orValue(false))"
       message: "privileged containers are not allowed here (namespace needs policy.vmd1.homelab/allow-privileged=true)"
     - expression: >-

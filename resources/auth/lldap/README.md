@@ -60,3 +60,8 @@ Beyond the standard lldap groups, these groups gate access in other apps (create
 | `nextcloud_users`, `nextcloud_admins`, `jellyfin`, `jellyfin_admin`, `homeassistant_user`, `homeassistant_admin`, `family`, `qecomp-*`, `synapse-users` | Per-app Authelia authorization policies |
 
 Service accounts: `authelia` (Authelia's bind user), `registry` (docker-auth's read-only bind user), and `k3s-registry-pull` (pull-only registry account for the nodes and image-pull secrets).
+
+## Network policy
+
+Enrolled in the NetworkPolicy baseline (HARDENING-PLAN.md, Appendix E): baseline, db-client plus allow-ingress-ldap (authelia and registry only). Ingress port 17170. Same-namespace traffic is allowed; everything else is denied by default.
+

@@ -6,3 +6,22 @@ resources:
   - cluster-issuer.yaml
   - manifest.yaml
   - secrets.sops.yaml
+
+components:
+  - ../../policies/components/netpol-baseline
+  - ../../policies/components/netpol-egress-public
+  - ../../policies/components/netpol-api-server
+
+patches:
+  # Webhook 10250 (called by the API server from a node address inside POD_CIDR), probe ports 6080/9403, metrics 9402. ACME and DNS-01 on the internet.
+  - target: {kind: NetworkPolicy}
+    patch: |-
+      - {op: add, path: /metadata/namespace, value: cert-manager}
+  - target: {kind: NetworkPolicy, name: allow-ingress-traefik}
+    patch: |-
+      - {op: replace, path: /spec/ingress/0/ports/0/port, value: 10250}
+      - {op: add, path: /spec/ingress/0/ports/-, value: {protocol: TCP, port: 6080}}
+      - {op: add, path: /spec/ingress/0/ports/-, value: {protocol: TCP, port: 9403}}
+  - target: {kind: NetworkPolicy, name: allow-ingress-monitoring}
+    patch: |-
+      - {op: replace, path: /spec/ingress/0/ports/0/port, value: 9402}

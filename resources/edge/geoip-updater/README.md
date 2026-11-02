@@ -48,6 +48,10 @@ Keeps the MaxMind **GeoLite2** databases up to date on every node, in one shared
 
 - [secrets.sops.yaml](secrets.sops.yaml): `account-id`, `license-key` (SOPS, age). Apply with `_scripts/apply-secrets.sh`, or let Flux decrypt it.
 
+## Network policy
+
+Enrolled in the NetworkPolicy baseline (HARDENING-PLAN.md, Appendix F): baseline, egress-public. No ingress. Same-namespace traffic is allowed; everything else is denied by default.
+
 ## Related
 
 - [../powerdns/README.md](../powerdns/README.md): DNS service that uses the City database.

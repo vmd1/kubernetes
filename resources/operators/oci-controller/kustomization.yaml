@@ -3,3 +3,14 @@ kind: Kustomization
 
 resources:
   - secrets.sops.yaml
+
+components:
+  - ../../policies/components/netpol-baseline
+  - ../../policies/components/netpol-egress-public
+  - ../../policies/components/netpol-api-server
+
+patches:
+  # Controllers only: OCI API on the internet and the Kubernetes API. No ingress.
+  - target: {kind: NetworkPolicy}
+    patch: |-
+      - {op: add, path: /metadata/namespace, value: oci-controller}
