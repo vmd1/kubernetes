@@ -39,3 +39,8 @@ Jellyfin uses the SSO Authentication plugin (4.0.0.4, from the `https://raw.gith
 - **Login button**: added through Dashboard > General > Branding (login disclaimer HTML plus a CSS line) with the Authelia logo; it links to `https://jellyfin.vmd1.homelab/sso/OID/start/authelia`.
 - **LDAP removed**: the LDAP-Auth plugin is disabled. Existing users created through LDAP keep their accounts; they sign in through Authelia, which matches by username. A local administrator (`vivaan_local`) remains as a fallback. Accounts that must use a password (for example shared TV devices) need a local password set under Dashboard > Users.
 - **Changing config**: edit the plugin's configuration and restart Jellyfin; the plugin reads it at startup.
+
+## Network policy
+
+Enrolled in `netpol-baseline` (HTTP 8096 from Traefik, Prometheus on the same port) and `netpol-egress-public` (metadata providers and the SSO plugin's calls to `identity.vmd1.homelab`, which resolves to Cloudflare's public addresses from inside the cluster, checked 2026-11-02). The LAN, other nodes and the cloud metadata endpoint are blocked. Jellyfin is ClusterIP only, so no LAN-ingress rule is needed. See [policies/components](../../policies/components/README.md).
+

@@ -376,3 +376,8 @@ one hard reset an hour, up from about one a day; 27 in 24 hours at the peak).
 - consider swap or zram on the 1 GB nodes (kubelet needs `fail-swap-on=false`).
 
 The enrolment commits stay in history (`ce9bb94`, `e763d94`) and can be re-applied from there.
+
+## Appendix C. Re-enrolment, batch 2 (2026-11-02)
+
+Preconditions from Appendix B, re-checked: all six ingress nodes have run the edge-node image since 2026-10-29/30 with no restart counts newer than the swap; the pilot (ntfy, gossip, obsidian) has run enforced for 12+ days with no restarts; every Flux Kustomization is Ready. Batch 2 is deliberately small: `headlamp` (baseline + api-server) and `media`/Jellyfin (baseline + egress-public), both single-pod ClusterIP apps on hades-01, 10 NetworkPolicy objects in total (23 cluster-wide with the pilot, against about 200 at the time of the revert). Not yet taken: merging each namespace's policies into one object, and `disable-network-policy` on the ingress nodes; revisit if the policy count grows. Next candidates once this soaks 48 h: the db-client apps (needs the `vmd1.homelab/db-client` and `db-server` namespace labels, which do not exist yet), then the multi-pod namespaces (needs an intra-namespace allow, which the baseline does not have).
+

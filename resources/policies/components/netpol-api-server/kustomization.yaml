@@ -1,12 +1,18 @@
 apiVersion: kustomize.config.k8s.io/v1alpha1
 kind: Component
 
-resources:
-  - ranges
-  - networkpolicy.yaml
+# impl/ fills the placeholders from the ranges ConfigMap through `replacements`. Kustomize applies
+# patches before replacements inside one kustomization, so the ConfigMap can only be dropped here, one layer up.
+# Without this, two enrolled apps in one group (e.g. observability) both carry a ConfigMap of the same id and
+# the group's build fails with "may not add resource with an already registered id".
+components:
+  - impl
 
-replacements:
-  - source: {kind: ConfigMap, name: cluster-ranges-api-server, fieldPath: data.API_SERVER_CIDR}
-    targets:
-      - select: {kind: NetworkPolicy, name: allow-egress-api-server}
-        fieldPaths: [spec.egress.0.to.0.ipBlock.cidr]
+patches:
+  - target: {kind: ConfigMap, name: cluster-ranges-api-server}
+    patch: |-
+      $patch: delete
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: cluster-ranges-api-server

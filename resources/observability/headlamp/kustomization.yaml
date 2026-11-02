@@ -4,3 +4,21 @@ kind: Kustomization
 resources:
   - ingressroute.yaml
   - manifest.yaml
+
+components:
+  - ../../policies/components/netpol-baseline
+  # Headlamp (in-cluster mode) talks only to the Kubernetes API; no internet, no other pods.
+  - ../../policies/components/netpol-api-server
+
+patches:
+  # Components carry no namespace; the app port and scrape port replace the closed placeholder (port 1).
+  - target: {kind: NetworkPolicy}
+    patch: |-
+      - {op: add, path: /metadata/namespace, value: headlamp}
+  # Pod port 4466 (the Service maps 80 -> 4466); NetworkPolicy matches the pod port after DNAT.
+  - target: {kind: NetworkPolicy, name: allow-ingress-traefik}
+    patch: |-
+      - {op: replace, path: /spec/ingress/0/ports/0/port, value: 4466}
+  - target: {kind: NetworkPolicy, name: allow-ingress-monitoring}
+    patch: |-
+      - {op: replace, path: /spec/ingress/0/ports/0/port, value: 4466}

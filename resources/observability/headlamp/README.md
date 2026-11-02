@@ -40,3 +40,8 @@ No persistent volumes (PVC) are configured for Headlamp. It is a stateless dashb
 ## Configs & Credentials
 
 This deployment does not rely on configmaps or local secrets. Access credentials are managed through the mounted ServiceAccount token with `cluster-admin` access.
+
+## Network policy
+
+Enrolled in `netpol-baseline` (HTTP on pod port 4466 from Traefik; the Service maps 80 -> 4466 and NetworkPolicy matches the pod port) and `netpol-api-server` (egress to the API endpoint on 6443). Nothing else goes out: Headlamp runs in-cluster with its ServiceAccount token and needs no internet. See [policies/components](../../policies/components/README.md).
+

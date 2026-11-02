@@ -4,3 +4,20 @@ kind: Kustomization
 resources:
   - jellyfin.yaml
   - ingressroute.yaml
+
+components:
+  - ../../policies/components/netpol-baseline
+  # Metadata providers (TMDb, OpenSubtitles, ...) are on the internet; the LAN, nodes and the metadata endpoint stay blocked.
+  - ../../policies/components/netpol-egress-public
+
+patches:
+  # Components carry no namespace; the app port and scrape port replace the closed placeholder (port 1).
+  - target: {kind: NetworkPolicy}
+    patch: |-
+      - {op: add, path: /metadata/namespace, value: media}
+  - target: {kind: NetworkPolicy, name: allow-ingress-traefik}
+    patch: |-
+      - {op: replace, path: /spec/ingress/0/ports/0/port, value: 8096}
+  - target: {kind: NetworkPolicy, name: allow-ingress-monitoring}
+    patch: |-
+      - {op: replace, path: /spec/ingress/0/ports/0/port, value: 8096}
