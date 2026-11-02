@@ -134,3 +134,13 @@ patches:
     patch: |-
       - {op: add, path: /spec/template/spec/containers/0/imagePullPolicy, value: IfNotPresent}
       - {op: add, path: /spec/template/spec/nodeSelector, value: {kubernetes.io/hostname: hades-02}}
+  # Bridges parked at 0 replicas (pinned images are no longer pullable); the homeserver and other bridges stay up.
+  - target: {kind: Deployment, name: mautrix-whatsapp}
+    patch: |-
+      - {op: add, path: /spec/replicas, value: 0}
+  - target: {kind: Deployment, name: mautrix-gmessages}
+    patch: |-
+      - {op: add, path: /spec/replicas, value: 0}
+  - target: {kind: Deployment, name: mautrix-linkedin}
+    patch: |-
+      - {op: add, path: /spec/replicas, value: 0}
