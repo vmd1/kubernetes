@@ -1,0 +1,37 @@
+# Close TLS connections for ns1-ns4.vmd1.homelab without answering.
+#
+# ns1-4 are DNS-only glue names for the PowerDNS nodes (dns/domains/vmd1.homelab.js); nothing legitimate speaks HTTPS to
+# them. A TCP router on websecure matches the SNI before the TLS handshake (passthrough, so Traefik never terminates
+# it) and forwards to a Service without endpoints: Traefik has no server to dial and closes the connection, so the
+# client sees a reset/EOF instead of a 404. HTTP routers on the same entrypoint are unaffected.
+#
+# Limits: matches the SNI only, so a client that sends another SNI (or none) with a ns1-4 Host header still reaches
+# the HTTP routers (404 from vmd1-dev-cloudflare-only). Port 80 redirects to https as before. HTTP/3 (UDP 443) is not
+# covered by TCP routers.
+apiVersion: v1
+kind: Service
+metadata:
+  name: blackhole
+  namespace: traefik
+spec:
+  # No selector, no Endpoints object: nothing to connect to.
+  ports:
+    - name: tcp
+      port: 1
+      protocol: TCP
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRouteTCP
+metadata:
+  name: ns-hosts-drop
+  namespace: traefik
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: HostSNI(`ns1.vmd1.homelab`) || HostSNI(`ns2.vmd1.homelab`) || HostSNI(`ns3.vmd1.homelab`) || HostSNI(`ns4.vmd1.homelab`)
+      services:
+        - name: blackhole
+          port: 1
+  tls:
+    passthrough: true

@@ -13,3 +13,4 @@ resources:
   - geo-country.yaml
   - cloudflare-only.yaml
   - tailnet-only.yaml
+  - ns-hosts-drop.yaml
