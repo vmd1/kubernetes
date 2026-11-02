@@ -98,17 +98,17 @@ spec:
             - name: TAILNET
               value: "true"
             - name: GOMEMLIMIT
-              value: 64MiB
+              value: 128MiB
           # ~20-30MB normally. The limit also covers the mmapped GeoLite2 files, the 8MB conntrack socket buffer and
           # transient dump buffers; a burst of new connections on hades-02 (Longhorn reattaching volumes) pushed it
-          # past the original 64Mi and the pod was OOMKilled.
+          # past the original 64Mi and then 96Mi (still OOMKilled on hades-02 and zeus-01), hence 192Mi.
           resources:
             requests:
               cpu: 20m
               memory: 32Mi
             limits:
               cpu: 200m
-              memory: 96Mi
+              memory: 192Mi
           # privileged only for tailnet mode: entering the Tailscale pods' network namespaces needs setns and
           # ptrace-level access to /proc/<pid>/ns, and switching on conntrack accounting inside each of them
           # needs a writable /proc/sys. Without Tailscale pods on the node it does none of that.

@@ -177,6 +177,15 @@ spec:
               value: "true"
             - name: svc_election
               value: "true"
+            # Defaults (5s lease / 3s renew / 1s retry) lose leadership on any API-server latency spike; kube-vip then
+            # restarts itself, and v0.8.10 panics on that path -> CrashLoopBackOff, which also holds the operators
+            # Kustomization (and everything depending on it) in a failed health check.
+            - name: vip_leaseduration
+              value: "30"
+            - name: vip_renewdeadline
+              value: "20"
+            - name: vip_retryperiod
+              value: "4"
             - name: KUBEVIP_ENABLE_LOADBALANCERCLASS
               value: "true"
             - name: KUBEVIP_CUSTOM_LOADBALANCERCLASS_NAME
