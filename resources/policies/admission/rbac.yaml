@@ -1,4 +1,5 @@
-# rbac-bindings: only subjects listed in the policy-cluster-admin-subjects ConfigMap may be bound to cluster-admin.
+# rbac-bindings: only subjects listed in the policy-cluster-admin-subjects ConfigMap may be bound to cluster-admin, plus the
+# kube-system/helm-* ServiceAccounts that the k3s helm-controller creates (and binds to cluster-admin) for every HelmChart install.
 # rbac-roles: no wildcard verbs or resources in Roles/ClusterRoles. Excepted: system: roles and the vendor roles installed
 # outside this repo (Flux's gotk, k3s built-ins, Longhorn, Multus, local-path, prometheus-operator), which need wildcards.
 # Any new role that needs one must be added to the list below in the same PR.
@@ -23,7 +24,8 @@ spec:
   validations:
     - expression: >-
         object.?subjects.orValue([]).all(s,
-        (s.kind + '/' + s.?namespace.orValue('') + '/' + s.name) in params.data['subjects'].split(','))
+        (s.kind + '/' + s.?namespace.orValue('') + '/' + s.name) in params.data['subjects'].split(',') ||
+        (s.kind + '/' + s.?namespace.orValue('') + '/' + s.name).startsWith('ServiceAccount/kube-system/helm-'))
       message: "cluster-admin may only be bound to subjects listed in kube-system/policy-cluster-admin-subjects"
 ---
 apiVersion: admissionregistration.k8s.io/v1
