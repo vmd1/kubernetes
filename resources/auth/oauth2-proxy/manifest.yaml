@@ -67,6 +67,8 @@ spec:
             - --cookie-domain=.vmd1.homelab
             - --whitelist-domain=.vmd1.homelab
             - --cookie-secure=true
+            - --cookie-csrf-per-request=true
+            - --cookie-csrf-expire=15m
             - --cookie-samesite=lax
             - --cookie-expire=12h
             - --cookie-refresh=0
@@ -204,6 +206,8 @@ spec:
             - --cookie-domain=.vmd1.homelab
             - --whitelist-domain=.vmd1.homelab
             - --cookie-secure=true
+            - --cookie-csrf-per-request=true
+            - --cookie-csrf-expire=15m
             - --cookie-samesite=lax
             - --cookie-expire=12h
             - --cookie-refresh=0
@@ -341,6 +345,8 @@ spec:
             - --cookie-domain=.vmd1.homelab
             - --whitelist-domain=.vmd1.homelab
             - --cookie-secure=true
+            - --cookie-csrf-per-request=true
+            - --cookie-csrf-expire=15m
             - --cookie-samesite=lax
             - --cookie-expire=12h
             - --cookie-refresh=0
@@ -478,6 +484,8 @@ spec:
             - --cookie-domain=.vmd1.homelab
             - --whitelist-domain=.vmd1.homelab
             - --cookie-secure=true
+            - --cookie-csrf-per-request=true
+            - --cookie-csrf-expire=15m
             - --cookie-samesite=lax
             - --cookie-expire=12h
             - --cookie-refresh=0
