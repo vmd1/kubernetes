@@ -1,5 +1,7 @@
 # rbac-bindings: only subjects listed in the policy-cluster-admin-subjects ConfigMap may be bound to cluster-admin.
-# rbac-roles: no wildcard verbs or resources in Roles/ClusterRoles (system: roles and cluster-admin excepted).
+# rbac-roles: no wildcard verbs or resources in Roles/ClusterRoles. Excepted: system: roles and the vendor roles installed
+# outside this repo (Flux's gotk, k3s built-ins, Longhorn, Multus, local-path, prometheus-operator), which need wildcards.
+# Any new role that needs one must be added to the list below in the same PR.
 apiVersion: admissionregistration.k8s.io/v1
 kind: ValidatingAdmissionPolicy
 metadata:
@@ -38,7 +40,11 @@ spec:
         resources: ["clusterroles", "roles"]
   matchConditions:
     - name: not-built-in
-      expression: "!object.metadata.name.startsWith('system:') && object.metadata.name != 'cluster-admin'"
+      expression: >-
+        !object.metadata.name.startsWith('system:') &&
+        !(object.metadata.name in ['cluster-admin', 'admin', 'edit', 'view', 'crd-controller-flux-system',
+        'flux-edit-flux-system', 'flux-view-flux-system', 'k3s-cloud-controller-manager', 'local-path-provisioner-role',
+        'longhorn-role', 'longhorn', 'monitoring-kube-prometheus-operator', 'multus', 'rke2-multus', 'whereabouts'])
   validations:
     - expression: >-
         object.?rules.orValue([]).all(r,
