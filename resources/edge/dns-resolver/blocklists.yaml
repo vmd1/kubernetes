@@ -1,0 +1,41 @@
+# The profile names of the public resolver. A client picks the lists it wants with the hostname it connects to:
+# ads-trackers.dns.vmd1.homelab blocks everything on the "ads" and "trackers" Blocklists. Names are lowercase letters and digits only
+# ('-' separates lists in a hostname). Add a list by applying another Blocklist; delete one to stop serving it.
+apiVersion: dns.vmd1.homelab/v1alpha1
+kind: Blocklist
+metadata: {name: ads, namespace: dns-resolver}
+spec:
+  url: https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts
+---
+apiVersion: dns.vmd1.homelab/v1alpha1
+kind: Blocklist
+metadata: {name: trackers, namespace: dns-resolver}
+spec:
+  url: https://raw.githubusercontent.com/StevenBlack/hosts/master/alternates/fakenews/hosts
+---
+apiVersion: dns.vmd1.homelab/v1alpha1
+kind: Blocklist
+metadata: {name: gambling, namespace: dns-resolver}
+spec:
+  url: https://raw.githubusercontent.com/StevenBlack/hosts/master/alternates/gambling/hosts
+---
+apiVersion: dns.vmd1.homelab/v1alpha1
+kind: Blocklist
+metadata: {name: senso, namespace: dns-resolver}
+spec:
+  url: https://raw.githubusercontent.com/vmd1/security-lists/refs/heads/main/senso.txt
+  format: domains
+---
+apiVersion: dns.vmd1.homelab/v1alpha1
+kind: Blocklist
+metadata: {name: smoothwall, namespace: dns-resolver}
+spec:
+  url: https://raw.githubusercontent.com/vmd1/security-lists/refs/heads/main/smoothwall.txt
+  format: domains
+---
+apiVersion: dns.vmd1.homelab/v1alpha1
+kind: Blocklist
+metadata: {name: fl, namespace: dns-resolver}
+spec:
+  url: https://raw.githubusercontent.com/vmd1/security-lists/refs/heads/main/fl.txt
+  format: domains

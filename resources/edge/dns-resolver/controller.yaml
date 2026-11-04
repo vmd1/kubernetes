@@ -1,0 +1,111 @@
+# The Blocklist controller: watches Blocklist objects, downloads and compiles each list once, and serves the result
+# over HTTP inside the cluster. The edge pods fetch from it (see daemonset.yaml), so a list is downloaded once, not six times,
+# and never by the 1 GB edge nodes. The code is a ConfigMap on a pinned stock image (no image to build); stdlib only.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: blocklist-controller
+  namespace: dns-resolver
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: blocklist-controller
+  namespace: dns-resolver
+rules:
+  - apiGroups: [dns.vmd1.homelab]
+    resources: [blocklists]
+    verbs: [list]
+  - apiGroups: [dns.vmd1.homelab]
+    resources: [blocklists/status]
+    verbs: [patch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: blocklist-controller
+  namespace: dns-resolver
+subjects:
+  - {kind: ServiceAccount, name: blocklist-controller, namespace: dns-resolver}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: blocklist-controller
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: blocklist-controller
+  namespace: dns-resolver
+  labels:
+    app.kubernetes.io/name: blocklist-controller
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: blocklist-controller
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: blocklist-controller
+    spec:
+      serviceAccountName: blocklist-controller
+      enableServiceLinks: false
+      # Never on the edge nodes: parsing a large list needs memory they do not have to spare.
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - {key: node-role.kubernetes.io/ingress, operator: DoesNotExist}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: controller
+          image: python:3.13-alpine@sha256:7984cf56ceaddebe4fefeb75d64000b9f45d8b77b11a09b24524da6cdc3af0c8
+          command: [python3, -u, /app/controller.py]
+          env:
+            - {name: PYTHONDONTWRITEBYTECODE, value: "1"}
+          ports:
+            - {name: http, containerPort: 8080}
+          readinessProbe:
+            httpGet: {path: /readyz, port: http}
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: {path: /healthz, port: http}
+            periodSeconds: 30
+            failureThreshold: 4
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+          resources:
+            requests: {cpu: 10m, memory: 48Mi}
+            limits: {cpu: 500m, memory: 256Mi}
+          volumeMounts:
+            - {name: app, mountPath: /app, readOnly: true}
+            - {name: data, mountPath: /data}
+            - {name: tmp, mountPath: /tmp}
+      volumes:
+        - name: app
+          configMap: {name: blocklist-controller-code}
+        - name: data
+          emptyDir: {sizeLimit: 256Mi}
+        - name: tmp
+          emptyDir: {sizeLimit: 16Mi}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: blocklist-controller
+  namespace: dns-resolver
+spec:
+  selector:
+    app.kubernetes.io/name: blocklist-controller
+  ports:
+    - {name: http, port: 8080, targetPort: http}

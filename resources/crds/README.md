@@ -7,6 +7,7 @@ CustomResourceDefinitions that are vendored as plain manifests, applied by the `
 | Folder | Description |
 | :--- | :--- |
 | [cnpg/](cnpg/README.md) | The 9 CloudNativePG CRDs (`clusters.postgresql.cnpg.io`, `backups`, `poolers`, ...). |
+| [blocklist/](blocklist/README.md) | `Blocklist` CRD (`dns.vmd1.homelab`): a downloadable domain list the edge DNS resolver can block, see [../edge/dns-resolver/](../edge/dns-resolver/README.md). |
 | [edgesite/](edgesite/README.md) | `EdgeSite` CRD for the edge-services platform. |
 | [oci-port-controller/](oci-port-controller/README.md) | `FirewallRule` CRD (and the deprecated `OCIPortRule` CRD) used by [../oci/firewall/](../oci/firewall/README.md). |
 

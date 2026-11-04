@@ -1,0 +1,72 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: blocklists.dns.vmd1.homelab
+spec:
+  group: dns.vmd1.homelab
+  scope: Namespaced
+  names:
+    kind: Blocklist
+    listKind: BlocklistList
+    plural: blocklists
+    singular: blocklist
+    shortNames:
+      - bl
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      subresources:
+        status: {}
+      additionalPrinterColumns:
+        - name: Ready
+          type: string
+          jsonPath: .status.conditions[?(@.type=="Ready")].status
+        - name: Entries
+          type: integer
+          jsonPath: .status.entries
+        - name: Refresh
+          type: string
+          jsonPath: .spec.refreshInterval
+        - name: Reason
+          type: string
+          priority: 1
+          jsonPath: .status.conditions[?(@.type=="Ready")].reason
+        - name: Age
+          type: date
+          jsonPath: .metadata.creationTimestamp
+      schema:
+        openAPIV3Schema:
+          type: object
+          required: [spec]
+          properties:
+            spec:
+              type: object
+              required: [url]
+              properties:
+                url:
+                  type: string
+                  description: http(s) URL of the list. Fetched by the dns-resolver controller, never by the edge nodes.
+                  pattern: '^https?://[^\s]+$'
+                format:
+                  type: string
+                  description: hosts = "XXX.XXX.XXX.XXX domain" lines (StevenBlack style); domains = one domain per line (wildcard/adblock-ish prefixes tolerated).
+                  enum: [hosts, domains]
+                  default: hosts
+                refreshInterval:
+                  type: string
+                  description: How often to re-fetch (s/m/h/d suffix, minimum 1m).
+                  pattern: '^[0-9]+[smhd]$'
+                  default: 24h
+                maxEntries:
+                  type: integer
+                  minimum: 1
+                  description: Reject the list when it compiles to more domains than this (each domain costs RAM on every edge node).
+                  default: 200000
+                suspend:
+                  type: boolean
+                  description: Stop refreshing; the last compiled list keeps being served.
+                  default: false
+            status:
+              type: object
+              x-kubernetes-preserve-unknown-fields: true

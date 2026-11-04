@@ -1,0 +1,121 @@
+# The public resolver on every edge (ingress) node. Pod = dnsdist (DoT/DoH, ACL, rate limits, per-profile blocking) + unbound
+# (recursion, loopback only) + sync (copies the compiled blocklists from the controller). Traefik reaches the pod on its own node:
+# DoT as raw TCP with a PROXY protocol header (real client address), DoH as h2c.
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: dns-resolver
+  namespace: dns-resolver
+  labels:
+    app.kubernetes.io/name: dns-resolver
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: dns-resolver
+  updateStrategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: dns-resolver
+    spec:
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      terminationGracePeriodSeconds: 15
+      nodeSelector:
+        node-role.kubernetes.io/ingress: "true"
+      tolerations:
+        - operator: Exists
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: dnsdist
+          image: powerdns/dnsdist-19:1.9.16@sha256:260b1120947a10c494fad4d93cde33ebace34bf4800c88ebb114dd7f9e829809
+          args: [--supervised, --disable-syslog]
+          ports:
+            - {name: dot, containerPort: 8853}
+            - {name: doh, containerPort: 8053}
+          readinessProbe:
+            tcpSocket: {port: dot}
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket: {port: dot}
+            periodSeconds: 20
+            failureThreshold: 3
+          securityContext:
+            runAsUser: 953
+            runAsGroup: 953
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+          # About 50 MiB for the ~120k domains of the default lists plus ~25 MiB for dnsdist itself; every
+          # extra 100k domains is roughly 40 MiB on all six nodes. maxEntries on a Blocklist caps that.
+          resources:
+            requests: {cpu: 10m, memory: 64Mi}
+            limits: {cpu: 500m, memory: 160Mi}
+          volumeMounts:
+            - {name: dnsdist-config, mountPath: /etc/dnsdist, readOnly: true}
+            - {name: certs, mountPath: /certs, readOnly: true}
+            - {name: lists, mountPath: /lists, readOnly: true}
+        - name: unbound
+          image: klutchell/unbound:1.26.2@sha256:50cbeb32b5838a829a7226b19cb151f9535bd7f9f3190f950780f452fe807478
+          args: [-c, /etc/unbound/unbound.conf, -d]
+          securityContext:
+            runAsUser: 65532
+            runAsGroup: 65532
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+          resources:
+            requests: {cpu: 10m, memory: 24Mi}
+            limits: {cpu: 500m, memory: 64Mi}
+          volumeMounts:
+            - {name: unbound-config, mountPath: /etc/unbound, readOnly: true}
+        - name: sync
+          image: busybox:1.37.0@sha256:a7dbc319b1438115a207e11930dc4bb3e643dcb3ec0bdd694bb36cd8fad289ec
+          command: [sh, /config/sync.sh]
+          env:
+            - {name: CONTROLLER_URL, value: "http://blocklist-controller.dns-resolver.svc:8080"}
+            - {name: LISTS_DIR, value: /lists}
+          securityContext:
+            runAsUser: 953
+            runAsGroup: 953
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+          resources:
+            requests: {cpu: 5m, memory: 4Mi}
+            limits: {cpu: 200m, memory: 24Mi}
+          volumeMounts:
+            - {name: sync-config, mountPath: /config, readOnly: true}
+            - {name: lists, mountPath: /lists}
+      volumes:
+        - name: dnsdist-config
+          configMap: {name: dns-resolver-dnsdist}
+        - name: unbound-config
+          configMap: {name: dns-resolver-unbound}
+        - name: sync-config
+          configMap: {name: dns-resolver-sync}
+        - name: certs
+          secret: {secretName: dns-wildcard-tls}
+        - name: lists
+          emptyDir: {sizeLimit: 128Mi}
+---
+# Traefik is hostNetwork, so its connection to this ClusterIP is NATed by kube-proxy: with internalTrafficPolicy Local it
+# only ever reaches the pod on its own node (a node without a ready pod drops it, which is what we want). Deliberately
+# not nativeLB: Traefik would then spread connections over every node's pod.
+apiVersion: v1
+kind: Service
+metadata:
+  name: dns-resolver
+  namespace: dns-resolver
+spec:
+  selector:
+    app.kubernetes.io/name: dns-resolver
+  internalTrafficPolicy: Local
+  ports:
+    - {name: dot, port: 853, targetPort: dot}
+    - {name: doh, port: 8053, targetPort: doh, appProtocol: kubernetes.io/h2c}

@@ -1,0 +1,43 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - blocklists.yaml
+  - certificate.yaml
+  - controller.yaml
+  - daemonset.yaml
+  - ingressroute.yaml
+
+components:
+  - ../../policies/components/netpol-baseline
+  - ../../policies/components/netpol-api-server
+  - ../../policies/components/netpol-egress-public
+
+# Config is mounted as files; the generated name hash rolls the pods when a file changes (a changed dnsdist.conf needs a restart).
+configMapGenerator:
+  - name: dns-resolver-dnsdist
+    namespace: dns-resolver
+    files: [dnsdist.conf=config/dnsdist.conf]
+  - name: dns-resolver-unbound
+    namespace: dns-resolver
+    files: [unbound.conf=config/unbound.conf]
+  - name: dns-resolver-sync
+    namespace: dns-resolver
+    files: [sync.sh=config/sync.sh]
+  - name: blocklist-controller-code
+    namespace: dns-resolver
+    files: [controller.py=controller/controller.py]
+
+patches:
+  - target: {kind: NetworkPolicy}
+    patch: |-
+      - {op: add, path: /metadata/namespace, value: dns-resolver}
+  # Traefik reaches dnsdist on DoT (8853) and DoH (8053), and nothing else.
+  - target: {kind: NetworkPolicy, name: allow-ingress-traefik}
+    patch: |-
+      - {op: replace, path: /spec/ingress/0/ports/0/port, value: 8853}
+      - {op: add, path: /spec/ingress/0/ports/-, value: {protocol: TCP, port: 8053}}
+  # No metrics endpoint yet: keep the monitoring policy closed (port 1 placeholder).
+  - target: {kind: NetworkPolicy, name: allow-ingress-monitoring}
+    patch: |-
+      - {op: replace, path: /spec/ingress/0/ports/0/port, value: 8080}

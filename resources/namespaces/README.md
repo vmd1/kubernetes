@@ -7,7 +7,7 @@ Every Namespace in the `vmd1` cluster, applied by the `namespaces` Flux Kustomiz
 | File | Description |
 | :--- | :--- |
 | [kustomization.yaml](kustomization.yaml) | Kustomize entrypoint. |
-| [namespaces.yaml](namespaces.yaml) | One `Namespace` per app or operator (34 in all), including `cert-manager`, `powerdns`, `redis-operator`, `tailscale` and `traefik`, which used to be created by hand or by HelmChart `createNamespace`; plus `default`, `kube-system`, `kube-public` and `kube-node-lease` for their labels only. |
+| [namespaces.yaml](namespaces.yaml) | One `Namespace` per app or operator (39 in all), including `cert-manager`, `powerdns`, `redis-operator`, `tailscale` and `traefik`, which used to be created by hand or by HelmChart `createNamespace`; plus `default`, `kube-system`, `kube-public` and `kube-node-lease` for their labels only. |
 
 ## Design Decisions
 

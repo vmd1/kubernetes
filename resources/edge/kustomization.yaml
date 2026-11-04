@@ -5,6 +5,7 @@ resources:
   - edge-sites
   - error-pages
   - geoip-updater
+  - dns-resolver
   - monitoring-agents
   - podflow
   - powerdns

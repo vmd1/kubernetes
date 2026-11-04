@@ -1,0 +1,16 @@
+# One wildcard certificate for every blocklist profile: DoT presents it for SNI <profile>.dns.vmd1.homelab (dnsdist terminates TLS),
+# DoH presents it on Traefik's websecure entrypoint. DNS-01 through Cloudflare, like the other wildcards.
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: dns-wildcard-tls
+  namespace: dns-resolver
+spec:
+  secretName: dns-wildcard-tls
+  issuerRef:
+    name: letsencrypt-cloudflare
+    kind: ClusterIssuer
+  commonName: dns.vmd1.homelab
+  dnsNames:
+    - dns.vmd1.homelab
+    - "*.dns.vmd1.homelab"
