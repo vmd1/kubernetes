@@ -10,7 +10,7 @@ A public recursive resolver (DNS-over-TLS and DNS-over-HTTPS) on every ingress e
 | [controller.yaml](controller.yaml) | Blocklist controller: ServiceAccount, Role, Deployment (not on edge nodes) and Service. |
 | [controller/](controller/controller.py) | The controller (stdlib Python, mounted from a ConfigMap) and its offline tests (`python3 -m unittest test_controller`). |
 | [config/](config/dnsdist.conf) | `dnsdist.conf`, `unbound.conf`, `sync.sh`. |
-| [blocklists.yaml](blocklists.yaml) | The `Blocklist` objects (ads, trackers, gambling, senso, smoothwall, fl). |
+| [blocklists.yaml](blocklists.yaml) | The `Blocklist` objects (ads, trackers, senso, smoothwall, fl). |
 | [certificate.yaml](certificate.yaml) | Wildcard certificate for `dns.vmd1.homelab` and `*.dns.vmd1.homelab`. |
 | [ingressroute.yaml](ingressroute.yaml) | Traefik routes: DoT (TCP passthrough, PROXY v2) and DoH. |
 

@@ -15,12 +15,6 @@ spec:
 ---
 apiVersion: dns.vmd1.homelab/v1alpha1
 kind: Blocklist
-metadata: {name: gambling, namespace: dns-resolver}
-spec:
-  url: https://raw.githubusercontent.com/StevenBlack/hosts/master/alternates/gambling/hosts
----
-apiVersion: dns.vmd1.homelab/v1alpha1
-kind: Blocklist
 metadata: {name: senso, namespace: dns-resolver}
 spec:
   url: https://raw.githubusercontent.com/vmd1/security-lists/refs/heads/main/senso.txt
