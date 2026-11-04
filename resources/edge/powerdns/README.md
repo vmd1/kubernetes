@@ -22,6 +22,7 @@ PowerDNS is configured as an Authoritative DNS server running on the ingress nod
   - Implements LUA `ifurlup` records to return the closest healthy node's IP to the client based on distance and health check metrics (`https://vmd1.homelab/health`).
 - **No Directory Shadowing**: To avoid overlaying config folders and losing the container's default configs, generated files are placed in an `emptyDir` volume and mounted as individual files using `subPath` definitions.
 - **AXFR Whitelist**: Restricts zone transfers (`PDNS_allow_axfr_ips`) strictly to Cloudflare's IP ranges to sync changes to secondary name servers.
+- **Zone apex data for `ingress.vmd1.homelab`**: the operator writes the SOA and NS into `geoip-zones.yaml`. NS are `ns1`-`ns4.vmd1.homelab` (the real delegation, see [dns/README.md](../../../../dns/README.md#name-servers-for-ingressvmd1dev); env `NAMESERVERS` overrides), SOA mname `ns1.vmd1.homelab`, rname `admin.vmd1.homelab`, and the serial is derived from a hash of the zone content (changes only when the zone does). It used to return `ns1/ns2.cloudflare.com` and a fixed serial `2024031701`, which contradicted the parent's delegation. Takes effect once the new operator image is built and its digest bumped in [operator.yaml](operator.yaml).
 - **No Version Disclosure**: `PDNS_version_string=anonymous` makes `version.bind`/`version.pdns` queries return REFUSED instead of the exact PowerDNS build string. Recursion and AXFR were already refused on all ingress nodes.
 
 
