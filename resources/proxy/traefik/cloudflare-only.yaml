@@ -1,7 +1,7 @@
 # Cloudflare-only origin for vmd1.homelab and every subdomain.
 #
 # Every vmd1.homelab hostname that serves HTTP is proxied by Cloudflare (dns/domains/vmd1.homelab.js: apex ALIAS and the
-# `*` CNAME are CF_PROXY_ON; the DNS-only names are ns1-4, ingress, vivaans-pc.d and non-cluster targets). Anything
+# `*` CNAME are CF_PROXY_ON; the DNS-only names are ns1-4, ingress, admins-pc.d and non-cluster targets). Anything
 # that reaches an ingress node directly with a vmd1.homelab Host header is bypassing Cloudflare's WAF/rate limits and
 # is answered with the same 404 as an unknown host. ClientIP() accepts a single CIDR, hence one term per range. The router matches on the TCP peer (Traefik's ClientIP matcher
 # uses RemoteAddr, which the entrypoints' forwardedHeaders.trustedIPs never rewrite), so it cannot be spoofed with

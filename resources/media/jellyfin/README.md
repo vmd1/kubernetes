@@ -37,7 +37,7 @@ Jellyfin uses the SSO Authentication plugin (XXX.XXX.XXX.XXX, from the `https://
 
 - **Provider `authelia`** (`/config/plugins/configurations/SSO-Auth.xml`): issuer `https://identity.vmd1.homelab`, client ID `jellyfin` (registered in Authelia with `client_secret_post`), role claim `groups`, allowed roles `jellyfin` and `jellyfin_admin`, admin role `jellyfin_admin`, scheme override `https`, pushed authorization disabled. The client secret is in that file (plaintext counterpart: `jellyfin_oidc_client_secret` in the Authelia Secret).
 - **Login button**: added through Dashboard > General > Branding (login disclaimer HTML plus a CSS line) with the Authelia logo; it links to `https://jellyfin.vmd1.homelab/sso/OID/start/authelia`.
-- **LDAP removed**: the LDAP-Auth plugin is disabled. Existing users created through LDAP keep their accounts; they sign in through Authelia, which matches by username. A local administrator (`vivaan_local`) remains as a fallback. Accounts that must use a password (for example shared TV devices) need a local password set under Dashboard > Users.
+- **LDAP removed**: the LDAP-Auth plugin is disabled. Existing users created through LDAP keep their accounts; they sign in through Authelia, which matches by username. A local administrator (`admin_local`) remains as a fallback. Accounts that must use a password (for example shared TV devices) need a local password set under Dashboard > Users.
 - **Changing config**: edit the plugin's configuration and restart Jellyfin; the plugin reads it at startup.
 
 ## Network policy
