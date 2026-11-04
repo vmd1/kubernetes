@@ -99,7 +99,7 @@ metadata:
   name: mosquitto
   namespace: mqtt
   annotations:
-    kube-vip.io/loadbalancerIPs: "192.168.12.12"
+    kube-vip.io/loadbalancerIPs: "XXX.XXX.XXX.XXX"
   labels:
     app: mosquitto
 spec:

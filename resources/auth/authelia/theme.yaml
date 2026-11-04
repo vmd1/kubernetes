@@ -218,7 +218,7 @@ data:
       scgi_temp_path /tmp/scgi_temp;
 
       upstream authelia {
-        server 127.0.0.1:9091;
+        server XXX.XXX.XXX.XXX:9091;
         keepalive 8;
       }
 

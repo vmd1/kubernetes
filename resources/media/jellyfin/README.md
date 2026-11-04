@@ -33,7 +33,7 @@ This directory manages Jellyfin, the homelab streaming server. Seerr (request ma
 
 ## Jellyfin SSO
 
-Jellyfin uses the SSO Authentication plugin (4.0.0.4, from the `https://raw.githubusercontent.com/9p4/jellyfin-plugin-sso/manifest-release/manifest.json` plugin repository) against the cluster-wide Authelia. The configuration is stored in the Jellyfin config volume, not in this repo:
+Jellyfin uses the SSO Authentication plugin (XXX.XXX.XXX.XXX, from the `https://raw.githubusercontent.com/9p4/jellyfin-plugin-sso/manifest-release/manifest.json` plugin repository) against the cluster-wide Authelia. The configuration is stored in the Jellyfin config volume, not in this repo:
 
 - **Provider `authelia`** (`/config/plugins/configurations/SSO-Auth.xml`): issuer `https://identity.vmd1.homelab`, client ID `jellyfin` (registered in Authelia with `client_secret_post`), role claim `groups`, allowed roles `jellyfin` and `jellyfin_admin`, admin role `jellyfin_admin`, scheme override `https`, pushed authorization disabled. The client secret is in that file (plaintext counterpart: `jellyfin_oidc_client_secret` in the Authelia Secret).
 - **Login button**: added through Dashboard > General > Branding (login disclaimer HTML plus a CSS line) with the Authelia logo; it links to `https://jellyfin.vmd1.homelab/sso/OID/start/authelia`.

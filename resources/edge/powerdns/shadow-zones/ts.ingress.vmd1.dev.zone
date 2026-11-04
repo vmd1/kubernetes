@@ -6,4 +6,4 @@ $TTL 300
 @ IN NS ns2.vmd1.homelab.
 @ IN NS ns3.vmd1.homelab.
 @ IN NS ns4.vmd1.homelab.
-@ 60 IN LUA A "ifurlup('https://vmd1.homelab/health', {'100.71.166.76','10.0.0.10','100.93.7.62','100.124.254.105'}, {timeout=3, selector='all'})"
+@ 60 IN LUA A "ifurlup('https://vmd1.homelab/health', {'XXX.XXX.XXX.XXX','XXX.XXX.XXX.XXX','XXX.XXX.XXX.XXX','XXX.XXX.XXX.XXX'}, {timeout=3, selector='all'})"

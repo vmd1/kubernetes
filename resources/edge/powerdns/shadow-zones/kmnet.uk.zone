@@ -9,7 +9,7 @@ $TTL 300
 @ 300 IN CAA 0 iodef "mailto:me@vmd1.homelab"
 @ 300 IN CAA 0 issue "letsencrypt.org"
 @ 300 IN CAA 0 issuewild "letsencrypt.org"
-@ 60 IN LUA A ";if netmask({'100.64.0.0/10','fd7a:115c:a1e0::/48'}) then return ifurlup('https://vmd1.homelab/health', {'100.71.166.76','10.0.0.10','100.93.7.62','100.124.254.105'}, {timeout=3, selector='all'}) else return ifurlup('https://vmd1.homelab/health', {'80.225.200.224','80.225.229.77','82.70.231.129','129.151.239.21','140.238.89.113','79.72.94.88'}, {timeout=3, selector='pickclosest'}) end"
+@ 60 IN LUA A ";if netmask({'XXX.XXX.XXX.XXX/10','fd7a:115c:a1e0::/48'}) then return ifurlup('https://vmd1.homelab/health', {'XXX.XXX.XXX.XXX','XXX.XXX.XXX.XXX','XXX.XXX.XXX.XXX','XXX.XXX.XXX.XXX'}, {timeout=3, selector='all'}) else return ifurlup('https://vmd1.homelab/health', {'XXX.XXX.XXX.XXX','XXX.XXX.XXX.XXX','XXX.XXX.XXX.XXX','XXX.XXX.XXX.XXX','XXX.XXX.XXX.XXX','XXX.XXX.XXX.XXX'}, {timeout=3, selector='pickclosest'}) end"
 @ 300 IN MX 12 route1.mx.cloudflare.net.
 @ 300 IN MX 52 route2.mx.cloudflare.net.
 @ 300 IN MX 59 route3.mx.cloudflare.net.
@@ -25,7 +25,7 @@ _pop3s._tcp 300 IN SRV 0 1 995 mail.vmd1.homelab.
 _smtp._tls 300 IN TXT "v=TLSRPTv1; rua=mailto:postmaster@vmd1.homelab"
 _submission._tcp 300 IN SRV 0 1 587 mail.vmd1.homelab.
 _submissions._tcp 300 IN SRV 0 1 465 mail.vmd1.homelab.
-* 60 IN LUA CNAME "view({{{'100.64.0.0/10','fd7a:115c:a1e0::/48'}, {'ts.ingress.vmd1.homelab.'}}, {{'0.0.0.0/0','::/0'}, {'ingress.vmd1.homelab.'}}})"
+* 60 IN LUA CNAME "view({{{'XXX.XXX.XXX.XXX/10','fd7a:115c:a1e0::/48'}, {'ts.ingress.vmd1.homelab.'}}, {{'XXX.XXX.XXX.XXX/0','::/0'}, {'ingress.vmd1.homelab.'}}})"
 202506e._domainkey 300 IN TXT "v=DKIM1; k=ed25519; h=sha256; p=wbFTNipnG7loy8hBJm6avW/trzScRkFOCjHC3vuRMrQ="
 202506r._domainkey 300 IN TXT "v=DKIM1; k=rsa; h=sha256; p=MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEArivyBHD9oOKqjEKOxb5iJf9w24y5clWg+LLgiPw1W7M9rbCffBazEEO+Z+yViTtLvfTdeeJ3Ez3CefTZvU7IAhCWCict79ZY8lyOkk7dywNSQcfwh0lw12DLgBt/WwteEoFYH5eTzIrWDzt9xu7QsYrkqMOu75l6hDIahEG3cMiupRNIegcPQfc" "gVa8m2UA9Vgk7Bj8U6Ir4dhMvk11TuJzPboTJTnpYZPfMyXo6gVKS3rWTn3Oi6zxw1vpErxfY4Ku3X88ePeBLScTiWrFmT530KyyfRngY7LP6gZUJjISpKMGZ/5N3K3qVt2WFsu1TLSUH6jfVAwZqMBk4ev3WrQIDAQAB"
 autoconfig 300 IN CNAME mail.vmd1.homelab.
@@ -34,24 +34,24 @@ em645409 300 IN CNAME return.smtp2go.net.
 em645409.home 300 IN CNAME return.smtp2go.net.
 fwd.help 300 IN TXT "forward-domain=https://drive.google.com/file/d/1ha0iNHo6pKiWflVza1G0v1xgDx2ci-zY/view?usp=drivesdk"
 help 300 IN CNAME r.forwarddomain.net.
-home 60 IN LUA A ";if netmask({'100.64.0.0/10','fd7a:115c:a1e0::/48'}) then return ifurlup('https://vmd1.homelab/health', {'100.71.166.76','10.0.0.10','100.93.7.62','100.124.254.105'}, {timeout=3, selector='all'}) else return ifurlup('https://vmd1.homelab/health', {'80.225.200.224','80.225.229.77','82.70.231.129','129.151.239.21','140.238.89.113','79.72.94.88'}, {timeout=3, selector='pickclosest'}) end"
+home 60 IN LUA A ";if netmask({'XXX.XXX.XXX.XXX/10','fd7a:115c:a1e0::/48'}) then return ifurlup('https://vmd1.homelab/health', {'XXX.XXX.XXX.XXX','XXX.XXX.XXX.XXX','XXX.XXX.XXX.XXX','XXX.XXX.XXX.XXX'}, {timeout=3, selector='all'}) else return ifurlup('https://vmd1.homelab/health', {'XXX.XXX.XXX.XXX','XXX.XXX.XXX.XXX','XXX.XXX.XXX.XXX','XXX.XXX.XXX.XXX','XXX.XXX.XXX.XXX','XXX.XXX.XXX.XXX'}, {timeout=3, selector='pickclosest'}) end"
 home 300 IN MX 10 mx.zoho.in.
 home 300 IN MX 20 mx2.zoho.in.
 home 300 IN MX 50 mx3.zoho.in.
 home 300 IN TXT "v=spf1 include:zohomail.in ~all"
 home 300 IN TXT "zoho-verification=zb63187669.zmverify.zoho.in"
-home.locations 60 IN LUA CNAME "view({{{'100.64.0.0/10','fd7a:115c:a1e0::/48'}, {'ts.ingress.vmd1.homelab.'}}, {{'0.0.0.0/0','::/0'}, {'uk-home.ingress.vmd1.homelab.'}}})"
+home.locations 60 IN LUA CNAME "view({{{'XXX.XXX.XXX.XXX/10','fd7a:115c:a1e0::/48'}, {'ts.ingress.vmd1.homelab.'}}, {{'XXX.XXX.XXX.XXX/0','::/0'}, {'uk-home.ingress.vmd1.homelab.'}}})"
 it 300 IN MX 12 route1.mx.cloudflare.net.
 it 300 IN MX 52 route2.mx.cloudflare.net.
 it 300 IN MX 59 route3.mx.cloudflare.net.
 it 300 IN TXT "v=spf1 include:_spf.mx.cloudflare.net ~all"
-jellyfin 60 IN LUA CNAME "view({{{'100.64.0.0/10','fd7a:115c:a1e0::/48'}, {'ts.ingress.vmd1.homelab.'}}, {{'0.0.0.0/0','::/0'}, {'uk-home.ingress.vmd1.homelab.'}}})"
+jellyfin 60 IN LUA CNAME "view({{{'XXX.XXX.XXX.XXX/10','fd7a:115c:a1e0::/48'}, {'ts.ingress.vmd1.homelab.'}}, {{'XXX.XXX.XXX.XXX/0','::/0'}, {'uk-home.ingress.vmd1.homelab.'}}})"
 mail 300 IN TXT "v=spf1 a ra=postmaster -all"
 s645409._domainkey 300 IN CNAME dkim.smtp2go.net.
 s645409._domainkey.home 300 IN CNAME dkim.smtp2go.net.
-school.locations 300 IN A 51.148.46.242
+school.locations 300 IN A XXX.XXX.XXX.XXX
 t 300 IN CNAME track.smtp2go.net.
 t.home 300 IN CNAME track.smtp2go.net.
-ultimate 60 IN LUA CNAME "view({{{'100.64.0.0/10','fd7a:115c:a1e0::/48'}, {'ts.ingress.vmd1.homelab.'}}, {{'0.0.0.0/0','::/0'}, {'ingress.vmd1.homelab.'}}})"
-up 60 IN LUA CNAME "view({{{'100.64.0.0/10','fd7a:115c:a1e0::/48'}, {'ts.ingress.vmd1.homelab.'}}, {{'0.0.0.0/0','::/0'}, {'ingress.vmd1.homelab.'}}})"
+ultimate 60 IN LUA CNAME "view({{{'XXX.XXX.XXX.XXX/10','fd7a:115c:a1e0::/48'}, {'ts.ingress.vmd1.homelab.'}}, {{'XXX.XXX.XXX.XXX/0','::/0'}, {'ingress.vmd1.homelab.'}}})"
+up 60 IN LUA CNAME "view({{{'XXX.XXX.XXX.XXX/10','fd7a:115c:a1e0::/48'}, {'ts.ingress.vmd1.homelab.'}}, {{'XXX.XXX.XXX.XXX/0','::/0'}, {'ingress.vmd1.homelab.'}}})"
 zmail._domainkey.home 300 IN TXT "v=DKIM1; k=rsa; p=MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDU5nKUnsk4a0XuFqmL9e69MLKtlWGjR3GwLh7wC4aqfxIDK3vblwrL67to/gIaBdqI3suSrDLwHytMReC8mms1FRLl0zAvd2xXDVbpicRjWSwxSu683MJSFoaPbpYyBzY4InV/AJ5tfWmB0d6CYLYszaHzxoximzTps9hNx9BXJQIDAQAB"

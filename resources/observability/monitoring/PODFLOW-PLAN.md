@@ -32,7 +32,7 @@ Prometheus together at most 70Gi; retention at most 30d; the Tailscale free plan
 | conntrack interface | `/proc/net/nf_conntrack` and `/proc/net/stat/nf_conntrack` do not exist (procfs compiled out), no `conntrack` binary | Netlink is the only way in. The plan already uses it. |
 | `nf_conntrack_acct` / `nf_conntrack_timestamp` | both 0 on hades-02 | Byte counts and start times are off. The agent must enable them. |
 | Pod networking | flannel (vxlan over `tailscale0`), `cni0` 10.42.x.1/24 per node | Cross-node flows are tracked on both nodes. Dedupe rule below. |
-| DNS path | Pods use CoreDNS `10.43.0.10` directly. The `node-local-dns` DaemonSet does not exist (the `nodedns` entry in `cluster-info.md` is stale) | Do not rely on node-local-dns. hostNetwork pods use the node resolver, whose DNS never crosses `cni0` (zeus-02 saw zero DNS packets on `cni0` in 10 minutes), so sniff all interfaces with a port-53 BPF filter. |
+| DNS path | Pods use CoreDNS `XXX.XXX.XXX.XXX` directly. The `node-local-dns` DaemonSet does not exist (the `nodedns` entry in `cluster-info.md` is stale) | Do not rely on node-local-dns. hostNetwork pods use the node resolver, whose DNS never crosses `cni0` (zeus-02 saw zero DNS packets on `cni0` in 10 minutes), so sniff all interfaces with a port-53 BPF filter. |
 | Controllers | Python images in `controllers/`, built by `controller-images.yaml`; the image list is hard-coded in `.github/scripts/controller-images-changes.sh` | The agent is Go for memory reasons. A Dockerfile build works for any language. Add `podflow` (and `podflow-ts`) to the `IMAGES` array. |
 | Measured flow rates (10 min, 2026-10-21) | zeus-02: 5.8 new/s, 5.3 closes/s, about 455k closes/day. hades-02: 35 new/s, 16 closes/s (peak 55 new/s), about 1.41M closes/day. 54% (zeus-02) and 77% (hades-02) of closed flows carried under 1KB. Only 6-12 flows over 100KB per 10 minutes. Flows with at least 1KB moved per minute: 10-14 (zeus-02), 5-26 (hades-02) | Volume is moderate, and most of it is DNS, health probes and overlay transport, which the aggregation rules below remove. |
 | Overlay share | UDP 8472 (vxlan) was 46% of closed flows on hades-02 and 9% on zeus-02. DNS was 16% and 15% | Excluding overlay from logs and aggregating DNS removes more than half the lines. |
@@ -116,8 +116,8 @@ Flow log lines (JSON, one per flow), two event types:
 
 ```json
 {"ts":"2026-10-21T18:05:16Z","event":"close","node":"hades-02","proto":"tcp",
- "src":{"kind":"pod","ns":"nextcloud","pod":"nextcloud-6d9f","workload":"deploy/nextcloud","ip":"10.42.2.40","port":41312},
- "dst":{"kind":"external","ip":"45.11.36.254","port":443,"host":"s3.eu-central-003.backblazeb2.com","country":"NL","org":"Backblaze"},
+ "src":{"kind":"pod","ns":"nextcloud","pod":"nextcloud-6d9f","workload":"deploy/nextcloud","ip":"XXX.XXX.XXX.XXX","port":41312},
+ "dst":{"kind":"external","ip":"XXX.XXX.XXX.XXX","port":443,"host":"s3.eu-central-003.backblazeb2.com","country":"NL","org":"Backblaze"},
  "via_service":null,"app":"TLS","category":"Web","duration_ms":15000,
  "tx_bytes":4800,"rx_bytes":9970,"tx_pkts":21,"rx_pkts":24,"count":1}
 ```
@@ -326,7 +326,7 @@ plan above:
 - **OOM during that maintenance:** two podflow pods on the hades nodes were OOMKilled at the 64Mi limit while Longhorn
   reattached volumes (a burst of new connections; the limit also covers the mmapped GeoLite2 files and the 8MB
   conntrack socket buffer). Limit raised to 96Mi (request 32Mi, `GOMEMLIMIT` 64MiB). Normal use is 20-30MB.
-- **Pre-existing, unrelated:** the Prometheus `etcd` target (`10.0.0.10:2381`) is refused; it was already down before
+- **Pre-existing, unrelated:** the Prometheus `etcd` target (`XXX.XXX.XXX.XXX:2381`) is refused; it was already down before
   any of these changes.
 
 ## Incident and design change (2026-10-24, Phase 5 rollout)

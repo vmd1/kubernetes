@@ -32,12 +32,12 @@ CloudNativePG (CNPG) is an operator designed to manage PostgreSQL database clust
   - `shared_buffers: "128MB"`: low shared memory usage fit for a homelab.
   - `max_connections: "100"`: capped to prevent RAM exhaustion.
   - `work_mem: "4MB"`: 4MB per sorting/join operation.
-- **LoadBalancer for External Access**: An additional `rw` service (`pg-cluster-rw-lb`) is exposed on `192.168.12.222:5432` via Kube-VIP for external database clients.
+- **LoadBalancer for External Access**: An additional `rw` service (`pg-cluster-rw-lb`) is exposed on `XXX.XXX.XXX.XXX:5432` via Kube-VIP for external database clients.
 
 ## Dependencies
 
 - **S3 Storage Provider**: Backblaze B2 (`s3.eu-central-003.backblazeb2.com`) for WAL logs and daily backups.
-- **Kube-VIP**: Provides `192.168.12.222` for the `pg-cluster-rw-lb` LoadBalancer service.
+- **Kube-VIP**: Provides `XXX.XXX.XXX.XXX` for the `pg-cluster-rw-lb` LoadBalancer service.
 
 ## Services & Routers
 
@@ -45,7 +45,7 @@ CloudNativePG (CNPG) is an operator designed to manage PostgreSQL database clust
   - `pg-cluster-rw` (ClusterIP, routing to the current writable primary instance).
   - `pg-cluster-ro` (ClusterIP, routing to read-only replicas).
   - `pg-cluster-r` (ClusterIP, routing to all instances).
-  - `pg-cluster-rw-lb` (LoadBalancer `192.168.12.222:5432` via Kube-VIP).
+  - `pg-cluster-rw-lb` (LoadBalancer `XXX.XXX.XXX.XXX:5432` via Kube-VIP).
 - Internal metrics are exposed on port `9187`.
 
 ## Storage & Backups

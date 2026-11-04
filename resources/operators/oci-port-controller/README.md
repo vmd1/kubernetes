@@ -18,9 +18,9 @@ The `oci-port-controller` opens specified TCP/UDP ports in OCI subnet security l
 
 1. **Custom Resource Definition (`FirewallRule`)** ([crds/oci-port-controller](../../crds/oci-port-controller/README.md)):
    - `network.vmd1.homelab/v1alpha1`, cluster-scoped, short name `fr`. `spec.type` is `OCI` or `Host`; this controller reconciles `OCI` and ignores `Host` (Phase F).
-   - `nodeSelector` (e.g. `node-role.kubernetes.io/ingress: "true"`) or `nodeName`; `ports: [{port, protocol}]`; `sources` (CIDRs, default `0.0.0.0/0`); `description`; `oci.account` overrides the node label `node.vmd1.homelab/oci-account`.
+   - `nodeSelector` (e.g. `node-role.kubernetes.io/ingress: "true"`) or `nodeName`; `ports: [{port, protocol}]`; `sources` (CIDRs, default `XXX.XXX.XXX.XXX/0`); `description`; `oci.account` overrides the node label `node.vmd1.homelab/oci-account`.
    - Status: `observedGeneration`, `conditions` (`Ready`), and per-node results in `status.nodes[]`.
-   - **Deprecated `OCIPortRule`** objects are still reconciled as implicit `FirewallRule`s of type OCI (`spec.protocol` applied to every port, source `0.0.0.0/0`); their status gets a `Deprecated` condition and keeps the legacy `syncedNodes` map.
+   - **Deprecated `OCIPortRule`** objects are still reconciled as implicit `FirewallRule`s of type OCI (`spec.protocol` applied to every port, source `XXX.XXX.XXX.XXX/0`); their status gets a `Deprecated` condition and keeps the legacy `syncedNodes` map.
 
 2. **OCI Subnet Security List Sync**:
    - Loads OCI API credentials from secret `oci-credentials-<region><account>` in the `oci-controller` namespace (shared with [oci-reboot](../../oci/oci-reboot/README.md)).

@@ -210,7 +210,7 @@ metadata:
   labels:
     app: unifi
   annotations:
-    kube-vip.io/loadbalancerIPs: "192.168.12.10"
+    kube-vip.io/loadbalancerIPs: "XXX.XXX.XXX.XXX"
     kube-vip.io/vipHost: "hades-02"
 spec:
   type: LoadBalancer

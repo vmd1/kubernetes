@@ -25,7 +25,7 @@ This folder holds the **operator chart, recurring backup jobs, and the backup cr
 ## Design Decisions
 
 - **Node Filtering for Storage**: `createDefaultDiskLabeledNodes: true` and `systemManagedComponentsNodeSelector: "storage.vmd1.homelab/longhorn-client:true"` keep Longhorn components and disks on nodes explicitly designated for storage duties.
-- **Dedicated Storage Network**: `defaultSettings.storageNetwork: "longhorn-system/storage-macvlan-eth0"` routes storage replication traffic over the dedicated `192.168.11.0/24` macvlan network (see [multus](../multus/README.md)) instead of the Tailscale overlay.
+- **Dedicated Storage Network**: `defaultSettings.storageNetwork: "longhorn-system/storage-macvlan-eth0"` routes storage replication traffic over the dedicated `XXX.XXX.XXX.XXX/24` macvlan network (see [multus](../multus/README.md)) instead of the Tailscale overlay.
 - **S3 Backups to Backblaze B2**: Backups target `s3://homelab-longhorn@eu-central-003/` (Backblaze B2), with credentials from `longhorn-backup-secret`. The `BackupTarget` CR itself is defined in [platform/longhorn/manifest.yaml](../../platform/longhorn/manifest.yaml).
 - **Layered Recurring Backup Groups**:
   - `default` group: hourly (retain 6), daily (retain 3), weekly (retain 2) backups.

@@ -13,7 +13,7 @@ Cert-Manager automatically provisions, renews, and manages TLS certificates in t
 ## Design Decisions
 
 - **DNS-01 Challenge**: Used instead of HTTP-01 to allow wildcard certificates and to request certificates without exposing internal DNS/ports to the public internet.
-- **Custom Recursive Nameservers**: Formatted with values `1.1.1.1:53,8.8.8.8:53` to bypass potentially buggy local network DNS resolvers during self-check validation loops.
+- **Custom Recursive Nameservers**: Formatted with values `XXX.XXX.XXX.XXX:53,XXX.XXX.XXX.XXX:53` to bypass potentially buggy local network DNS resolvers during self-check validation loops.
 - **Unified Secret Storage**: Secret generated is placed directly in the `traefik` namespace (`cluster-wildcard-tls`), which allows Traefik to instantly mount it for TLS termination.
 
 ## Dependencies

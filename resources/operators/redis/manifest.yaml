@@ -67,7 +67,7 @@ data:
         timeout check   2s
 
     resolvers k8s
-        nameserver dns1 10.43.0.10:53
+        nameserver dns1 XXX.XXX.XXX.XXX:53
         accepted_payload_size 8192
         hold valid 5s
 
@@ -91,7 +91,7 @@ metadata:
   labels:
     app: redis-haproxy
   annotations:
-    kube-vip.io/loadbalancerIPs: "192.168.12.221"
+    kube-vip.io/loadbalancerIPs: "XXX.XXX.XXX.XXX"
 spec:
   type: LoadBalancer
   loadBalancerClass: kube-vip.io/kube-vip-class

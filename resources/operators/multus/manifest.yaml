@@ -33,7 +33,7 @@ spec:
         confDir: /var/lib/rancher/k3s/agent/etc/cni/net.d
         binDir: /var/lib/rancher/k3s/data/cni/
 ---
-# Storage network over eth0 (192.168.11.0/24) for Longhorn
+# Storage network over eth0 (XXX.XXX.XXX.XXX/24) for Longhorn
 # Attach to pods via: k8s.v1.cni.cncf.io/networks: storage-macvlan-eth0
 apiVersion: k8s.cni.cncf.io/v1
 kind: NetworkAttachmentDefinition
@@ -49,14 +49,14 @@ spec:
       "mode": "bridge",
       "ipam": {
         "type": "whereabouts",
-        "range": "192.168.11.0/24",
+        "range": "XXX.XXX.XXX.XXX/24",
         "exclude": [
-          "192.168.11.0/29",
-          "192.168.11.251/32",
-          "192.168.11.252/32",
-          "192.168.11.253/32",
-          "192.168.11.254/32",
-          "192.168.11.255/32"
+          "XXX.XXX.XXX.XXX/29",
+          "XXX.XXX.XXX.XXX/32",
+          "XXX.XXX.XXX.XXX/32",
+          "XXX.XXX.XXX.XXX/32",
+          "XXX.XXX.XXX.XXX/32",
+          "XXX.XXX.XXX.XXX/32"
         ],
         "configuration_path": "/var/lib/rancher/k3s/agent/etc/cni/net.d/whereabouts.d/whereabouts.conf"
       }

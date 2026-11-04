@@ -13,7 +13,7 @@ Mosquitto is a lightweight open-source message broker implementing the MQTT prot
 - **Configurable Access**: Configured with `allow_anonymous true` to permit quick home IoT telemetry reporting (e.g., Tasmota, ESPHome) without certificate overhead on the internal subnet.
 - **WebSocket Protocol Support**: Exposes a secondary listener on port `9001` running over WebSockets to support browser-based clients or web integrations.
 - **Physical Node Binding**: Pinned to home hardware (`hades-01` in `region: uk-home`) to align with physical local network discovery and lower connection latencies.
-- **Direct LoadBalancer Access**: Exposed via a standard `LoadBalancer` type service with a static Kube-VIP address (`192.168.12.12`, ARP on the uk-home LAN) for external hardware integration.
+- **Direct LoadBalancer Access**: Exposed via a standard `LoadBalancer` type service with a static Kube-VIP address (`XXX.XXX.XXX.XXX`, ARP on the uk-home LAN) for external hardware integration.
 
 ## Dependencies
 

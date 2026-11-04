@@ -23,7 +23,7 @@ This folder deploys the **Multus CNI meta-plugin** (via the `rke2-multus` Helm c
 - **K3s-Specific CNI Paths**: The chart is configured with the K3s CNI directories (`/var/lib/rancher/k3s/agent/etc/cni/net.d` and `/var/lib/rancher/k3s/data/cni/`) plus `multusAutoconfigDir`, which is required for `rke2-multus` >= v4.2.202 on K3s.
 - **Restricted to `uk-home`**: Both the Multus and Whereabouts DaemonSets are pinned via `nodeSelector` to `topology.kubernetes.io/zone: uk-home` (i.e. `hades-01`, `hades-02`).
 - **Whereabouts IPAM**: Enables dynamic IP allocation for secondary interfaces.
-- **Storage Network for Longhorn**: The `storage-macvlan-eth0` `NetworkAttachmentDefinition` creates a macvlan on `eth0` (bridge mode) with a Whereabouts IP range of `192.168.11.0/24` (excluding infrastructure reservations). Pods attach to it via the annotation `k8s.v1.cni.cncf.io/networks: storage-macvlan-eth0` — used by Longhorn's `storageNetwork` setting so storage traffic bypasses the Tailscale overlay.
+- **Storage Network for Longhorn**: The `storage-macvlan-eth0` `NetworkAttachmentDefinition` creates a macvlan on `eth0` (bridge mode) with a Whereabouts IP range of `XXX.XXX.XXX.XXX/24` (excluding infrastructure reservations). Pods attach to it via the annotation `k8s.v1.cni.cncf.io/networks: storage-macvlan-eth0` — used by Longhorn's `storageNetwork` setting so storage traffic bypasses the Tailscale overlay.
 
 ## Dependencies
 

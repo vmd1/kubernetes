@@ -4,7 +4,7 @@ metadata:
   name: kubevip
   namespace: kube-system
 data:
-  range-uk-home: "192.168.12.1-192.168.12.254"
+  range-uk-home: "XXX.XXX.XXX.XXX-XXX.XXX.XXX.XXX"
 
 ---
 apiVersion: v1
@@ -158,7 +158,7 @@ spec:
             - manager
           env:
             - name: address
-              value: "192.168.12.1"
+              value: "XXX.XXX.XXX.XXX"
             - name: vip_interface
               value: "eth0"
             - name: cp_enable

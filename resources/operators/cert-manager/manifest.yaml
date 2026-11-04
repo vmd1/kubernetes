@@ -11,7 +11,7 @@ spec:
   valuesContent: |-
     crds:
       enabled: true
-    dns01RecursiveNameservers: 1.1.1.1:53,8.8.8.8:53
+    dns01RecursiveNameservers: XXX.XXX.XXX.XXX:53,XXX.XXX.XXX.XXX:53
     dns01RecursiveNameserversOnly: true
     resources:
       requests:

@@ -14,7 +14,7 @@ Tailscale integrates the local Kubernetes cluster with a secure Tailscale overla
 
 ## Design Decisions
 
-- **kubectl over Tailscale**: the dedicated API server proxy (ProxyGroup `k8s-api`) impersonates the caller (user devices become their login, grant groups are added), so RBAC is per person and audited by Kubernetes rather than one shared kubeconfig credential. Direct `10.0.0.10:6443` stays as break-glass if the ProxyGroup or the operator is down. Needs MagicDNS and HTTPS Certificates both enabled for the tailnet (the first request times out while the cert is issued). See [tailscale/README.md](../../../../tailscale/README.md).
+- **kubectl over Tailscale**: the dedicated API server proxy (ProxyGroup `k8s-api`) impersonates the caller (user devices become their login, grant groups are added), so RBAC is per person and audited by Kubernetes rather than one shared kubeconfig credential. Direct `XXX.XXX.XXX.XXX:6443` stays as break-glass if the ProxyGroup or the operator is down. Needs MagicDNS and HTTPS Certificates both enabled for the tailnet (the first request times out while the cert is issued). See [tailscale/README.md](../../../../tailscale/README.md).
 
 - **Region-Aware Network Orchestration**:
   - The custom controller (`watcher.py`) scans Kubernetes node objects for the `region` label (e.g. `region=uk-home`, `region=uk-london-cloud`).

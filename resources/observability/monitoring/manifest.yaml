@@ -12,7 +12,7 @@ data:
       grpc_listen_port: 9096
 
     common:
-      instance_addr: 127.0.0.1
+      instance_addr: XXX.XXX.XXX.XXX
       path_prefix: /loki
       storage:
         filesystem:
@@ -529,7 +529,7 @@ data:
 
       - job_name: 'etcd'
         static_configs:
-          - targets: ['10.0.0.10:2381']
+          - targets: ['XXX.XXX.XXX.XXX:2381']
 
       - job_name: 'kube-state-metrics'
         kubernetes_sd_configs:
@@ -659,7 +659,7 @@ spec:
           image: jimmidyson/configmap-reload:v0.9.0@sha256:f34fe394b1dab3982025c4107df5526ca773bc245adac7dbef877ccb5f5d5df5
           args:
             - -volume-dir=/etc/prometheus
-            - -webhook-url=http://127.0.0.1:9090/-/reload
+            - -webhook-url=http://XXX.XXX.XXX.XXX:9090/-/reload
           resources:
             requests:
               cpu: 5m

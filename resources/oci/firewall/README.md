@@ -17,7 +17,7 @@
 | [dns.yaml](dns.yaml) | `53/tcp`, `53/udp` | DNS |
 | [tailscale-wireguard.yaml](tailscale-wireguard.yaml) | `41641/udp`, `41642/udp` | Tailscale WireGuard |
 
-All rules target ingress nodes via the `node-role.kubernetes.io/ingress: "true"` selector and allow `0.0.0.0/0` (the `sources` default). The controller only ever adds missing security-list entries, it never removes them.
+All rules target ingress nodes via the `node-role.kubernetes.io/ingress: "true"` selector and allow `XXX.XXX.XXX.XXX/0` (the `sources` default). The controller only ever adds missing security-list entries, it never removes them.
 
 ## Usage
 
@@ -26,7 +26,7 @@ kubectl get firewallrules      # or: kubectl get fr   (Type, Ready, Reason)
 kubectl get fr web -o yaml     # status.nodes[], status.conditions, status.observedGeneration
 ```
 
-Fields: `type` (`OCI`|`Host`), `ports: [{port, protocol: TCP|UDP}]`, `sources: [CIDR]` (default `0.0.0.0/0`), `nodeName` / `nodeSelector`, `description`, and `oci.account` to override the node label `node.vmd1.homelab/oci-account`.
+Fields: `type` (`OCI`|`Host`), `ports: [{port, protocol: TCP|UDP}]`, `sources: [CIDR]` (default `XXX.XXX.XXX.XXX/0`), `nodeName` / `nodeSelector`, `description`, and `oci.account` to override the node label `node.vmd1.homelab/oci-account`.
 
 ## Migration from OCIPortRule
 

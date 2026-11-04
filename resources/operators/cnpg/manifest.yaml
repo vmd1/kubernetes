@@ -24,7 +24,7 @@ spec:
             metadata:
               name: pg-cluster-rw-lb
               annotations:
-                kube-vip.io/loadbalancerIPs: "192.168.12.222"
+                kube-vip.io/loadbalancerIPs: "XXX.XXX.XXX.XXX"
             spec:
               type: LoadBalancer
               loadBalancerClass: kube-vip.io/kube-vip-class

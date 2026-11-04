@@ -128,7 +128,7 @@ metadata:
   labels:
     app: home-assistant
   annotations:
-    kube-vip.io/loadbalancerIPs: "192.168.12.11"
+    kube-vip.io/loadbalancerIPs: "XXX.XXX.XXX.XXX"
 spec:
   type: LoadBalancer
   loadBalancerClass: kube-vip.io/kube-vip-class

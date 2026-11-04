@@ -46,7 +46,7 @@ spec:
             - name: MALLOC_TRIM_THRESHOLD_
               value: "100000"
             - name: HOST
-              value: "0.0.0.0"
+              value: "XXX.XXX.XXX.XXX"
             - name: PORT
               value: "3000"
             - name: NODE_ENV

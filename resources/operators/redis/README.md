@@ -7,7 +7,7 @@ This directory manages the High Availability (HA) Redis Cluster using [OT-CONTAI
 - **Redis Operator**: Installed via Helm chart `ot-helm/redis-operator` into namespace `redis-operator`.
 - **Master/Replica Replication**: Defined via `RedisReplication` CR (`kind: RedisReplication`, `apiVersion: redis.redis.opstreelabs.in/v1beta2`).
 - **Sentinel Monitoring**: Managed via `RedisSentinel` CR (`kind: RedisSentinel`, `apiVersion: redis.redis.opstreelabs.in/v1beta2`).
-- **Load Balancer**: HAProxy deployment exposing `redis-master-lb` (LoadBalancer on `192.168.12.221:6379` via Kube-VIP) pointing to the active master node via `redis-headless.redis.svc.cluster.local`.
+- **Load Balancer**: HAProxy deployment exposing `redis-master-lb` (LoadBalancer on `XXX.XXX.XXX.XXX:6379` via Kube-VIP) pointing to the active master node via `redis-headless.redis.svc.cluster.local`.
 - **Metrics**: `redisExporter` sidecars enabled on `RedisReplication` and `RedisSentinel` CRs scraping metrics per pod for Prometheus.
 
 ## File Manifest
