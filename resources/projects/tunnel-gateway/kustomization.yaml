@@ -1,0 +1,48 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - agents.yaml
+  - controller.yaml
+  - ingressroute.yaml
+  - manifest.yaml
+
+# Code for the controller and the restrictions sync (stock python image, nothing to build).
+configMapGenerator:
+  - name: tunnel-gateway-code
+    namespace: tunnel-gateway
+    files:
+      - controller.py=controller/controller.py
+      - sync.py=controller/sync.py
+
+components:
+  - ../../policies/components/netpol-baseline
+  # The privileged pathway dials homelab LAN/cluster targets and the unprivileged one Tailscale's hosts: wstunnel's
+  # restrictions file (not the network policy) is what limits where a given secret may connect.
+  - ../../policies/components/netpol-egress-any
+
+patches:
+  # Components carry no namespace; the app port and scrape port replace the closed placeholder (port 1).
+  - target: {kind: NetworkPolicy}
+    patch: |-
+      - {op: add, path: /metadata/namespace, value: tunnel-gateway}
+  - target: {kind: NetworkPolicy, name: allow-ingress-traefik}
+    patch: |-
+      - {op: replace, path: /spec/ingress/0/ports/0/port, value: 8080}
+  - target: {kind: NetworkPolicy, name: allow-ingress-monitoring}
+    patch: |-
+      - {op: replace, path: /spec/ingress/0/ports/0/port, value: 8080}
+  # Admission hardening (policies/admission): app label, seccomp, non-root (the image's `app` user is uid 1000)
+  - target: {kind: StatefulSet, name: tunnel-gateway}
+    patch: |-
+      apiVersion: apps/v1
+      kind: StatefulSet
+      metadata: {name: tunnel-gateway}
+      spec:
+        template:
+          metadata:
+            labels: {app.kubernetes.io/name: tunnel-gateway}
+          spec:
+            securityContext: {fsGroup: 65532, seccompProfile: {type: RuntimeDefault}}
+            containers:
+              - {name: wstunnel, securityContext: {allowPrivilegeEscalation: false, runAsNonRoot: true, runAsUser: 1000}}

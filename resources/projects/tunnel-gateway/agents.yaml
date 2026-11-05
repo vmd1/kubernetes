@@ -1,0 +1,9 @@
+# One TunnelAgent per server that runs tunnel-agent. The controller creates Secret agent-<name> (its credentials and a
+# ready-made agent.env) and allows it on the gateway. Revoke with `suspended: true` (reversible) or by deleting the object;
+# rotate now by changing `rotationToken`. Fetch the env with: tunnel-agent/scripts/agent-env.sh <name>
+apiVersion: tunnel.vmd1.homelab/v1alpha1
+kind: TunnelAgent
+metadata:
+  name: test
+  namespace: tunnel-gateway
+spec: {}

@@ -1,0 +1,104 @@
+# The TunnelAgent controller (controller/controller.py): issues each agent's credentials into Secret agent-<name> and renders
+# the gateway's wstunnel restrictions into Secret tunnel-gateway-restrictions. Code is a ConfigMap on a pinned stock image
+# (no image to build), stdlib only, same pattern as the Blocklist controller in edge/dns-resolver.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: tunnel-controller
+  namespace: tunnel-gateway
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: tunnel-controller
+  namespace: tunnel-gateway
+rules:
+  - apiGroups: [tunnel.vmd1.homelab]
+    resources: [tunnelagents]
+    verbs: [list]
+  - apiGroups: [tunnel.vmd1.homelab]
+    resources: [tunnelagents/status]
+    verbs: [patch]
+  # Namespace-scoped: its own credentials and the rendered restrictions. (Create cannot be limited by name.)
+  - apiGroups: [""]
+    resources: [secrets]
+    verbs: [get, create, update]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: tunnel-controller
+  namespace: tunnel-gateway
+subjects:
+  - {kind: ServiceAccount, name: tunnel-controller, namespace: tunnel-gateway}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: tunnel-controller
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tunnel-controller
+  namespace: tunnel-gateway
+  labels:
+    app.kubernetes.io/name: tunnel-controller
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: tunnel-controller
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: tunnel-controller
+    spec:
+      serviceAccountName: tunnel-controller
+      enableServiceLinks: false
+      # Never on the small edge nodes.
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - {key: node-role.kubernetes.io/ingress, operator: DoesNotExist}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: controller
+          image: python:3.13-alpine@sha256:7984cf56ceaddebe4fefeb75d64000b9f45d8b77b11a09b24524da6cdc3af0c8
+          command: [python3, -u, /code/controller.py]
+          env:
+            - {name: PYTHONDONTWRITEBYTECODE, value: "1"}
+            # Gateway replicas and their hostnames (DNS: dns/domains/vmd1.homelab.js). Must match manifest.yaml replicas.
+            - {name: GATEWAYS, value: "2"}
+            - {name: GATEWAY_HOST, value: "tunnel-{i}.vmd1.homelab"}
+            - {name: VIA_URL, value: "wss://tunnel.vmd1.homelab"}
+            # What the fallback pathway's health check connects to FROM the gateway pod: the cluster DNS service (TCP).
+            - {name: TUNNEL_CANARY, value: "XXX.XXX.XXX.XXX:53"}
+          livenessProbe:
+            exec:
+              command: [sh, -c, 'test -n "$(find /tmp/heartbeat -mmin -2 2>/dev/null)"']
+            initialDelaySeconds: 90
+            periodSeconds: 60
+            failureThreshold: 3
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+          resources:
+            requests: {cpu: 10m, memory: 32Mi}
+            limits: {cpu: 200m, memory: 128Mi}
+          volumeMounts:
+            - {name: code, mountPath: /code, readOnly: true}
+            - {name: tmp, mountPath: /tmp}
+      volumes:
+        - name: code
+          configMap: {name: tunnel-gateway-code}
+        - name: tmp
+          emptyDir: {sizeLimit: 8Mi}

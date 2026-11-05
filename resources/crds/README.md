@@ -9,6 +9,7 @@ CustomResourceDefinitions that are vendored as plain manifests, applied by the `
 | [cnpg/](cnpg/README.md) | The 9 CloudNativePG CRDs (`clusters.postgresql.cnpg.io`, `backups`, `poolers`, ...). |
 | [blocklist/](blocklist/README.md) | `Blocklist` CRD (`dns.vmd1.homelab`): a downloadable domain list the edge DNS resolver can block, see [../edge/dns-resolver/](../edge/dns-resolver/README.md). |
 | [edgesite/](edgesite/README.md) | `EdgeSite` CRD for the edge-services platform. |
+| [tunnelagent/](tunnelagent/README.md) | `TunnelAgent` CRD (`tunnel.vmd1.homelab`): one object per server running tunnel-agent; its controller issues the credentials and renders the gateway's restrictions, see [../projects/tunnel-gateway/](../projects/tunnel-gateway/README.md). |
 | [oci-port-controller/](oci-port-controller/README.md) | `FirewallRule` CRD (and the deprecated `OCIPortRule` CRD) used by [../oci/firewall/](../oci/firewall/README.md). |
 
 ## Design Decisions

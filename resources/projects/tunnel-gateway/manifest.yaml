@@ -1,0 +1,197 @@
+# The gateway: wstunnel servers that only READ their restrictions (rendered by the TunnelAgent controller, controller.yaml).
+#
+# Two replicas, one per uk-home node. A reverse tunnel's listener lives in the pod the agent connected to, so each replica
+# has its own Service and hostname (tunnel-0, tunnel-1): an agent is told its preferred replica first and the other as a
+# failover, and a client tries both. A restart of one pod only drops the tunnels on it; those agents reconnect to the
+# other replica within a few probe intervals.
+#
+# wstunnel reloads its restrictions file when it is written, but not when a Secret volume is updated (a symlink swap).
+# So the Secret is mounted at /src and `sync.py` (an init container, then a sidecar) copies it in place onto the emptyDir
+# at /etc/wstunnel, which wstunnel watches. Adding or revoking an agent needs no restart; it takes effect within the
+# kubelet's Secret refresh (~1-2 minutes) plus the sidecar's 5 s.
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: tunnel-gateway
+  namespace: tunnel-gateway
+  labels:
+    app: tunnel-gateway
+spec:
+  replicas: 2
+  serviceName: tunnel-gateway
+  podManagementPolicy: Parallel
+  updateStrategy:
+    type: RollingUpdate
+  selector:
+    matchLabels:
+      app: tunnel-gateway
+  template:
+    metadata:
+      labels:
+        app: tunnel-gateway
+    spec:
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      # Needs the homelab LAN and cluster ranges for the privileged pathway (XXX.XXX.XXX.XXX/16 is the uk-home LAN).
+      nodeSelector:
+        topology.kubernetes.io/zone: uk-home
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                topologyKey: kubernetes.io/hostname
+                labelSelector:
+                  matchLabels:
+                    app: tunnel-gateway
+      securityContext:
+        fsGroup: 65532
+      initContainers:
+        - name: restrictions-init
+          image: python:3.13-alpine@sha256:7984cf56ceaddebe4fefeb75d64000b9f45d8b77b11a09b24524da6cdc3af0c8
+          command: [python3, -u, /code/sync.py, --once]
+          env:
+            - {name: PYTHONDONTWRITEBYTECODE, value: "1"}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 65532
+            capabilities: {drop: [ALL]}
+          resources:
+            requests: {cpu: 5m, memory: 16Mi}
+            limits: {cpu: 100m, memory: 64Mi}
+          volumeMounts:
+            - {name: code, mountPath: /code, readOnly: true}
+            - {name: src, mountPath: /src, readOnly: true}
+            - {name: live, mountPath: /live}
+      containers:
+        - name: wstunnel
+          # Upstream image (erebe/wstunnel, same version as the agent's wstunnel client). The entrypoint is dumb-init;
+          # the args replace the image's default command so the restrictions file is always applied (deny by default).
+          image: ghcr.io/erebe/wstunnel:v11.1.0@sha256:e2b62fac898406c73342e8e50fc21f7e221c17811aad532ed3a80a2e3c327b79
+          args:
+            - /home/app/wstunnel
+            - server
+            - --restrict-config
+            - /etc/wstunnel/restrictions.yaml
+            - --log-lvl
+            - INFO
+            - ws://XXX.XXX.XXX.XXX:8080
+          ports:
+            - name: ws
+              containerPort: 8080
+              protocol: TCP
+          securityContext:
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          resources:
+            requests:
+              cpu: 20m
+              memory: 32Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          # TCP only: any HTTP probe would be a request without the secret path prefix and get a 400 by design.
+          readinessProbe:
+            tcpSocket:
+              port: ws
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: ws
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          volumeMounts:
+            - name: live
+              mountPath: /etc/wstunnel
+              readOnly: true
+        - name: restrictions-sync
+          image: python:3.13-alpine@sha256:7984cf56ceaddebe4fefeb75d64000b9f45d8b77b11a09b24524da6cdc3af0c8
+          command: [python3, -u, /code/sync.py]
+          env:
+            - {name: PYTHONDONTWRITEBYTECODE, value: "1"}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 65532
+            capabilities: {drop: [ALL]}
+          resources:
+            requests: {cpu: 5m, memory: 16Mi}
+            limits: {cpu: 100m, memory: 64Mi}
+          volumeMounts:
+            - {name: code, mountPath: /code, readOnly: true}
+            - {name: src, mountPath: /src, readOnly: true}
+            - {name: live, mountPath: /live}
+      volumes:
+        - name: code
+          configMap:
+            name: tunnel-gateway-code
+        # Rendered by the controller; optional so a brand-new namespace starts (sync.py then writes deny-all).
+        - name: src
+          secret:
+            secretName: tunnel-gateway-restrictions
+            optional: true
+            defaultMode: 0440
+        - name: live
+          emptyDir:
+            sizeLimit: 1Mi
+---
+# Any replica: the unprivileged (via) pathways are stateless, so tunnel.vmd1.homelab may land on either.
+apiVersion: v1
+kind: Service
+metadata:
+  name: tunnel-gateway
+  namespace: tunnel-gateway
+  labels:
+    app: tunnel-gateway
+spec:
+  selector:
+    app: tunnel-gateway
+  ports:
+    - name: ws
+      port: 8080
+      targetPort: 8080
+      protocol: TCP
+---
+# One replica each: tunnel-0.vmd1.homelab and tunnel-1.vmd1.homelab (reverse tunnels live in exactly one pod).
+apiVersion: v1
+kind: Service
+metadata:
+  name: tunnel-gateway-0
+  namespace: tunnel-gateway
+  labels:
+    app: tunnel-gateway
+spec:
+  selector:
+    statefulset.kubernetes.io/pod-name: tunnel-gateway-0
+  ports:
+    - {name: ws, port: 8080, targetPort: 8080, protocol: TCP}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tunnel-gateway-1
+  namespace: tunnel-gateway
+  labels:
+    app: tunnel-gateway
+spec:
+  selector:
+    statefulset.kubernetes.io/pod-name: tunnel-gateway-1
+  ports:
+    - {name: ws, port: 8080, targetPort: 8080, protocol: TCP}
+---
+# At most one replica may be down for a voluntary disruption (node drain), so agents always have somewhere to go.
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: tunnel-gateway
+  namespace: tunnel-gateway
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: tunnel-gateway

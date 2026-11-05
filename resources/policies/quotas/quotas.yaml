@@ -138,6 +138,19 @@ apiVersion: v1
 kind: ResourceQuota
 metadata:
   name: default-quota
+  namespace: tunnel-gateway
+  labels:
+    vmd1.homelab/policy: quota-default
+spec:
+  hard:
+    pods: "10"
+    persistentvolumeclaims: "5"
+    requests.storage: "20Gi"
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: default-quota
   namespace: headlamp
   labels:
     vmd1.homelab/policy: quota-default

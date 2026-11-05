@@ -6,6 +6,7 @@ resources:
   - cnpg
   - edgesite
   - oci-port-controller
+  - tunnelagent
 
 # Deleting a CRD deletes every object of that kind (for CNPG: every database Cluster), so Flux never prunes these.
 # Remove a CRD by hand once nothing uses it.
