@@ -63,7 +63,7 @@ def test_new_agent_gets_credentials_env_port_gateway_and_restrictions():
     urls = d["TUNNEL_URL"].split(",")
     assert sorted(urls) == sorted(f"wss://coordination-{i}.{d}" for i in (0, 1) for d in ("vmd1.homelab", "vmd1.homelab", "vmd1.homelab"))
     assert k.agents["srv1"]["status"]["gateway"] == urls[0][len("wss://"):]
-    assert "TUNNEL_SECRET=" + d["ID_AGENT"] in d["agent.env"] and "TUNNEL_VIA_URL=wss://coordination.vmd1.homelab,wss://coordination.vmd1.homelab,wss://coordination.vmd1.homelab" in d["agent.env"]
+    assert "TUNNEL_SECRET=" + d["ID_AGENT"] in d["agent.env"] and "TUNNEL_VIA_URL=wss://coordination.vmd1.homelab,wss://coordination.vmd1.homelab,wss://coordination.vmd1.homelab,wss://cf-coordination.vmd1.homelab" in d["agent.env"]
     r = restrictions(k)
     assert d["ID_AGENT"] in r and d["ID_CLIENT"] in r and d["ID_VIA"] in r and f"port: [{port}]" in r
     assert k.agents["srv1"]["status"]["conditions"][0]["status"] == "True"

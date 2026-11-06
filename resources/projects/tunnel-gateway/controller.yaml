@@ -79,7 +79,7 @@ spec:
             # Must match manifest.yaml replicas.
             - {name: GATEWAYS, value: "2"}
             - {name: GATEWAY_HOST, value: "coordination-{i}.vmd1.homelab,coordination-{i}.vmd1.homelab,coordination-{i}.vmd1.homelab"}
-            - {name: VIA_URL, value: "wss://coordination.vmd1.homelab,wss://coordination.vmd1.homelab,wss://coordination.vmd1.homelab"}
+            - {name: VIA_URL, value: "wss://coordination.vmd1.homelab,wss://coordination.vmd1.homelab,wss://coordination.vmd1.homelab,wss://cf-coordination.vmd1.homelab"}
             # What the fallback pathway's health check connects to FROM the gateway pod: the cluster DNS service (TCP).
             - {name: TUNNEL_CANARY, value: "XXX.XXX.XXX.XXX:53"}
           livenessProbe:

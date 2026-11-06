@@ -52,7 +52,7 @@ class Config:
         self.gateway_hosts = [h.strip() for h in e.get(
             "GATEWAY_HOST", "coordination-{i}.vmd1.homelab,coordination-{i}.vmd1.homelab,coordination-{i}.vmd1.homelab").split(",") if h.strip()]
         # Any replica: the unprivileged pathways are stateless. A comma list is tried in order.
-        self.via_url = e.get("VIA_URL", "wss://coordination.vmd1.homelab,wss://coordination.vmd1.homelab,wss://coordination.vmd1.homelab")
+        self.via_url = e.get("VIA_URL", "wss://coordination.vmd1.homelab,wss://coordination.vmd1.homelab,wss://coordination.vmd1.homelab,wss://cf-coordination.vmd1.homelab")
         lo, _, hi = e.get("PORT_RANGE", "20000-20999").partition("-")
         self.port_lo, self.port_hi = int(lo), int(hi)
         self.cidrs = [c.strip() for c in e.get("AGENT_CIDRS", "XXX.XXX.XXX.XXX/16,XXX.XXX.XXX.XXX/16,XXX.XXX.XXX.XXX/16").split(",") if c.strip()]

@@ -59,3 +59,5 @@ tunnel-agent/scripts/ssh-agent.sh test ubuntu          # ssh into it through the
 - **Services**: `tunnel-gateway` (any replica), `tunnel-gateway-0`, `tunnel-gateway-1` (ClusterIP `:8080`).
 - **Ingress**: Hosts `coordination.<d>`, `coordination-0.<d>`, `coordination-1.<d>` for `<d>` in vmd1.homelab, vmd1.homelab, vmd1.homelab (the wildcard certificate covers all three), `websecure`.
 - **Domains**: the controller's `GATEWAY_HOST` (a template with `{i}`) and `VIA_URL` take comma lists, one entry per domain. An agent's env gets its own replica under every domain first, then the other replica; `TUNNEL_VIA_URL` is the list of `coordination.<d>` names, which the agent tries in order. DNS: `dns/domains/{vmd1.homelab,vmd1.homelab,vmd1.homelab}.js` (unproxied CNAMEs to `ingress.vmd1.homelab`).
+
+- **Cloudflare name**: `cf-coordination.vmd1.homelab` is the only proxied name (DNS `CF_PROXY_ON`). It is routed to the any-replica (via) service only, never the per-replica reverse-tunnel routes, because Cloudflare cuts a request with no response headers after ~100s.
