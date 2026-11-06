@@ -1,6 +1,6 @@
 # Tunnel Gateway
 
-Server side of [`tunnel-agent`](../../../../tunnel-agent/README.md): a deny-by-default `wstunnel` gateway at `wss://tunnel.vmd1.homelab`. An agent on a server whose network blocks Tailscale dials out to it over HTTPS, and either carries Tailscale's own control-plane/DERP traffic through it (the unprivileged secret) or, as a last resort, reaches the homelab and exposes ssh through it (the privileged secret).
+Server side of [`tunnel-agent`](../../../../tunnel-agent/README.md): a deny-by-default `wstunnel` gateway at `wss://coordination.vmd1.homelab`. An agent on a server whose network blocks Tailscale dials out to it over HTTPS, and either carries Tailscale's own control-plane/DERP traffic through it (the unprivileged secret) or, as a last resort, reaches the homelab and exposes ssh through it (the privileged secret).
 
 ## Breakdown of Files
 
@@ -57,4 +57,5 @@ tunnel-agent/scripts/ssh-agent.sh test ubuntu          # ssh into it through the
 ## Services & Routers
 
 - **Services**: `tunnel-gateway` (any replica), `tunnel-gateway-0`, `tunnel-gateway-1` (ClusterIP `:8080`).
-- **Ingress**: Hosts `tunnel.vmd1.homelab`, `tunnel-0.vmd1.homelab`, `tunnel-1.vmd1.homelab`, `websecure`.
+- **Ingress**: Hosts `coordination.<d>`, `coordination-0.<d>`, `coordination-1.<d>` for `<d>` in vmd1.homelab, vmd1.homelab, vmd1.homelab (the wildcard certificate covers all three), `websecure`.
+- **Domains**: the controller's `GATEWAY_HOST` (a template with `{i}`) and `VIA_URL` take comma lists, one entry per domain. An agent's env gets its own replica under every domain first, then the other replica; `TUNNEL_VIA_URL` is the list of `coordination.<d>` names, which the agent tries in order. DNS: `dns/domains/{vmd1.homelab,vmd1.homelab,vmd1.homelab}.js` (unproxied CNAMEs to `ingress.vmd1.homelab`).

@@ -140,7 +140,7 @@ spec:
           emptyDir:
             sizeLimit: 1Mi
 ---
-# Any replica: the unprivileged (via) pathways are stateless, so tunnel.vmd1.homelab may land on either.
+# Any replica: the unprivileged (via) pathways are stateless, so coordination.<domain> may land on either.
 apiVersion: v1
 kind: Service
 metadata:
@@ -157,7 +157,7 @@ spec:
       targetPort: 8080
       protocol: TCP
 ---
-# One replica each: tunnel-0.vmd1.homelab and tunnel-1.vmd1.homelab (reverse tunnels live in exactly one pod).
+# One replica each: coordination-0.<domain> and coordination-1.<domain> (reverse tunnels live in exactly one pod).
 apiVersion: v1
 kind: Service
 metadata:

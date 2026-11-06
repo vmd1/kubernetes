@@ -61,9 +61,9 @@ def test_new_agent_gets_credentials_env_port_gateway_and_restrictions():
     port = k.agents["srv1"]["status"]["ports"]["ssh"]
     assert 20000 <= port <= 20999 and d["EXPOSE"] == f"ssh=XXX.XXX.XXX.XXX:22:22:{port}"
     urls = d["TUNNEL_URL"].split(",")
-    assert sorted(urls) == ["wss://tunnel-0.vmd1.homelab", "wss://tunnel-1.vmd1.homelab"]
+    assert sorted(urls) == sorted(f"wss://coordination-{i}.{d}" for i in (0, 1) for d in ("vmd1.homelab", "vmd1.homelab", "vmd1.homelab"))
     assert k.agents["srv1"]["status"]["gateway"] == urls[0][len("wss://"):]
-    assert "TUNNEL_SECRET=" + d["ID_AGENT"] in d["agent.env"] and "TUNNEL_VIA_URL=wss://tunnel.vmd1.homelab" in d["agent.env"]
+    assert "TUNNEL_SECRET=" + d["ID_AGENT"] in d["agent.env"] and "TUNNEL_VIA_URL=wss://coordination.vmd1.homelab,wss://coordination.vmd1.homelab,wss://coordination.vmd1.homelab" in d["agent.env"]
     r = restrictions(k)
     assert d["ID_AGENT"] in r and d["ID_CLIENT"] in r and d["ID_VIA"] in r and f"port: [{port}]" in r
     assert k.agents["srv1"]["status"]["conditions"][0]["status"] == "True"
@@ -186,7 +186,8 @@ def test_expose_list_ports_and_gateway_pinning():
     p = k.agents["a"]["status"]["ports"]
     d = creds(k, "a")
     assert d["EXPOSE"] == f"ssh=XXX.XXX.XXX.XXX:22:22:{p['ssh']},web=XXX.XXX.XXX.XXX:8080:80:{p['web']}"
-    assert d["TUNNEL_URL"].split(",")[0] == "wss://tunnel-1.vmd1.homelab"
+    # its own replica first under every domain, then the other replica
+    assert d["TUNNEL_URL"].split(",") == [f"wss://coordination-{i}.{x}" for i in (1, 0) for x in ("vmd1.homelab", "vmd1.homelab", "vmd1.homelab")]
     r = restrictions(k)
     assert f"port: [{min(p.values())}, {max(p.values())}]" in r
 

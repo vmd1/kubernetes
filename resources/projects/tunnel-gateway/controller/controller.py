@@ -47,8 +47,12 @@ class Config:
     def __init__(self, e=None):
         e = os.environ if e is None else e
         self.gateways = int(e.get("GATEWAYS", "2"))
-        self.gateway_host = e.get("GATEWAY_HOST", "tunnel-{i}.vmd1.homelab")  # one per replica (reverse tunnels live there)
-        self.via_url = e.get("VIA_URL", "wss://tunnel.vmd1.homelab")  # any replica: the unprivileged pathways are stateless
+        # One hostname per replica (reverse tunnels live there); a comma list gives the same replica under several domains,
+        # tried in order by the agent.
+        self.gateway_hosts = [h.strip() for h in e.get(
+            "GATEWAY_HOST", "coordination-{i}.vmd1.homelab,coordination-{i}.vmd1.homelab,coordination-{i}.vmd1.homelab").split(",") if h.strip()]
+        # Any replica: the unprivileged pathways are stateless. A comma list is tried in order.
+        self.via_url = e.get("VIA_URL", "wss://coordination.vmd1.homelab,wss://coordination.vmd1.homelab,wss://coordination.vmd1.homelab")
         lo, _, hi = e.get("PORT_RANGE", "20000-20999").partition("-")
         self.port_lo, self.port_hi = int(lo), int(hi)
         self.cidrs = [c.strip() for c in e.get("AGENT_CIDRS", "XXX.XXX.XXX.XXX/16,XXX.XXX.XXX.XXX/16,XXX.XXX.XXX.XXX/16").split(",") if c.strip()]
@@ -150,9 +154,9 @@ def pick_gateway(agent, cfg):
 
 
 def gateway_urls(first, cfg):
-    """Gateway URLs for an agent, its own replica first, the others as failover."""
+    """Gateway URLs for an agent: its own replica first (under every domain), then the others as failover."""
     order = [first] + [i for i in range(cfg.gateways) if i != first]
-    return ["wss://" + cfg.gateway_host.format(i=i) for i in order]
+    return ["wss://" + h.format(i=i) for i in order for h in cfg.gateway_hosts]
 
 
 def plan_credentials(agent, existing, cfg, now):
@@ -370,7 +374,7 @@ def reconcile_once(kube, ns, cfg, now=None):
             active.append((name, data, ports[name]))
         gw = pick_gateway(a, cfg)
         status = {
-            "observedGeneration": gen, "gateway": cfg.gateway_host.format(i=gw),
+            "observedGeneration": gen, "gateway": cfg.gateway_hosts[0].format(i=gw),
             "gateways": [u[len("wss://"):] for u in gateway_urls(gw, cfg)], "ports": ports[name],
             "secretName": sname, "rotatedAt": ann.get(ANN + "rotated-at"),
             "previousValidUntil": ann.get(ANN + "previous-until"),

@@ -75,10 +75,11 @@ spec:
           command: [python3, -u, /code/controller.py]
           env:
             - {name: PYTHONDONTWRITEBYTECODE, value: "1"}
-            # Gateway replicas and their hostnames (DNS: dns/domains/vmd1.homelab.js). Must match manifest.yaml replicas.
+            # Gateway replicas and their hostnames, each under three domains for failover (DNS: dns/domains/*.js, ingressroute.yaml).
+            # Must match manifest.yaml replicas.
             - {name: GATEWAYS, value: "2"}
-            - {name: GATEWAY_HOST, value: "tunnel-{i}.vmd1.homelab"}
-            - {name: VIA_URL, value: "wss://tunnel.vmd1.homelab"}
+            - {name: GATEWAY_HOST, value: "coordination-{i}.vmd1.homelab,coordination-{i}.vmd1.homelab,coordination-{i}.vmd1.homelab"}
+            - {name: VIA_URL, value: "wss://coordination.vmd1.homelab,wss://coordination.vmd1.homelab,wss://coordination.vmd1.homelab"}
             # What the fallback pathway's health check connects to FROM the gateway pod: the cluster DNS service (TCP).
             - {name: TUNNEL_CANARY, value: "XXX.XXX.XXX.XXX:53"}
           livenessProbe:
