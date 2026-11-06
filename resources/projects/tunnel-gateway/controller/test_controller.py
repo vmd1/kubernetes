@@ -152,14 +152,19 @@ def test_rotation_when_older_than_rotate_after_and_never_disables_it():
     assert creds(k, "a")["ID_AGENT"] != a0 and creds(k, "b")["ID_AGENT"] == b0
 
 
-def test_default_rotation_is_90_days():
-    k = FakeKube([agent("a")])
+def test_no_automatic_rotation_by_default_but_rotateafter_and_the_env_default_still_work():
+    k = FakeKube([agent("a"), agent("b", {"rotateAfter": "90d"})])
     c.reconcile_once(k, "ns", CFG, NOW)
-    a0 = creds(k, "a")["ID_AGENT"]
-    c.reconcile_once(k, "ns", CFG, NOW + timedelta(days=89))
-    assert creds(k, "a")["ID_AGENT"] == a0
-    c.reconcile_once(k, "ns", CFG, NOW + timedelta(days=91))
-    assert creds(k, "a")["ID_AGENT"] != a0
+    a0, b0 = creds(k, "a")["ID_AGENT"], creds(k, "b")["ID_AGENT"]
+    c.reconcile_once(k, "ns", CFG, NOW + timedelta(days=400))
+    assert creds(k, "a")["ID_AGENT"] == a0  # nothing set: never rotates
+    assert creds(k, "b")["ID_AGENT"] != b0  # asked for 90d: rotates
+    opted_in = c.Config({"DEFAULT_ROTATE_AFTER": "30d"})
+    k2 = FakeKube([agent("c")])
+    c.reconcile_once(k2, "ns", opted_in, NOW)
+    c0 = creds(k2, "c")["ID_AGENT"]
+    c.reconcile_once(k2, "ns", opted_in, NOW + timedelta(days=31))
+    assert creds(k2, "c")["ID_AGENT"] != c0
 
 
 def test_invalid_agents_are_reported_and_get_no_access():

@@ -44,7 +44,7 @@ tunnel-agent/scripts/ssh-agent.sh test ubuntu          # ssh into it through the
 
 - **Add an agent**: a new object in `agents.yaml` (`spec: {}` is enough; `expose:` publishes more than ssh).
 - **Revoke**: `suspended: true` (reversible; its credentials are kept) or delete the object (they are destroyed).
-- **Rotate now**: change `spec.rotationToken`. Otherwise every `rotateAfter` (default 90d, `never` to turn it off). The previous secrets keep working for
+- **Rotate now**: change `spec.rotationToken`. Automatic rotation is off by default (`rotateAfter: never`); set `rotateAfter: 90d` on an agent you redeploy on a schedule. The previous secrets keep working for
   `rotationGrace` (default 24h) so a running agent is not cut off before you put the new `agent.env` on it; `status.previousValidUntil` says until when.
 - A rotation does not reach the agent by itself: re-run `agent-env.sh` and restart the agent within the grace period.
 

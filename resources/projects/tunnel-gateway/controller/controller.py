@@ -55,7 +55,7 @@ class Config:
         self.canary = e.get("TUNNEL_CANARY", "XXX.XXX.XXX.XXX:53")
         self.restrictions_secret = e.get("RESTRICTIONS_SECRET", "tunnel-gateway-restrictions")
         self.poll = int(e.get("POLL_INTERVAL", "15"))
-        self.default_rotate = e.get("DEFAULT_ROTATE_AFTER", "90d")
+        self.default_rotate = e.get("DEFAULT_ROTATE_AFTER", "never")
         self.default_grace = e.get("DEFAULT_GRACE", "24h")
 
 
@@ -160,7 +160,7 @@ def plan_credentials(agent, existing, cfg, now):
     Returns (data, annotations, rotated). data keys: VIA, AGENT, CLIENT and, during a grace period, *_PREVIOUS."""
     spec = agent.get("spec", {})
     token = str(spec.get("rotationToken") or "")
-    after = parse_duration(spec.get("rotateAfter"), parse_duration(cfg.default_rotate, 90 * 86400))
+    after = parse_duration(spec.get("rotateAfter"), parse_duration(cfg.default_rotate))
     grace = parse_duration(spec.get("rotationGrace"), parse_duration(cfg.default_grace, 86400)) or 86400
     keys = ("VIA", "AGENT", "CLIENT")
     ex = existing or {"data": {}, "annotations": {}}

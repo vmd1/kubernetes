@@ -75,7 +75,7 @@ spec:
                 rotateAfter:
                   type: string
                   pattern: '^(never|[0-9]+[smhd]?)$'
-                  description: Rotate the agent's credentials after this long. Default 90d (the controller's DEFAULT_ROTATE_AFTER).
+                  description: "Rotate the agent's credentials after this long, e.g. 90d. Default never (the controller's DEFAULT_ROTATE_AFTER). A running agent reads its credentials once, so automatic rotation cuts it off after rotationGrace unless you redeploy it."
                 rotationGrace:
                   type: string
                   pattern: '^[0-9]+[smhd]?$'
