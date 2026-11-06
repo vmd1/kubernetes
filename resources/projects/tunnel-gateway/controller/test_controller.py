@@ -210,3 +210,74 @@ def test_a_lost_secret_is_reissued_and_the_old_one_stops_working():
 def test_parse_duration():
     assert c.parse_duration("90d") == 90 * 86400 and c.parse_duration("12h") == 43200
     assert c.parse_duration("never") is None and c.parse_duration("junk", 5) == 5
+
+
+# ---------------------------------------------------------------- lastSeen / connectionType
+
+def _line(ts, restriction, esc=False):
+    pre = "\x1b[32m INFO\x1b[0m " if esc else " INFO "
+    return (f'{ts} 2026-11-06T14:17:29.182284Z{pre}cnx{{peer="XXX.XXX.XXX.XXX:1"}}:tunnel{{forwarded_for="XXX.XXX.XXX.XXX" id="x" '
+            f'remote="controlplane.tailscale.com:443"}}: wstunnel::tunnel::server::server: Tunnel accepted due to matched restriction: {restriction}')
+
+
+class LogKube(FakeKube):
+    def __init__(self, agents, logs):
+        super().__init__(agents)
+        self.logs, self.asked = logs, []
+
+    def pod_log(self, ns, pod, since=None):
+        self.asked.append((pod, since))
+        v = self.logs.get(pod, "")
+        if isinstance(v, Exception):
+            raise v
+        return v
+
+
+def test_scan_log_picks_newest_per_agent_and_ignores_clients_and_unknown():
+    text = "\n".join([
+        _line("2026-11-06T14:00:00.100000000Z", "a-via", esc=True),
+        _line("2026-11-06T14:05:00.000000000Z", "a"),
+        _line("2026-11-06T14:06:00.000000000Z", "a-client"),
+        _line("2026-11-06T14:07:00.000000000Z", "ghost-via"),
+        "2026-11-06T14:08:00.000000000Z INFO cnx{}: Accepting connection",
+        "garbage",
+    ])
+    seen, newest = c.scan_log(text, {"a", "b"})
+    assert seen == {"a": (datetime(2026, 11, 6, 14, 5, tzinfo=timezone.utc), "agent")}
+    assert newest == datetime(2026, 11, 6, 14, 8, tzinfo=timezone.utc)
+    seen2, _ = c.scan_log(text, {"a"}, since=datetime(2026, 11, 6, 14, 5, tzinfo=timezone.utc))
+    assert seen2 == {}  # nothing newer than the cursor that matters
+
+
+def test_names_ending_in_via_or_client_are_invalid():
+    assert c.validate(agent("x-via"), CFG) and c.validate(agent("x-client"), CFG) and not c.validate(agent("x"), CFG)
+
+
+def test_status_gets_last_seen_and_type_and_steady_state_writes_nothing():
+    k = LogKube([agent("a")], {"tunnel-gateway-0": _line("2026-11-05T11:59:00.000000000Z", "a-via"),
+                                "tunnel-gateway-1": _line("2026-11-05T11:58:00.000000000Z", "a")})
+    act = c.Activity()
+    c.reconcile_once(k, "ns", CFG, NOW, activity=act)
+    st = k.agents["a"]["status"]
+    assert st["lastSeen"] == "2026-11-05T11:59:00Z" and st["connectionType"] == "via"
+    patches = k.status_patches
+    c.reconcile_once(k, "ns", CFG, NOW, activity=act)
+    assert k.status_patches == patches
+    assert k.asked[-2][1] is not None  # second poll only asks for what is newer
+
+
+def test_last_seen_moves_only_past_the_resolution_or_when_the_type_changes():
+    st = {"lastSeen": "2026-11-05T11:00:00Z", "connectionType": "via"}
+    t = lambda m: datetime(2026, 11, 5, 11, m, tzinfo=timezone.utc)  # noqa: E731
+    assert c.seen_status(st, (t(2), "via"), 300) == st
+    assert c.seen_status(st, (t(6), "via"), 300)["lastSeen"] == "2026-11-05T11:06:00Z"
+    assert c.seen_status(st, (t(1), "agent"), 300) == {"lastSeen": "2026-11-05T11:01:00Z", "connectionType": "agent"}
+    assert c.seen_status(st, None, 300) == st and c.seen_status({}, None, 300) == {}
+
+
+def test_unreadable_gateway_log_does_not_stop_reconcile_or_wipe_the_last_seen():
+    old = {"lastSeen": "2026-11-05T10:00:00Z", "connectionType": "agent"}
+    k = LogKube([agent("a", status=old)], {"tunnel-gateway-0": RuntimeError("forbidden")})
+    c.reconcile_once(k, "ns", CFG, NOW, activity=c.Activity())
+    st = k.agents["a"]["status"]
+    assert st["lastSeen"] == old["lastSeen"] and st["connectionType"] == "agent" and "secretName" in st

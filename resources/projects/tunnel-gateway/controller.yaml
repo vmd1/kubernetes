@@ -19,6 +19,11 @@ rules:
   - apiGroups: [tunnel.vmd1.homelab]
     resources: [tunnelagents/status]
     verbs: [patch]
+  # Connection times (status.lastSeen / connectionType) come from the gateway pods' own logs, read-only and only those pods.
+  - apiGroups: [""]
+    resources: [pods/log]
+    resourceNames: [tunnel-gateway-0, tunnel-gateway-1]
+    verbs: [get]
   # Namespace-scoped: its own credentials and the rendered restrictions. (Create cannot be limited by name.)
   - apiGroups: [""]
     resources: [secrets]

@@ -31,6 +31,12 @@ spec:
         - name: SSH-Port
           type: integer
           jsonPath: .status.ports.ssh
+        - name: Connection
+          type: string
+          jsonPath: .status.connectionType
+        - name: Last-Seen
+          type: date
+          jsonPath: .status.lastSeen
         - name: Rotated
           type: string
           jsonPath: .status.rotatedAt
@@ -86,3 +92,12 @@ spec:
             status:
               type: object
               x-kubernetes-preserve-unknown-fields: true
+              properties:
+                lastSeen:
+                  type: string
+                  format: date-time
+                  description: "When the gateway last accepted a connection from this agent (read from the gateway logs; refreshed at most every LAST_SEEN_RESOLUTION, default 5m). An agent on the direct Tailscale pathway never touches the gateway, so this only moves while it uses a tunnel pathway."
+                connectionType:
+                  type: string
+                  enum: [via, agent]
+                  description: "How the agent last connected. via: Tailscale carried through the gateway (tailscale-wss pathways). agent: the privileged wss-tunnel pathway (reverse tunnels for ssh)."

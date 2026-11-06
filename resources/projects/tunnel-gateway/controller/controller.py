@@ -9,7 +9,8 @@ Watches TunnelAgent objects (tunnel.vmd1.homelab/v1alpha1) in its own namespace 
   * the Secret `tunnel-gateway-restrictions` holds the wstunnel `--restrict-config` file rendered from all agents that
     are not suspended. The gateway pods only read it (deny by default: no agents means no access).
 
-Status goes back onto each TunnelAgent (Ready condition, gateway, ports, rotation times).
+Status goes back onto each TunnelAgent (Ready condition, gateway, ports, rotation times, and when and how it last
+connected: lastSeen / connectionType, read from the gateway pods' wstunnel logs).
 """
 import base64
 import hashlib
@@ -61,6 +62,10 @@ class Config:
         self.poll = int(e.get("POLL_INTERVAL", "15"))
         self.default_rotate = e.get("DEFAULT_ROTATE_AFTER", "never")
         self.default_grace = e.get("DEFAULT_GRACE", "24h")
+        # Where connections are observed: the wstunnel container of each gateway pod. lastSeen is rewritten only when it has
+        # moved by at least this many seconds (or the connection type changed), so a busy agent is not a write every poll.
+        self.pod_prefix = e.get("GATEWAY_POD_PREFIX", "tunnel-gateway")
+        self.seen_resolution = int(e.get("LAST_SEEN_RESOLUTION", "300"))
 
 
 # ---------------------------------------------------------------- pure logic
@@ -104,6 +109,8 @@ def validate(agent, cfg):
     name = agent["metadata"]["name"]
     if not NAME_RE.match(name):
         return f"name {name!r} must be lowercase letters, digits and dashes (max 42)"
+    if name.endswith(("-via", "-client")):
+        return f"name {name!r} must not end in -via or -client (those are the gateway's restriction names for its credentials)"
     seen = set()
     for e in expose_list(agent.get("spec", {})):
         n, p = e.get("name"), e.get("port")
@@ -273,6 +280,90 @@ def conditions(status, reason, message, generation, previous=None, now=None):
              "observedGeneration": generation, "lastTransitionTime": when}]
 
 
+# ---------------------------------------------------------------- connection activity
+
+ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
+ACCEPT_RE = re.compile(r"Tunnel accepted due to matched restriction: (\S+)")
+
+
+def parse_kube_ts(text):
+    """A kubelet log timestamp (RFC3339, nanoseconds) as an aware datetime, or None."""
+    m = re.match(r"(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d)(?:\.(\d+))?Z", text or "")
+    if not m:
+        return None
+    micro = int((m.group(2) or "0")[:6].ljust(6, "0"))
+    return datetime.strptime(m.group(1), "%Y-%m-%dT%H:%M:%S").replace(microsecond=micro, tzinfo=timezone.utc)
+
+
+def restriction_kind(restriction, names):
+    """('agent name', 'via' | 'agent') for a restriction wstunnel matched, or None for a client (a person's ssh) or an unknown name.
+    Agent names cannot end in -via/-client (validate), so the three restriction names of one agent are unambiguous."""
+    if restriction.endswith("-via") and restriction[:-4] in names:
+        return restriction[:-4], "via"
+    if restriction in names:
+        return restriction, "agent"
+    return None
+
+
+def scan_log(text, names, since=None):
+    """Newest accepted tunnel per agent in a gateway log: ({agent: (time, kind)}, newest line time).
+    Lines at or before `since` were seen on an earlier poll."""
+    seen, newest = {}, since
+    for line in text.splitlines():
+        stamp, _, rest = line.partition(" ")
+        when = parse_kube_ts(stamp)
+        if when is None or (since and when <= since):
+            continue
+        newest = when if newest is None or when > newest else newest
+        m = ACCEPT_RE.search(ANSI_RE.sub("", rest))
+        k = restriction_kind(m.group(1), names) if m else None
+        if k and (k[0] not in seen or when >= seen[k[0]][0]):
+            seen[k[0]] = (when, k[1])
+    return seen, newest
+
+
+class Activity:
+    """Reads each gateway pod's wstunnel log (only what is new since the last poll) and reports the latest connection per agent."""
+
+    def __init__(self):
+        self.cursor = {}
+
+    def poll(self, kube, ns, cfg, names):
+        out = {}
+        for i in range(cfg.gateways):
+            pod = f"{cfg.pod_prefix}-{i}"
+            try:
+                text = kube.pod_log(ns, pod, self.cursor.get(pod))
+            except Exception as e:  # noqa: BLE001 - presence is a nicety; never stop credential reconciliation for it
+                log.warning("cannot read %s's log: %s", pod, e)
+                continue
+            seen, newest = scan_log(text, names, self.cursor.get(pod))
+            if newest:
+                self.cursor[pod] = newest
+            for n, v in seen.items():
+                if n not in out or v[0] > out[n][0]:
+                    out[n] = v
+        return out
+
+
+def seen_status(previous, observed, resolution):
+    """lastSeen / connectionType for the status. A new observation only replaces the stored one when the type changed or
+    the time moved by at least `resolution` seconds, so a steady state writes nothing."""
+    prev = previous or {}
+    last, kind = prev.get("lastSeen"), prev.get("connectionType")
+    if observed:
+        when, k = observed
+        old = parse_iso(last)
+        if k != kind or old is None or (when - old).total_seconds() >= resolution:
+            last, kind = iso(when), k
+    out = {}
+    if last:
+        out["lastSeen"] = last
+    if kind:
+        out["connectionType"] = kind
+    return out
+
+
 # ---------------------------------------------------------------- Kubernetes API
 
 class Kube:
@@ -293,6 +384,19 @@ class Kube:
 
     def list_agents(self, ns):
         return self.request("GET", f"/apis/{GROUP}/{VERSION}/namespaces/{ns}/{PLURAL}").get("items", [])
+
+    def pod_log(self, ns, pod, since=None):
+        """The wstunnel container's log with kubelet timestamps; everything on the first call, then only what is newer."""
+        q = "container=wstunnel&timestamps=true" + (f"&sinceTime={since.strftime('%Y-%m-%dT%H:%M:%S.%fZ')}" if since else "")
+        req = urllib.request.Request(f"{self.base}/api/v1/namespaces/{ns}/pods/{pod}/log?{q}",
+                                     headers={"Authorization": f"Bearer {self._token()}"})
+        try:
+            with urllib.request.urlopen(req, timeout=30, context=self.ctx) as resp:
+                return resp.read().decode("utf-8", "replace")
+        except urllib.error.HTTPError as e:
+            if e.code in (400, 404):  # pod not there or container not started yet
+                return ""
+            raise
 
     def patch_status(self, ns, name, status):
         self.request("PATCH", f"/apis/{GROUP}/{VERSION}/namespaces/{ns}/{PLURAL}/{name}/status",
@@ -339,7 +443,7 @@ def secret_body(ns, name, data, annotations, resource_version=None, owner=None, 
 
 # ---------------------------------------------------------------- reconcile
 
-def reconcile_once(kube, ns, cfg, now=None):
+def reconcile_once(kube, ns, cfg, now=None, activity=None):
     now = now or datetime.now(timezone.utc)
     agents = kube.list_agents(ns)
     good, bad = [], {}
@@ -350,6 +454,7 @@ def reconcile_once(kube, ns, cfg, now=None):
         else:
             good.append(a)
     ports = assign_ports(good, cfg)
+    observed = activity.poll(kube, ns, cfg, {a["metadata"]["name"] for a in good}) if activity else {}
     active = []
     for a in good:
         name = a["metadata"]["name"]
@@ -377,6 +482,7 @@ def reconcile_once(kube, ns, cfg, now=None):
             "observedGeneration": gen, "gateway": cfg.gateway_hosts[0].format(i=gw),
             "gateways": [u[len("wss://"):] for u in gateway_urls(gw, cfg)], "ports": ports[name],
             "secretName": sname, "rotatedAt": ann.get(ANN + "rotated-at"),
+            **seen_status(a.get("status"), observed.get(name), cfg.seen_resolution),
             "previousValidUntil": ann.get(ANN + "previous-until"),
             "conditions": conditions("False" if suspended else "True", "Suspended" if suspended else "Active",
                                      "credentials are revoked: not in the gateway's restrictions" if suspended
@@ -418,14 +524,14 @@ def main():
     if not ns:
         with open(f"{SA_DIR}/namespace") as f:
             ns = f.read().strip()
-    cfg, kube = Config(), Kube()
+    cfg, kube, activity = Config(), Kube(), Activity()
     stop = threading.Event()
     for sig in (signal.SIGTERM, signal.SIGINT):
         signal.signal(sig, lambda *_: stop.set())
     log.info("watching %s/%s in %s every %ds (%d gateways)", PLURAL, VERSION, ns, cfg.poll, cfg.gateways)
     while not stop.is_set():
         try:
-            reconcile_once(kube, ns, cfg)
+            reconcile_once(kube, ns, cfg, activity=activity)
             open("/tmp/heartbeat", "w").close()
         except Exception:
             log.exception("reconcile failed")
