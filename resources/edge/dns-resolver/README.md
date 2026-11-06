@@ -16,7 +16,7 @@ A public recursive resolver (DNS-over-TLS and DNS-over-HTTPS) on every ingress e
 
 ## How it works
 
-- **Using it**: DoT to `<profile>.dns.vmd1.homelab:853`, DoH at `https://<profile>.dns.vmd1.homelab/dns-query`. `<profile>` is `-`-separated Blocklist names (`ads-trackers`); plain `dns.vmd1.homelab` blocks nothing. Blocked names get NXDOMAIN, subdomains included. DoH also accepts `?blocklists=ads,trackers`.
+- **Using it**: DoT to `<profile>.dns.vmd1.homelab:853`, DoH at `https://<profile>.dns.vmd1.homelab/dns-query`; every name also works under `dns.vmd1.homelab`. `<profile>` is `-`-separated Blocklist names (`ads-trackers`); plain `dns.vmd1.homelab` blocks nothing. Blocked names get NXDOMAIN, subdomains included. DoH also accepts `?blocklists=ads,trackers`.
 - **Add a list**: apply a `Blocklist` (see [../../crds/blocklist/](../../crds/blocklist/README.md)). `kubectl -n dns-resolver get bl` shows whether it compiled.
 - **Data path**: controller downloads and compiles each list once (`hosts` or plain-domain format, deduplicated, `maxEntries` cap) and serves the result over HTTP in the cluster. Each edge pod's `sync` sidecar polls the controller every minute and verifies the SHA-256; dnsdist loads a changed list in place (one list per pass), so list updates never restart a pod. A failed fetch or download keeps the last good list.
 - **Traffic**: Traefik (hostNetwork) sends DoT as raw TCP with a PROXY v2 header to the pod on its own node, so dnsdist sees the real client address and the SNI; DoH is terminated at Traefik and forwarded as h2c.
