@@ -48,6 +48,10 @@ This folder contains only the **controller HelmChart**. The Traefik custom resou
 
 No persistent volume claims are used. Traefik is a stateless reverse-proxy, pulling routing specifications dynamically from Kubernetes API resources (CRDs).
 
+## Probes
+
+The chart's default probes (2 s timeout, liveness killed after 3 misses) are loosened in the values: liveness 10 s x 6, readiness 5 s x 3, plus a startup probe (5 s x 36) so liveness starts only once Traefik is up. On the 1 GB edge nodes a memory stall (zeus-01 had 58 restarts in 16 days) otherwise got Traefik killed, and its restart (binary, geo plugin, GeoIP DBs) caused more page faults and kept the node stalled.
+
 ## Related
 
 - [proxy/traefik/README.md](../../proxy/traefik/README.md) — middlewares, TLS options, dashboard route, and `uk-home` LoadBalancer.
