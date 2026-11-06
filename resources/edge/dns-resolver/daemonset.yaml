@@ -104,9 +104,9 @@ spec:
         - name: lists
           emptyDir: {sizeLimit: 128Mi}
 ---
-# Traefik is hostNetwork, so its connection to this ClusterIP is NATed by kube-proxy: with internalTrafficPolicy Local it
-# only ever reaches the pod on its own node (a node without a ready pod drops it, which is what we want). Deliberately
-# not nativeLB: Traefik would then spread connections over every node's pod.
+# The routes use nativeLB, so Traefik connects to this ClusterIP and kube-proxy picks the pod: trafficDistribution
+# PreferSameZone keeps a query on the node's own zone while a healthy pod exists and falls back to another zone when the
+# local dnsdist is down (internalTrafficPolicy Local would drop the query instead).
 apiVersion: v1
 kind: Service
 metadata:
@@ -115,7 +115,7 @@ metadata:
 spec:
   selector:
     app.kubernetes.io/name: dns-resolver
-  internalTrafficPolicy: Local
+  trafficDistribution: PreferSameZone
   ports:
     - {name: dot, port: 853, targetPort: dot}
     - {name: doh, port: 8053, targetPort: doh, appProtocol: kubernetes.io/h2c}
