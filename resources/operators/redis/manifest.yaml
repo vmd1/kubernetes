@@ -7,6 +7,23 @@ spec:
   clusterSize: 3
   nodeSelector:
     storage.vmd1.homelab/redis-server: "true"
+  # The operator default (1 s timeout, 3 failures) SIGKILLed redis-0 and redis-2 when hades-01 stalled (exit 137).
+  livenessProbe: &redis-probe-exec
+    exec:
+      command:
+        - sh
+        - -ec
+        - |-
+          RESP="$(redis-cli -h $(hostname) -p ${REDIS_PORT} ping)"
+          [ "$RESP" = "PONG" ]
+    initialDelaySeconds: 1
+    periodSeconds: 10
+    timeoutSeconds: 5
+    successThreshold: 1
+    failureThreshold: 6
+  readinessProbe:
+    <<: *redis-probe-exec
+    failureThreshold: 3
   redisExporter:
     enabled: true
     image: oliver006/redis_exporter:v1.95.0@sha256:afb21407aba3df1b4010899f155fc6b1ba2026c97b725d72aca4019d772e7b6b
@@ -31,6 +48,25 @@ spec:
   clusterSize: 3
   nodeSelector:
     storage.vmd1.homelab/redis-sentinel: "true"
+  # Same relaxed probes as the replication. A sentinel container restart is expensive: the opstree entrypoint appends
+  # `sentinel monitor` to a config the running sentinel already rewrote on the emptyDir, hits "Duplicate master name"
+  # and crash-loops until the pod is recreated (sentinel-2 did this 1100 times).
+  livenessProbe: &sentinel-probe-exec
+    exec:
+      command:
+        - sh
+        - -ec
+        - |-
+          RESP="$(redis-cli -h $(hostname) -p ${SENTINEL_PORT} ping)"
+          [ "$RESP" = "PONG" ]
+    initialDelaySeconds: 1
+    periodSeconds: 10
+    timeoutSeconds: 5
+    successThreshold: 1
+    failureThreshold: 6
+  readinessProbe:
+    <<: *sentinel-probe-exec
+    failureThreshold: 3
   redisExporter:
     enabled: true
     image: oliver006/redis_exporter:v1.95.0@sha256:afb21407aba3df1b4010899f155fc6b1ba2026c97b725d72aca4019d772e7b6b
