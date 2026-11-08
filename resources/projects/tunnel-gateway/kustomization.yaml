@@ -3,6 +3,7 @@ kind: Kustomization
 
 resources:
   - agents.yaml
+  - bridge-rbac.yaml
   - controller.yaml
   - ingressroute.yaml
   - manifest.yaml

@@ -128,6 +128,23 @@ metadata:
   annotations:
     kustomize.toolkit.fluxcd.io/prune: disabled
 ---
+# Lab bridges (tunnel-agent's wireguard pathways): one pod per TunnelAgent with bridge: true, created by the tunnel-gateway
+# controller. Each is a Tailscale device (tailscaled in TUN mode, iptables, a WireGuard interface), so it needs privileges: that is
+# kept in this namespace instead of loosening tunnel-gateway. Nothing else runs here.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: tunnel-bridge
+  labels:
+    policy.vmd1.homelab/allow-privilege-escalation: "true"
+    policy.vmd1.homelab/allow-privileged: "true"
+    policy.vmd1.homelab/allow-root: "true"
+    policy.vmd1.homelab/allow-writable-rootfs: "true"
+    pod-security.kubernetes.io/audit: "restricted"
+    vmd1.homelab/tier: "infra"
+  annotations:
+    kustomize.toolkit.fluxcd.io/prune: disabled
+---
 apiVersion: v1
 kind: Namespace
 metadata:

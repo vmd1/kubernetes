@@ -64,6 +64,16 @@ class Config:
         self.default_grace = e.get("DEFAULT_GRACE", "24h")
         # Where connections are observed: the wstunnel container of each gateway pod. lastSeen is rewritten only when it has
         # moved by at least this many seconds (or the connection type changed), so a busy agent is not a write every poll.
+        # Lab bridges (spec.bridge): one pod per agent in BRIDGE_NAMESPACE, a Tailscale device that forwards every port to the agent
+        # over WireGuard. The agent reaches its bridge over direct UDP on a NodePort (BRIDGE_PORT_BASE + slot, so BRIDGE_SLOTS
+        # bridges at most; oci/firewall opens the same range) or the same UDP inside the wss tunnel.
+        self.bridge_ns = e.get("BRIDGE_NAMESPACE", "tunnel-bridge")
+        self.bridge_image = e.get("BRIDGE_IMAGE", "ghcr.io/vmd1/tunnel-bridge:latest")
+        self.bridge_slots = int(e.get("BRIDGE_SLOTS", "16"))
+        self.bridge_port_base = int(e.get("BRIDGE_PORT_BASE", "31820"))
+        self.bridge_wg_port = 51820
+        self.bridge_endpoint_hosts = [h.strip() for h in e.get(
+            "BRIDGE_ENDPOINT_HOSTS", "coordination.vmd1.homelab,coordination.vmd1.homelab,coordination.vmd1.homelab").split(",") if h.strip()]
         self.pod_prefix = e.get("GATEWAY_POD_PREFIX", "tunnel-gateway")
         self.seen_resolution = int(e.get("LAST_SEEN_RESOLUTION", "300"))
 
@@ -121,6 +131,8 @@ def validate(agent, cfg):
         seen.add(n)
         if not isinstance(p, int) or not 1 <= p <= 65535:
             return f"expose {n}: port {p!r} must be 1-65535"
+    if agent.get("spec", {}).get("bridge") not in (None, True, False):
+        return "bridge must be true or false"
     gw = agent.get("spec", {}).get("gateway")
     if gw is not None and not (isinstance(gw, int) and 0 <= gw < cfg.gateways):
         return f"gateway must be 0..{cfg.gateways - 1}"
@@ -202,13 +214,170 @@ def valid_secrets(data, kind):
     return [v for v in (data.get(kind), data.get(kind + "_PREVIOUS")) if v]
 
 
-def agent_env(agent, data, ports, cfg):
+# ---------------------------------------------------------------- lab bridge (WireGuard)
+
+_P, _A24 = 2 ** 255 - 19, 121665
+
+
+def x25519(k, u):
+    """RFC 7748 scalar multiplication (Python has no X25519 in the standard library). k, u: 32 bytes; returns 32 bytes."""
+    kb = bytearray(k)
+    kb[0] &= 248
+    kb[31] &= 127
+    kb[31] |= 64
+    n = int.from_bytes(kb, "little")
+    x1 = int.from_bytes(u, "little") & ((1 << 255) - 1)
+    x2, z2, x3, z3, swap = 1, 0, x1, 1, 0
+    for t in range(254, -1, -1):
+        bit = (n >> t) & 1
+        swap ^= bit
+        if swap:
+            x2, x3, z2, z3 = x3, x2, z3, z2
+        swap = bit
+        a, b = (x2 + z2) % _P, (x2 - z2) % _P
+        aa, bb = a * a % _P, b * b % _P
+        e = (aa - bb) % _P
+        c, d = (x3 + z3) % _P, (x3 - z3) % _P
+        da, cb = d * a % _P, c * b % _P
+        x3, z3 = pow(da + cb, 2, _P), x1 * pow(da - cb, 2, _P) % _P
+        x2, z2 = aa * bb % _P, e * (aa + _A24 * e) % _P
+    if swap:
+        x2, x3, z2, z3 = x3, x2, z3, z2
+    return (x2 * pow(z2, _P - 2, _P) % _P).to_bytes(32, "little")
+
+
+def wg_private():
+    return base64.b64encode(os.urandom(32)).decode()
+
+
+_PUB = {}
+
+
+def wg_public(private_b64):
+    """The WireGuard public key (base64) for a base64 private key. The clamping happens inside x25519."""
+    if private_b64 not in _PUB:
+        _PUB[private_b64] = base64.b64encode(x25519(base64.b64decode(private_b64), (9).to_bytes(32, "little"))).decode()
+    return _PUB[private_b64]
+
+
+def bridge_wanted(agent):
+    return agent.get("spec", {}).get("bridge") is True and not agent.get("spec", {}).get("suspended")
+
+
+def assign_bridge_slots(agents, cfg):
+    """{agent name: slot} for agents that want a bridge. A slot is an index into the WireGuard addresses (10.99.<slot>.0/30) and
+    the NodePorts; stable (kept from status.bridge.slot unless out of range or taken), oldest agent wins a conflict."""
+    order = sorted((a for a in agents if bridge_wanted(a)), key=lambda a: (a["metadata"].get("creationTimestamp", ""), a["metadata"]["name"]))
+    taken, out = set(), {}
+    for a in order:
+        have = ((a.get("status") or {}).get("bridge") or {}).get("slot")
+        if isinstance(have, int) and 0 <= have < cfg.bridge_slots and have not in taken:
+            taken.add(have)
+            out[a["metadata"]["name"]] = have
+    for a in order:
+        n = a["metadata"]["name"]
+        if n in out:
+            continue
+        slot = next((x for x in range(cfg.bridge_slots) if x not in taken), None)
+        if slot is None:
+            raise RuntimeError(f"bridge slots exhausted ({cfg.bridge_slots}); raise BRIDGE_SLOTS and open the NodePorts")
+        taken.add(slot)
+        out[n] = slot
+    return out
+
+
+def bridge_host(name, cfg):
+    """The cluster DNS name of an agent's bridge Service, which the gateway pod dials for the UDP-in-wss pathway."""
+    return f"bridge-{name}.{cfg.bridge_ns}.svc.cluster.local"
+
+
+def bridge_info(name, slot, cfg):
+    return {"slot": slot, "address": f"10.99.{slot}.1", "agentAddress": f"10.99.{slot}.2",
+            "nodePort": cfg.bridge_port_base + slot, "host": bridge_host(name, cfg)}
+
+
+def ensure_wg(data, rotated):
+    """Generate the agent's and the bridge's WireGuard private keys when missing, and again on a rotation."""
+    data = dict(data)
+    if rotated or not data.get("WG_AGENT") or not data.get("WG_BRIDGE"):
+        data["WG_AGENT"], data["WG_BRIDGE"] = wg_private(), wg_private()
+    return data
+
+
+def bridge_labels(name):
+    return {"app.kubernetes.io/name": "tunnel-bridge", "app.kubernetes.io/instance": f"bridge-{name}",
+            "app.kubernetes.io/managed-by": "tunnel-controller", "tunnel.vmd1.homelab/agent": name}
+
+
+def bridge_resources(name, info, data, cfg):
+    """[(kind, body)] for one agent's bridge: its Secret (WireGuard config), the Deployment (a privileged pod: tailscaled needs
+    /dev/net/tun and the namespace is the one place that is allowed) and a NodePort UDP Service for the direct pathway."""
+    ns, bn = cfg.bridge_ns, f"bridge-{name}"
+    labels = bridge_labels(name)
+    secret = {"apiVersion": "v1", "kind": "Secret", "type": "Opaque", "metadata": {"name": bn, "namespace": ns, "labels": labels},
+              "stringData": {"WG_PRIVATE_KEY": data["WG_BRIDGE"], "WG_PEER_PUBKEY": wg_public(data["WG_AGENT"]),
+                             "WG_ADDRESS": f"{info['address']}/30", "WG_PEER_IP": info["agentAddress"],
+                             "WG_LISTEN_PORT": str(cfg.bridge_wg_port), "TS_HOSTNAME": f"{name}-bridge"}}
+    deploy = {"apiVersion": "apps/v1", "kind": "Deployment", "metadata": {"name": bn, "namespace": ns, "labels": labels},
+              "spec": {"replicas": 1, "strategy": {"type": "Recreate"},
+                       "selector": {"matchLabels": {"app.kubernetes.io/instance": bn}},
+                       "template": {"metadata": {"labels": labels},
+                                    "spec": {"automountServiceAccountToken": False, "enableServiceLinks": False,
+                                             "securityContext": {"seccompProfile": {"type": "RuntimeDefault"}},
+                                             # Small edge nodes only carry ingress: the bridge belongs on the lab nodes.
+                                             "affinity": {"nodeAffinity": {"requiredDuringSchedulingIgnoredDuringExecution": {"nodeSelectorTerms": [
+                                                 {"matchExpressions": [{"key": "node-role.kubernetes.io/ingress", "operator": "DoesNotExist"}]}]}}},
+                                             "containers": [{
+                                                 "name": "bridge", "image": cfg.bridge_image,
+                                                 "securityContext": {"privileged": True},
+                                                 "envFrom": [{"secretRef": {"name": bn}}],
+                                                 "env": [{"name": "TS_AUTHKEY", "valueFrom": {"secretKeyRef": {"name": "bridge-authkey", "key": "TS_AUTHKEY"}}}],
+                                                 "resources": {"requests": {"cpu": "20m", "memory": "48Mi"}, "limits": {"cpu": "500m", "memory": "192Mi"}},
+                                                 "volumeMounts": [{"name": "state", "mountPath": "/var/lib/tailscale"}]}],
+                                             "volumes": [{"name": "state", "emptyDir": {"sizeLimit": "64Mi"}}]}}}}
+    service = {"apiVersion": "v1", "kind": "Service", "metadata": {"name": bn, "namespace": ns, "labels": labels},
+               "spec": {"type": "NodePort", "selector": {"app.kubernetes.io/instance": bn},
+                        "ports": [{"name": "wireguard", "protocol": "UDP", "port": cfg.bridge_wg_port,
+                                   "targetPort": cfg.bridge_wg_port, "nodePort": info["nodePort"]}]}}
+    return [("secrets", secret), ("deployments", deploy), ("services", service)]
+
+
+def sync_bridges(kube, cfg, desired, cache, now):
+    """Server-side apply every wanted bridge object (skipped while unchanged and recently applied) and delete the managed
+    objects nobody wants any more. `desired`: {agent: [(kind, body)]}; `cache`: {(kind, name): (hash, time)}."""
+    want = set()
+    for res in desired.values():
+        for kind, body in res:
+            key = (kind, body["metadata"]["name"])
+            want.add(key)
+            digest = hashlib.sha256(json.dumps(body, sort_keys=True).encode()).hexdigest()
+            prev = cache.get(key)
+            if prev and prev[0] == digest and (now - prev[1]).total_seconds() < 600:
+                continue
+            kube.apply(cfg.bridge_ns, kind, body)
+            cache[key] = (digest, now)
+    for kind in ("deployments", "services", "secrets"):
+        for n in kube.list_managed(cfg.bridge_ns, kind):
+            if (kind, n) not in want:
+                kube.delete(cfg.bridge_ns, kind, n)
+                cache.pop((kind, n), None)
+                log.info("removed bridge %s/%s", kind, n)
+
+
+def agent_env_bridge(name, data, info, cfg):
+    return {"WG_PRIVATE_KEY": data["WG_AGENT"], "WG_PEER_PUBKEY": wg_public(data["WG_BRIDGE"]),
+            "WG_ADDRESS": f"{info['agentAddress']}/30", "WG_PEER_IP": info["address"], "WG_BRIDGE_NAME": f"{name}-bridge",
+            "WG_ENDPOINTS": ",".join(f"{h}:{info['nodePort']}" for h in cfg.bridge_endpoint_hosts),
+            "WG_TUNNEL_TARGET": f"{info['host']}:{cfg.bridge_wg_port}"}
+
+
+def agent_env(agent, data, ports, cfg, bridge=None):
     first = pick_gateway(agent, cfg)
     expose = []
     for e in expose_list(agent.get("spec", {})):
         tp = e.get("tailnetPort") or e["port"]
         expose.append(f"{e['name']}=XXX.XXX.XXX.XXX:{e['port']}:{tp}:{ports[e['name']]}")
-    return {
+    out = {
         "TUNNEL_URL": ",".join(gateway_urls(first, cfg)),
         "TUNNEL_VIA_URL": cfg.via_url,
         "TUNNEL_VIA_SECRET": data["VIA"],
@@ -216,6 +385,9 @@ def agent_env(agent, data, ports, cfg):
         "TUNNEL_CANARY": cfg.canary,
         "EXPOSE": ",".join(expose),
     }
+    if bridge:
+        out.update(agent_env_bridge(agent["metadata"]["name"], data, bridge, cfg))
+    return out
 
 
 def _regex(values):
@@ -228,11 +400,12 @@ def render_restrictions(entries, cfg):
     if not entries:
         return "restrictions: []\n"
     out = ["restrictions:"]
-    for name, data, ports in sorted(entries, key=lambda e: e[0]):
+    for name, data, ports, *rest in sorted(entries, key=lambda e: e[0]):
+        bhost = rest[0] if rest else None  # the agent's bridge Service name, when it has one
         plist = ", ".join(str(p) for p in sorted(ports.values())) or "1"
         out += [
             f"  - name: {name}-via",
-            f"    description: HTTPS to Tailscale control and DERP hosts only.",
+            f"    description: HTTPS to Tailscale control and DERP hosts only" + (", and UDP to this agent's own lab bridge." if bhost else "."),
             "    match:",
             f'      - !PathPrefix "{_regex(valid_secrets(data, "VIA"))}"',
             "    allow:",
@@ -241,6 +414,8 @@ def render_restrictions(entries, cfg):
             "        port: [443]",
             "        host: '^([a-z0-9-]+\\.)*tailscale\\.(com|io)$'",
             '        cidr: [XXX.XXX.XXX.XXX/0, "::/0"]',
+            *([ "      - !Tunnel", "        protocol: [Udp]", f"        port: [{cfg.bridge_wg_port}]",
+                f"        host: '^{bhost.replace('.', chr(92) + '.')}$'", f"        cidr: [{', '.join(cfg.cidrs)}]"] if bhost else []),
             f"  - name: {name}",
             "    description: Outbound to the homelab; inbound only this agent's reverse ports (the gateway pod's loopback).",
             "    match:",
@@ -402,6 +577,26 @@ class Kube:
         self.request("PATCH", f"/apis/{GROUP}/{VERSION}/namespaces/{ns}/{PLURAL}/{name}/status",
                      {"status": status}, "application/merge-patch+json")
 
+    BRIDGE_API = {"secrets": "/api/v1", "services": "/api/v1", "deployments": "/apis/apps/v1"}
+
+    def apply(self, ns, kind, body):
+        """Server-side apply (create or update, field-owned by this controller; a Service keeps its clusterIP)."""
+        name = body["metadata"]["name"]
+        self.request("PATCH", f"{self.BRIDGE_API[kind]}/namespaces/{ns}/{kind}/{name}?fieldManager=tunnel-controller&force=true",
+                     body, "application/apply-patch+yaml")
+
+    def list_managed(self, ns, kind):
+        sel = "app.kubernetes.io%2Fmanaged-by%3Dtunnel-controller"
+        items = self.request("GET", f"{self.BRIDGE_API[kind]}/namespaces/{ns}/{kind}?labelSelector={sel}").get("items", [])
+        return [i["metadata"]["name"] for i in items]
+
+    def delete(self, ns, kind, name):
+        try:
+            self.request("DELETE", f"{self.BRIDGE_API[kind]}/namespaces/{ns}/{kind}/{name}")
+        except urllib.error.HTTPError as e:
+            if e.code != 404:
+                raise
+
     def get_secret(self, ns, name):
         try:
             return self.request("GET", f"/api/v1/namespaces/{ns}/secrets/{name}")
@@ -443,7 +638,11 @@ def secret_body(ns, name, data, annotations, resource_version=None, owner=None, 
 
 # ---------------------------------------------------------------- reconcile
 
-def reconcile_once(kube, ns, cfg, now=None, activity=None):
+_BRIDGE_CACHE = {}   # (kind, name) -> (hash, applied at): unchanged bridge objects are not re-applied every poll
+_BRIDGES_SEEN = [False]  # a bridge existed on the last pass, so one more pass has to prune what was removed
+
+
+def reconcile_once(kube, ns, cfg, now=None, activity=None, bridge_cache=None):
     now = now or datetime.now(timezone.utc)
     agents = kube.list_agents(ns)
     good, bad = [], {}
@@ -455,7 +654,12 @@ def reconcile_once(kube, ns, cfg, now=None, activity=None):
             good.append(a)
     ports = assign_ports(good, cfg)
     observed = activity.poll(kube, ns, cfg, {a["metadata"]["name"] for a in good}) if activity else {}
-    active = []
+    try:
+        slots = assign_bridge_slots(good, cfg)
+    except RuntimeError as e:
+        log.warning("%s", e)
+        slots = {}
+    desired, active = {}, []
     for a in good:
         name = a["metadata"]["name"]
         gen = a["metadata"].get("generation")
@@ -463,7 +667,13 @@ def reconcile_once(kube, ns, cfg, now=None, activity=None):
         sec = kube.get_secret(ns, sname)
         existing = decode_secret(sec)
         data, ann, rotated = plan_credentials(a, existing, cfg, now)
-        env_vals = agent_env(a, data, ports[name], cfg)
+        binfo = bridge_info(name, slots[name], cfg) if name in slots else None
+        if binfo:
+            data = ensure_wg(data, rotated)
+            desired[name] = bridge_resources(name, binfo, data, cfg)
+        else:
+            data = {k: v for k, v in data.items() if k not in ("WG_AGENT", "WG_BRIDGE")}
+        env_vals = agent_env(a, data, ports[name], cfg, binfo)
         owner = {"apiVersion": f"{GROUP}/{VERSION}", "kind": "TunnelAgent", "name": name,
                  "uid": a["metadata"]["uid"], "controller": True, "blockOwnerDeletion": True}
         extra = {**env_vals, "CLIENT_SECRET": data["CLIENT"], "agent.env": env_file(env_vals)}
@@ -476,13 +686,15 @@ def reconcile_once(kube, ns, cfg, now=None, activity=None):
             log.info("%s: credentials %s", name, "rotated" if rotated else "written")
         suspended = bool(a.get("spec", {}).get("suspended"))
         if not suspended:
-            active.append((name, data, ports[name]))
+            active.append((name, data, ports[name], binfo["host"] if binfo else None))
         gw = pick_gateway(a, cfg)
         status = {
             "observedGeneration": gen, "gateway": cfg.gateway_hosts[0].format(i=gw),
             "gateways": [u[len("wss://"):] for u in gateway_urls(gw, cfg)], "ports": ports[name],
             "secretName": sname, "rotatedAt": ann.get(ANN + "rotated-at"),
             **seen_status(a.get("status"), observed.get(name), cfg.seen_resolution),
+            **({"bridge": {k: binfo[k] for k in ("slot", "address", "agentAddress", "nodePort")}} if binfo
+               else ({"bridge": None} if (a.get("status") or {}).get("bridge") else {})),
             "previousValidUntil": ann.get(ANN + "previous-until"),
             "conditions": conditions("False" if suspended else "True", "Suspended" if suspended else "Active",
                                      "credentials are revoked: not in the gateway's restrictions" if suspended
@@ -500,6 +712,12 @@ def reconcile_once(kube, ns, cfg, now=None, activity=None):
             if any(st.get(k) != (a.get("status") or {}).get(k) for k in st):
                 kube.patch_status(ns, n, st)
     sync_restrictions(kube, ns, cfg, render_restrictions(active, cfg))
+    if desired or _BRIDGES_SEEN[0]:
+        try:
+            sync_bridges(kube, cfg, desired, _BRIDGE_CACHE if bridge_cache is None else bridge_cache, now)
+            _BRIDGES_SEEN[0] = bool(desired)
+        except Exception as e:  # noqa: BLE001 - a broken bridge namespace must not stop credentials or restrictions
+            log.warning("bridge sync failed: %s", e)
 
 
 def sync_restrictions(kube, ns, cfg, text):

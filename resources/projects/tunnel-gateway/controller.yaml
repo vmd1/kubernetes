@@ -85,6 +85,13 @@ spec:
             - {name: GATEWAYS, value: "2"}
             - {name: GATEWAY_HOST, value: "coordination-{i}.vmd1.homelab,coordination-{i}.vmd1.homelab,coordination-{i}.vmd1.homelab"}
             - {name: VIA_URL, value: "wss://coordination.vmd1.homelab,wss://coordination.vmd1.homelab,wss://coordination.vmd1.homelab,wss://cf-coordination.vmd1.homelab"}
+            # Lab bridges (spec.bridge): pods in tunnel-bridge, direct UDP on NodePort BRIDGE_PORT_BASE + slot (oci/firewall/tunnel-bridge.yaml
+            # opens the same BRIDGE_SLOTS ports on the ingress nodes), endpoints on the coordination.<domain> names (not Cloudflare: no UDP).
+            - {name: BRIDGE_NAMESPACE, value: "tunnel-bridge"}
+            - {name: BRIDGE_IMAGE, value: "ghcr.io/vmd1/tunnel-bridge:latest"}
+            - {name: BRIDGE_PORT_BASE, value: "31820"}
+            - {name: BRIDGE_SLOTS, value: "16"}
+            - {name: BRIDGE_ENDPOINT_HOSTS, value: "coordination.vmd1.homelab,coordination.vmd1.homelab,coordination.vmd1.homelab"}
             # What the fallback pathway's health check connects to FROM the gateway pod: the cluster DNS service (TCP).
             - {name: TUNNEL_CANARY, value: "XXX.XXX.XXX.XXX:53"}
           livenessProbe:

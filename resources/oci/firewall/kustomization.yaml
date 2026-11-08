@@ -4,4 +4,5 @@ kind: Kustomization
 resources:
   - dns.yaml
   - tailscale-wireguard.yaml
+  - tunnel-bridge.yaml
   - web.yaml

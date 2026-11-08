@@ -37,6 +37,9 @@ spec:
         - name: Last-Seen
           type: date
           jsonPath: .status.lastSeen
+        - name: Bridge
+          type: string
+          jsonPath: .status.bridge.agentAddress
         - name: Rotated
           type: string
           jsonPath: .status.rotatedAt
@@ -74,6 +77,10 @@ spec:
                         minimum: 1
                         maximum: 65535
                         description: Port it is published on over Tailscale (default same as port).
+                bridge:
+                  type: boolean
+                  default: false
+                  description: "Give the agent a lab bridge: a Tailscale device in the homelab (<name>-bridge) that forwards every port to the agent over WireGuard, and through which the agent reaches the tailnet. Two-way, all ports. The agent gets the WG_* settings in its agent.env and uses the wireguard / wireguard-wss pathways (needs NET_ADMIN and the kernel WireGuard module on the server). At most BRIDGE_SLOTS agents."
                 gateway:
                   type: integer
                   minimum: 0
@@ -97,6 +104,15 @@ spec:
                   type: string
                   format: date-time
                   description: "When the gateway last accepted a connection from this agent (read from the gateway logs; refreshed at most every LAST_SEEN_RESOLUTION, default 5m). An agent on the direct Tailscale pathway never touches the gateway, so this only moves while it uses a tunnel pathway."
+                bridge:
+                  type: object
+                  nullable: true
+                  description: "The agent's lab bridge (spec.bridge): its slot, the WireGuard addresses on both ends, and the NodePort of the direct UDP endpoint."
+                  properties:
+                    slot: {type: integer}
+                    address: {type: string}
+                    agentAddress: {type: string}
+                    nodePort: {type: integer}
                 connectionType:
                   type: string
                   enum: [via, agent]

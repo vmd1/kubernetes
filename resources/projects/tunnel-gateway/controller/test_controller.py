@@ -29,6 +29,19 @@ class FakeKube:
         s = self.secrets.get(name)
         return copy.deepcopy(s) if s else None
 
+    # lab bridges: objects in the bridge namespace, {(kind, name): body}
+    def apply(self, ns, kind, body):
+        if not hasattr(self, "bridge_objs"):
+            self.bridge_objs, self.applies = {}, []
+        self.bridge_objs[(kind, body["metadata"]["name"])] = copy.deepcopy(body)
+        self.applies.append((kind, body["metadata"]["name"]))
+
+    def list_managed(self, ns, kind):
+        return [n for (k, n) in getattr(self, "bridge_objs", {}) if k == kind]
+
+    def delete(self, ns, kind, name):
+        self.bridge_objs.pop((kind, name), None)
+
     def put_secret(self, ns, body, exists):
         name = body["metadata"]["name"]
         self.writes.append(name)
@@ -281,3 +294,92 @@ def test_unreadable_gateway_log_does_not_stop_reconcile_or_wipe_the_last_seen():
     c.reconcile_once(k, "ns", CFG, NOW, activity=c.Activity())
     st = k.agents["a"]["status"]
     assert st["lastSeen"] == old["lastSeen"] and st["connectionType"] == "agent" and "secretName" in st
+
+
+# ---------------------------------------------------------------- WireGuard lab bridge
+
+def test_x25519_matches_the_rfc7748_vectors_and_wireguard_public_keys():
+    k = bytes.fromhex("a546e36bf0527c9d3b16154b82465edd62144c0ac1fc5a18506a2244ba449ac4")
+    u = bytes.fromhex("e6db6867583030db3594c1a424b15f7c726624ec26b3353b10a903a6d0ab1c4c")
+    assert c.x25519(k, u).hex() == "c3da55379de9c6908e94ea4df28d084f32eccf03491c71f754b4075577a28552"
+    alice = bytes.fromhex("77076d0a7318a57d3c16c17251b26645df4c2f87ebc0992ab177fba51db92c2a")
+    pub = base64.b64decode(c.wg_public(base64.b64encode(alice).decode()))
+    assert pub.hex() == "8520f0098930a754748b7ddcb43ef75a0dbf3a0d26381af4eba4a98eaa9b4e6a"
+    bob = bytes.fromhex("5dab087e624a8a4b79e17f8b83800ee66f3bb1292618b6fd1c2f8b27ff88e0eb")
+    bob_pub = c.x25519(bob, (9).to_bytes(32, "little"))
+    assert c.x25519(alice, bob_pub) == c.x25519(bob, pub)  # Diffie-Hellman agrees both ways
+
+
+def bridged(name, status=None, spec=None, created="2026-11-01T00:00:00Z"):
+    return agent(name, {"bridge": True, **(spec or {})}, created, status)
+
+
+def reconcile_bridge(k, cache=None):
+    c._BRIDGES_SEEN[0] = False
+    c.reconcile_once(k, "ns", CFG, NOW, bridge_cache={} if cache is None else cache)
+
+
+def test_bridge_slots_are_stable_unique_and_skip_suspended_or_unwanted():
+    a, b = bridged("a"), bridged("b", status={"bridge": {"slot": 0}})
+    assert c.assign_bridge_slots([a, b, agent("plain"), bridged("off", spec={"suspended": True})], CFG) == {"b": 0, "a": 1}
+    full = [bridged(f"x{i}") for i in range(CFG.bridge_slots + 1)]
+    import pytest
+    with pytest.raises(RuntimeError, match="exhausted"):
+        c.assign_bridge_slots(full, CFG)
+    assert c.validate(agent("z", {"bridge": "yes"}), CFG)
+
+
+def test_bridge_agent_gets_wireguard_env_status_restriction_and_three_objects():
+    k = FakeKube([bridged("srv")])
+    reconcile_bridge(k)
+    d = creds(k, "srv")
+    assert d["WG_ADDRESS"] == "XXX.XXX.XXX.XXX/30" and d["WG_PEER_IP"] == "XXX.XXX.XXX.XXX" and d["WG_BRIDGE_NAME"] == "srv-bridge"
+    assert d["WG_ENDPOINTS"] == "coordination.vmd1.homelab:31820,coordination.vmd1.homelab:31820,coordination.vmd1.homelab:31820"
+    assert d["WG_TUNNEL_TARGET"] == "bridge-srv.tunnel-bridge.svc.cluster.local:51820"
+    assert d["WG_PRIVATE_KEY"] == d["ID_WG_AGENT"] and c.wg_public(d["ID_WG_BRIDGE"]) == d["WG_PEER_PUBKEY"]
+    assert "WG_PRIVATE_KEY=" in d["agent.env"]
+    st = k.agents["srv"]["status"]["bridge"]
+    assert st == {"slot": 0, "address": "XXX.XXX.XXX.XXX", "agentAddress": "XXX.XXX.XXX.XXX", "nodePort": 31820}
+    r = restrictions(k)
+    assert "protocol: [Udp]" in r and "port: [51820]" in r and "bridge-srv\\.tunnel-bridge\\.svc\\.cluster\\.local" in r
+    assert sorted(k.bridge_objs) == [("deployments", "bridge-srv"), ("secrets", "bridge-srv"), ("services", "bridge-srv")]
+    sec = k.bridge_objs[("secrets", "bridge-srv")]["stringData"]
+    assert sec["WG_PEER_PUBKEY"] == c.wg_public(d["ID_WG_AGENT"]) and sec["WG_PRIVATE_KEY"] == d["ID_WG_BRIDGE"]
+    assert sec["WG_ADDRESS"] == "XXX.XXX.XXX.XXX/30" and sec["TS_HOSTNAME"] == "srv-bridge"
+    dep = k.bridge_objs[("deployments", "bridge-srv")]["spec"]["template"]["spec"]["containers"][0]
+    assert dep["securityContext"] == {"privileged": True} and dep["env"][0]["valueFrom"]["secretKeyRef"]["name"] == "bridge-authkey"
+    svc = k.bridge_objs[("services", "bridge-srv")]["spec"]
+    assert svc["type"] == "NodePort" and svc["ports"][0]["nodePort"] == 31820 and svc["ports"][0]["protocol"] == "UDP"
+
+
+def test_bridge_is_applied_once_then_pruned_when_removed_and_keys_survive_polls():
+    k = FakeKube([bridged("srv")])
+    cache = {}
+    reconcile_bridge(k, cache)
+    n, keys = len(k.applies), creds(k, "srv")["ID_WG_AGENT"]
+    c.reconcile_once(k, "ns", CFG, NOW, bridge_cache=cache)
+    assert len(k.applies) == n and creds(k, "srv")["ID_WG_AGENT"] == keys  # nothing changed, nothing written
+    k.agents["srv"]["spec"].pop("bridge")
+    c.reconcile_once(k, "ns", CFG, NOW, bridge_cache=cache)
+    assert k.bridge_objs == {} and "ID_WG_AGENT" not in creds(k, "srv") and "WG_ADDRESS" not in creds(k, "srv")
+    assert "bridge" not in {x for x in k.agents["srv"]["status"] if k.agents["srv"]["status"][x] is not None}
+    assert "protocol: [Udp]" not in restrictions(k)
+
+
+def test_bridge_keys_rotate_with_the_credentials_and_a_plain_agent_has_no_wireguard():
+    k = FakeKube([bridged("srv"), agent("plain")])
+    reconcile_bridge(k)
+    old = creds(k, "srv")["ID_WG_AGENT"]
+    assert "WG_ADDRESS" not in creds(k, "plain")
+    k.agents["srv"]["spec"]["rotationToken"] = "now"
+    c.reconcile_once(k, "ns", CFG, NOW, bridge_cache={})
+    assert creds(k, "srv")["ID_WG_AGENT"] != old
+
+
+def test_bridge_trouble_never_stops_credentials_or_restrictions():
+    class Broken(FakeKube):
+        def apply(self, ns, kind, body):
+            raise RuntimeError("namespace tunnel-bridge not found")
+    k = Broken([bridged("srv")])
+    reconcile_bridge(k)
+    assert "name: srv" in restrictions(k) and "agent-srv" in k.secrets

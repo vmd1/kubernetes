@@ -16,6 +16,7 @@
 | [web.yaml](web.yaml) | `80/tcp`, `443/tcp` | HTTP/HTTPS ingress |
 | [dns.yaml](dns.yaml) | `53/tcp`, `53/udp` | DNS |
 | [tailscale-wireguard.yaml](tailscale-wireguard.yaml) | `41641/udp`, `41642/udp` | Tailscale WireGuard |
+| [tunnel-bridge.yaml](tunnel-bridge.yaml) | `31820-31835/udp` | Direct WireGuard endpoints of the tunnel lab bridges (one NodePort per slot) |
 
 All rules target ingress nodes via the `node-role.kubernetes.io/ingress: "true"` selector and allow `XXX.XXX.XXX.XXX/0` (the `sources` default). The controller only ever adds missing security-list entries, it never removes them.
 

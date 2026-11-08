@@ -1,0 +1,30 @@
+# The controller (controller.yaml) creates and prunes the lab bridges (Secret, Deployment, NodePort Service per TunnelAgent with
+# bridge: true) in the tunnel-bridge namespace (resources/namespaces). It only touches objects labelled
+# app.kubernetes.io/managed-by=tunnel-controller; this Role is all it can do there.
+#
+# The Tailscale auth key the bridges register with is NOT managed here: create it once (reusable, ephemeral, tag:agent, pre-approved):
+#   kubectl -n tunnel-bridge create secret generic bridge-authkey --from-literal=TS_AUTHKEY=tskey-auth-...
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: tunnel-controller-bridges
+  namespace: tunnel-bridge
+rules:
+  - apiGroups: [""]
+    resources: [secrets, services]
+    verbs: [get, list, create, patch, update, delete]
+  - apiGroups: [apps]
+    resources: [deployments]
+    verbs: [get, list, create, patch, update, delete]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: tunnel-controller-bridges
+  namespace: tunnel-bridge
+subjects:
+  - {kind: ServiceAccount, name: tunnel-controller, namespace: tunnel-gateway}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: tunnel-controller-bridges

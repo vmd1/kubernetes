@@ -8,6 +8,7 @@ Server side of [`tunnel-agent`](../../../../tunnel-agent/README.md): a deny-by-d
 | :--- | :--- |
 | [manifest.yaml](manifest.yaml) | StatefulSet `tunnel-gateway` (2 replicas, one per `uk-home` node; upstream `ghcr.io/erebe/wstunnel` pinned by digest; read-only root FS; an init container and a sidecar that copy the restrictions in place), a Service for any replica, one Service per replica, and a PodDisruptionBudget (`minAvailable: 1`). |
 | [controller.yaml](controller.yaml) | The `TunnelAgent` controller (ServiceAccount, Role, Deployment). Its code, [controller/controller.py](controller/controller.py), is mounted from a ConfigMap on a pinned stock Python image: nothing to build. |
+| [bridge-rbac.yaml](bridge-rbac.yaml) | The controller's Role in the `tunnel-bridge` namespace (Secrets, Services, Deployments of the lab bridges). |
 | [agents.yaml](agents.yaml) | The `TunnelAgent` objects: one per server running tunnel-agent. This is the only place an agent is added or removed. |
 | [ingressroute.yaml](ingressroute.yaml) | Traefik routes on `websecure` only, priority 950000 (above the Cloudflare-only catch-all): `tunnel` (any replica), `tunnel-0` and `tunnel-1` (one replica each). |
 | [controller/sync.py](controller/sync.py) | Copies the mounted restrictions Secret in place onto the file wstunnel watches. |
@@ -31,6 +32,12 @@ The CRD is in [`crds/tunnelagent`](../../crds/tunnelagent/README.md).
   reach the same pod. The agent's `TUNNEL_URL` lists its preferred replica first and the other as a failover; `scripts/ssh-agent.sh` tries both.
   A drained or restarted replica only drops the tunnels on it; those agents reconnect to the other one.
 - **Last seen and connection type.** The controller reads each gateway pod's wstunnel log (RBAC: `pods/log` `get` on the two pods only) and sets `status.lastSeen` and `status.connectionType` (`via` = Tailscale carried through the gateway, `agent` = the wss-tunnel reverse-tunnel pathway) from the newest "Tunnel accepted due to matched restriction" line per agent. A person's ssh (`<agent>-client`) does not count. The status is rewritten only when the type changes or the time has moved by `LAST_SEEN_RESOLUTION` (default 300 s), so a steady agent is not a write every poll. An agent on the direct Tailscale pathway never touches the gateway and shows its last tunnel use. If the logs cannot be read the previous values stay. Agent names ending in `-via` or `-client` are rejected (those are restriction-name suffixes).
+- **Lab bridge** (`spec.bridge: true`, opt-in). The controller generates a WireGuard keypair for the agent and for its bridge (a small X25519 implementation, checked
+  against the RFC 7748 vectors), allocates a slot (`10.99.<slot>.0/30` and the NodePort `31820 + slot`, at most `BRIDGE_SLOTS` = 16, kept in `status.bridge`) and server-side-applies the bridge's
+  Secret, Deployment and NodePort Service in the `tunnel-bridge` namespace ([../../../../tunnel-bridge](../../../../tunnel-bridge/README.md)); objects of agents that no longer want one are deleted. The agent's
+  `agent.env` gets `WG_*`, and its **via** secret gains one more allowed tunnel: UDP to its own bridge Service on 51820, nothing else (so a leaked via secret still cannot reach another agent's bridge). Rotation
+  regenerates the WireGuard keys (no grace period). A broken bridge namespace is logged and never stops credentials or restrictions. Prerequisites: the `bridge-authkey` Secret (see `bridge-rbac.yaml`), the
+  image `ghcr.io/vmd1/tunnel-bridge` and `oci/firewall/tunnel-bridge.yaml` (direct UDP).
 - **Ports** (20000-20999) are allocated by the controller, unique across all agents (so a failover keeps the port) and stable (kept in `status.ports`).
 - **TLS** terminates at Traefik (wildcard certificate). The hostnames are DNS-only (`dns/domains/vmd1.homelab.js`) so they work from networks that block
   Cloudflare and TLS never ends at a third party. **Port 80 is not served** (Traefik redirects it), so `ws://` cannot work here.

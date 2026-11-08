@@ -1,0 +1,44 @@
+# Direct WireGuard endpoints of the tunnel lab bridges (projects/tunnel-gateway, tunnel-bridge/): one NodePort per bridge slot,
+# BRIDGE_PORT_BASE (31820) + slot, BRIDGE_SLOTS (16) of them. Keep this list in step with the controller's BRIDGE_PORT_BASE/BRIDGE_SLOTS.
+apiVersion: network.vmd1.homelab/v1alpha1
+kind: FirewallRule
+metadata:
+  name: tunnel-bridge
+spec:
+  type: OCI
+  description: Tunnel lab bridges (WireGuard, direct UDP)
+  nodeSelector:
+    node-role.kubernetes.io/ingress: "true"
+  ports:
+    - port: 31820
+      protocol: UDP
+    - port: 31821
+      protocol: UDP
+    - port: 31822
+      protocol: UDP
+    - port: 31823
+      protocol: UDP
+    - port: 31824
+      protocol: UDP
+    - port: 31825
+      protocol: UDP
+    - port: 31826
+      protocol: UDP
+    - port: 31827
+      protocol: UDP
+    - port: 31828
+      protocol: UDP
+    - port: 31829
+      protocol: UDP
+    - port: 31830
+      protocol: UDP
+    - port: 31831
+      protocol: UDP
+    - port: 31832
+      protocol: UDP
+    - port: 31833
+      protocol: UDP
+    - port: 31834
+      protocol: UDP
+    - port: 31835
+      protocol: UDP

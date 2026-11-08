@@ -147,6 +147,20 @@ spec:
     persistentvolumeclaims: "5"
     requests.storage: "20Gi"
 ---
+# One bridge pod per TunnelAgent with bridge: true, at most BRIDGE_SLOTS (16) of them.
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: default-quota
+  namespace: tunnel-bridge
+  labels:
+    vmd1.homelab/policy: quota-default
+spec:
+  hard:
+    pods: "20"
+    persistentvolumeclaims: "5"
+    requests.storage: "20Gi"
+---
 apiVersion: v1
 kind: ResourceQuota
 metadata:
