@@ -1,0 +1,50 @@
+# Writes the ingress.vmd1.homelab zone to the primary from the nodes' labels (see loader/ingress_sync.py). It replaces the
+# geoip-zones.yaml ConfigMap the old powerdns-operator keeps for the legacy DaemonSet; once every ingress node runs the
+# secondary, that operator can be deleted. Stock python image, script from the loader ConfigMap: no image to build.
+# Reuses the operator's ServiceAccount (it already may list nodes).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: powerdns-ingress-sync
+  namespace: powerdns
+  labels:
+    app: powerdns-ingress-sync
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: powerdns-ingress-sync
+  template:
+    metadata:
+      labels:
+        app: powerdns-ingress-sync
+    spec:
+      serviceAccountName: powerdns-operator
+      nodeSelector:
+        node-role.kubernetes.io/control-plane: "true"
+      containers:
+        - name: sync
+          image: python:3.13-alpine@sha256:7984cf56ceaddebe4fefeb75d64000b9f45d8b77b11a09b24524da6cdc3af0c8
+          command: [python3, -u, /app/ingress_sync.py]
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65534
+            runAsGroup: 65534
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+            seccompProfile: {type: RuntimeDefault}
+          env:
+            - {name: PYTHONDONTWRITEBYTECODE, value: "1"}
+            - {name: API_URL, value: "http://powerdns-primary.powerdns.svc:8081"}
+            - {name: INTERVAL, value: "15"}
+            - name: API_KEY
+              valueFrom: {secretKeyRef: {name: powerdns-secrets, key: PDNS_API_KEY}}
+          volumeMounts:
+            - {name: code, mountPath: /app, readOnly: true}
+          resources:
+            requests: {cpu: 5m, memory: 16Mi}
+            limits: {cpu: 50m, memory: 64Mi}
+      volumes:
+        - name: code
+          configMap: {name: powerdns-loader-code}

@@ -1,0 +1,98 @@
+# <name>.dev.lan.int.vmd1.homelab for the uk-home LAN, tailnet only: a CoreDNS that strips `.dev.lan.int.vmd1.homelab` down to
+# `<name>.lan` and asks the uk-home router (XXX.XXX.XXX.XXX, which owns the LAN's DHCP leases and `.lan` names). It is
+# published on the tailnet by the Tailscale operator (Service below), and Tailscale split DNS sends the zone
+# `lan.int.vmd1.homelab` to that address (manual, see README "LAN names"). Not served by PowerDNS and not public.
+#
+# Pinned to uk-home: the router is only reachable from there, and a pod reaches it through the node's LAN address.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: lan-dns
+  namespace: powerdns
+data:
+  Corefile: |
+    # dev.lan.int.vmd1.homelab is the group (like dev.ts.int); lan.int.vmd1.homelab is the zone the split DNS entry names
+    lan.int.vmd1.homelab:5353 {
+        errors
+        health :8080
+        ready :8181
+        cache 30
+        rewrite stop {
+            name regex ^(.+)\.dev\.lan\.int\.vmd1\.dev\.$ {1}.lan.
+            answer name ^(.+)\.lan\.$ {1}.dev.lan.int.vmd1.homelab.
+        }
+        forward . XXX.XXX.XXX.XXX {
+            force_tcp
+        }
+    }
+    .:5353 {
+        template ANY ANY {
+            rcode REFUSED
+        }
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: lan-dns
+  namespace: powerdns
+  labels:
+    app: lan-dns
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: lan-dns
+  template:
+    metadata:
+      labels:
+        app: lan-dns
+    spec:
+      nodeSelector:
+        topology.kubernetes.io/zone: uk-home
+      containers:
+        - name: coredns
+          image: coredns/coredns:1.12.1@sha256:e8c262566636e6bc340ece6473b0eed193cad045384401529721ddbe6463d31c
+          args: [-conf, /etc/coredns/Corefile]
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65532
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+            seccompProfile: {type: RuntimeDefault}
+          ports:
+            - {name: dns-udp, containerPort: 5353, protocol: UDP}
+            - {name: dns-tcp, containerPort: 5353, protocol: TCP}
+          readinessProbe:
+            httpGet: {path: /ready, port: 8181}
+          livenessProbe:
+            httpGet: {path: /health, port: 8080}
+            failureThreshold: 6
+          volumeMounts:
+            - {name: config, mountPath: /etc/coredns, readOnly: true}
+          resources:
+            requests: {cpu: 5m, memory: 16Mi}
+            limits: {cpu: 100m, memory: 64Mi}
+      volumes:
+        - name: config
+          configMap: {name: lan-dns}
+---
+# The tailnet address. tag:k8s-operator is what the operator's other proxies carry in this tailnet (the operator's
+# default tag:k8s is not defined in tailscale/policy.hujson). Reaching it needs a grant (README, "LAN names").
+apiVersion: v1
+kind: Service
+metadata:
+  name: lan-dns
+  namespace: powerdns
+  annotations:
+    tailscale.com/hostname: lan-dns
+    tailscale.com/tags: tag:k8s-operator
+spec:
+  type: LoadBalancer
+  loadBalancerClass: tailscale
+  selector:
+    app: lan-dns
+  ports:
+    - {name: dns-udp, port: 53, protocol: UDP, targetPort: dns-udp}
+    - {name: dns-tcp, port: 53, protocol: TCP, targetPort: dns-tcp}

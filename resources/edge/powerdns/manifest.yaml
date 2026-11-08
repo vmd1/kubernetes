@@ -25,6 +25,13 @@ spec:
       terminationGracePeriodSeconds: 5
       nodeSelector:
         node-role.kubernetes.io/ingress: "true"
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              # nodes that carry the secondary (see secondary.yaml) are served by that DaemonSet instead
+              - matchExpressions:
+                  - {key: dns.vmd1.homelab/mode, operator: NotIn, values: [secondary]}
       tolerations:
         - operator: Exists
       initContainers:

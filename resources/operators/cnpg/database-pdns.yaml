@@ -1,0 +1,14 @@
+# Database for the PowerDNS primary (edge/powerdns/primary). Declarative: CNPG creates it and makes `pdns` the owner. The
+# schema is applied by the primary's init container (CNPG only creates the empty database). `retain` keeps the data if
+# this object is ever deleted: zones can be rebuilt from git, but nobody should lose them by a stray prune.
+apiVersion: postgresql.cnpg.io/v1
+kind: Database
+metadata:
+  name: pdns
+  namespace: cnpg
+spec:
+  name: pdns
+  owner: pdns
+  cluster:
+    name: pg-cluster
+  databaseReclaimPolicy: retain

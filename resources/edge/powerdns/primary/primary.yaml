@@ -1,0 +1,135 @@
+# The PowerDNS primary: the one writer. Zones live in the `pdns` database on the shared CNPG cluster (pg-cluster); the
+# ingress nodes' PowerDNS pods (secondaries) pull them by AXFR through this Service. A regular pod on the hades (uk-home)
+# nodes, not hostNetwork: its address is the Service, so nothing in git names a node.
+#
+# The loader sidecar keeps the zones equal to the rendered `shadow-zones/*.rrsets.json` (see loader/loader.py); the pdns
+# container creates the schema itself on first start (the image's entrypoint, when `domains` is missing).
+apiVersion: v1
+kind: Service
+metadata:
+  name: powerdns-primary
+  namespace: powerdns
+  labels:
+    app: powerdns-primary
+spec:
+  selector:
+    app: powerdns-primary
+  ports:
+    - {name: dns-udp, port: 53, protocol: UDP, targetPort: dns-udp}
+    - {name: dns-tcp, port: 53, protocol: TCP, targetPort: dns-tcp}
+    - {name: api, port: 8081, protocol: TCP, targetPort: api}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: powerdns-primary
+  namespace: powerdns
+  labels:
+    app: powerdns-primary
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: powerdns-primary
+  template:
+    metadata:
+      labels:
+        app: powerdns-primary
+    spec:
+      terminationGracePeriodSeconds: 10
+      nodeSelector:
+        node-role.kubernetes.io/db: "true"        # hades-01/02, next to pg-cluster
+      tolerations:
+        - {key: node-role.kubernetes.io/control-plane, operator: Exists, effect: NoSchedule}
+        - {key: node-role.kubernetes.io/master, operator: Exists, effect: NoSchedule}
+      containers:
+        - name: pdns
+          image: dl010/powerdns-auth:5.0.8@sha256:3425187666cbf44537cc9b799f6cd9b76319d479470015d9dab56e278120f140
+          securityContext:
+            runAsUser: 0   # binds port 53, like the edge pods
+            runAsGroup: 0
+          env:
+            - {name: PDNS_launch, value: gpgsql}
+            - {name: PDNS_gpgsql_host, value: pg-cluster-rw.cnpg.svc.cluster.local}
+            - {name: PDNS_gpgsql_port, value: "5432"}   # the image's entrypoint refuses to start without it
+            - {name: PDNS_gpgsql_dbname, value: pdns}
+            - {name: PDNS_gpgsql_dnssec, value: "no"}
+            - name: PDNS_gpgsql_user
+              valueFrom: {secretKeyRef: {name: powerdns-db, key: PDNS_DB_USER}}
+            - name: PDNS_gpgsql_password
+              valueFrom: {secretKeyRef: {name: powerdns-db, key: PDNS_DB_PASSWORD}}
+            - {name: PDNS_enable_lua_records, value: "yes"}
+            - {name: PDNS_edns_subnet_processing, value: "yes"}
+            - {name: PDNS_version_string, value: anonymous}
+            - {name: PDNS_primary, value: "yes"}
+            # Secondaries are hostNetwork pods on the ingress nodes. Their AXFR reaches this pod from a flannel address
+            # (the pod range) or a node's tailnet address, depending on the path: both are cluster-internal ranges
+            # (policies/vars/cluster-ranges.yaml has the same values).
+            - {name: PDNS_allow_axfr_ips, value: "XXX.XXX.XXX.XXX/16,XXX.XXX.XXX.XXX/10"}
+            - {name: PDNS_api, value: "yes"}
+            - name: PDNS_api_key
+              valueFrom: {secretKeyRef: {name: powerdns-secrets, key: PDNS_API_KEY}}
+            - {name: PDNS_webserver, value: "yes"}
+            - {name: PDNS_webserver_address, value: XXX.XXX.XXX.XXX}
+            - {name: PDNS_webserver_port, value: "8081"}
+            - {name: PDNS_webserver_allow_from, value: "XXX.XXX.XXX.XXX/8,XXX.XXX.XXX.XXX/16"}
+            - {name: PDNS_receiver_threads, value: "1"}
+            - {name: PDNS_distributor_threads, value: "1"}
+            - {name: PDNS_max_cache_entries, value: "5000"}
+            - {name: PDNS_max_packet_cache_entries, value: "5000"}
+            - {name: PDNS_local_port, value: "53"}
+            - {name: PDNS_socket_dir, value: /var/run}
+            - {name: PDNS_loglevel, value: "4"}
+            - {name: PDNS_setuid, value: "0"}
+            - {name: PDNS_setgid, value: "0"}
+          ports:
+            - {name: dns-udp, containerPort: 53, protocol: UDP}
+            - {name: dns-tcp, containerPort: 53, protocol: TCP}
+            - {name: api, containerPort: 8081, protocol: TCP}
+          # Generous: hades nodes stall now and then, and a restart only costs a reconnect to Postgres.
+          readinessProbe:
+            tcpSocket: {port: dns-tcp}
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          livenessProbe:
+            tcpSocket: {port: dns-tcp}
+            initialDelaySeconds: 30
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 6
+          volumeMounts:
+            - {name: run, mountPath: /var/run}
+          resources:
+            requests: {cpu: 20m, memory: 48Mi}
+            limits: {cpu: 200m, memory: 192Mi}
+        - name: loader
+          image: python:3.13-alpine@sha256:7984cf56ceaddebe4fefeb75d64000b9f45d8b77b11a09b24524da6cdc3af0c8
+          command: [python3, -u, /app/loader.py]
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65534
+            runAsGroup: 65534
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+            seccompProfile: {type: RuntimeDefault}
+          env:
+            - {name: PYTHONDONTWRITEBYTECODE, value: "1"}
+            - {name: API_URL, value: "http://XXX.XXX.XXX.XXX:8081"}
+            - {name: ZONES_DIR, value: /zones}
+            - {name: INTERVAL, value: "30"}
+            - name: API_KEY
+              valueFrom: {secretKeyRef: {name: powerdns-secrets, key: PDNS_API_KEY}}
+          volumeMounts:
+            - {name: loader-code, mountPath: /app, readOnly: true}
+            - {name: zones, mountPath: /zones, readOnly: true}
+          resources:
+            requests: {cpu: 5m, memory: 16Mi}
+            limits: {cpu: 50m, memory: 64Mi}
+      volumes:
+        - {name: run, emptyDir: {}}
+        - name: loader-code
+          configMap: {name: powerdns-loader-code}
+        - name: zones
+          configMap: {name: powerdns-shadow-zones}

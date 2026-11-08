@@ -4,6 +4,8 @@ kind: Kustomization
 resources:
   - networkpolicy-instances.yaml
   - manifest.yaml
+  - database-pdns.yaml
+  - pdns-db.sops.yaml
   - operator.yaml
   - scheduled-backup.yaml
   - secrets.sops.yaml

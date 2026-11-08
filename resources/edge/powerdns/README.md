@@ -1,6 +1,6 @@
 # PowerDNS Authoritative Server
 
-PowerDNS is configured as an Authoritative DNS server running on the ingress nodes. It acts as a GeoIP-backed primary DNS service directing client traffic (e.g. for `ingress.vmd1.homelab`) to the closest healthy edge node (UK, Europe, or India) using LUA records.
+PowerDNS is configured as an Authoritative DNS server running on the ingress nodes, as secondaries of a hidden primary in uk-home (see [Primary / secondary](#primary--secondary); nodes without the `dns.vmd1.homelab/mode=secondary` label still run the older standalone DaemonSet described below). It acts as a GeoIP-backed primary DNS service directing client traffic (e.g. for `ingress.vmd1.homelab`) to the closest healthy edge node (UK, Europe, or India) using LUA records.
 
 ## Breakdown of Files
 
@@ -25,6 +25,37 @@ PowerDNS is configured as an Authoritative DNS server running on the ingress nod
 - **Zone apex data for `ingress.vmd1.homelab`**: the operator writes the SOA and NS into `geoip-zones.yaml`. NS are `ns1`-`ns4.vmd1.homelab` (the real delegation, see [dns/README.md](../../../../dns/README.md#name-servers-for-ingressvmd1dev); env `NAMESERVERS` overrides), SOA mname `ns1.vmd1.homelab`, rname `admin.vmd1.homelab`, and the serial is derived from a hash of the zone content (changes only when the zone does). It used to return `ns1/ns2.cloudflare.com` and a fixed serial `2024031701`, which contradicted the parent's delegation. Takes effect once the new operator image is built and its digest bumped in [operator.yaml](operator.yaml).
 - **No Version Disclosure**: `PDNS_version_string=anonymous` makes `version.bind`/`version.pdns` queries return REFUSED instead of the exact PowerDNS build string. Recursion and AXFR were already refused on all ingress nodes.
 
+
+## Primary / secondary
+
+One writer, many readers. The **primary** (`primary/`, Deployment `powerdns-primary`) is a regular pod on the hades (uk-home) nodes behind the ClusterIP Service `powerdns-primary`; it is hidden (never in the delegation) and stores every zone in the `pdns` database on the shared CNPG cluster `pg-cluster` (database `pdns`, role `pdns`, declared in [operators/cnpg](../../operators/cnpg)). The **secondaries** (`secondary.yaml`, DaemonSet `powerdns-secondary`, hostNetwork on :53) serve the zones to the world and pull them from the primary by AXFR.
+
+| Piece | What it does |
+| :--- | :--- |
+| `primary/primary.yaml` | The primary: pdns (`gpgsql`, API on :8081 for in-cluster callers only) plus the `loader` sidecar. |
+| `primary/loader/loader.py` | Every 30 s makes each `shadow-zones/*.rrsets.json` zone on the primary equal to git (create, or one PATCH when the file's hash changed; zones with no file are never touched). The SOA serial is the primary's (`soa-edit-api`), so it only moves when content does. |
+| `primary/ingress-sync.yaml`, `loader/ingress_sync.py` | Writes `ingress.vmd1.homelab` from the nodes' `node.vmd1.homelab/public-ip` and zone labels, as LUA records (same `ifurlup(..., pickclosest)` text the old operator generated: apex = cloud nodes then the uk-home backups, one per topology zone, one A per node). Replaces the operator's `geoip-zones.yaml` once every node is a secondary. |
+| `secondary.yaml` | `bind` backend, `type slave`; zone list from the generated `named.secondary.conf`. The master is the primary Service's address, which kubelet puts in the pod's environment (`POWERDNS_PRIMARY_SERVICE_HOST`): nothing in git names a node or an IP. Zone files persist in `/var/lib/powerdns/secondary`; the `geoip` backend is loaded (no zones of its own) because LUA `pickclosest` needs it. |
+
+- **Nothing is hand-edited on the primary.** Zones come from git (`dns/shadow/render.js` -> loader) or from a controller (ingress-sync) through the API. A zone you create by hand with `pdnsutil`/the API stays until you delete it, and the loader leaves it alone.
+- **No NOTIFY.** The primary is a pod: its NOTIFYs would carry a pod address that is not the secondaries' configured master, and PowerDNS refuses them (tested). Instead the zones' SOA `refresh`/`retry` are 30 s (`SOA_TIMERS` in `render.js`), so an edit reaches every secondary within about 30 s plus the loader's 30 s pass. Changing the timers of an existing zone needs the zone recreated (the loader never rewrites a SOA); new zones get them at creation.
+- **Roll-out is per node, by label.** A node with `dns.vmd1.homelab/mode=secondary` runs `powerdns-secondary` and is excluded from the legacy `powerdns` DaemonSet. `hera-02` (not in the delegation) carries it first (`node-labels/hera-02.yaml`); check it with `dig @<ip> <name>` against a legacy node (same answers; LUA names rotate randomly), then label the other nodes one at a time (`kubectl label node <n> dns.vmd1.homelab/mode=secondary`, or in `node-labels/`; to move one back, remove the label). `ares-02` (also not delegated) goes second; the delegated nodes (ns1-ns4) go last, one by one. After the last node: delete `operator.yaml`, `manifest.yaml`, `powerdns-config` and the `shadow-zones/*.zone` + `named.conf` outputs (the shadow `named.conf` and `.zone` files exist only for the legacy nodes).
+- **Known difference**: one `vmd1.homelab` TXT rrset has records with two TTLs in dnscontrol (3600 and 300). An API rrset has one TTL, so the primary serves it at 300 (the lowest); `render.js` prints a `note:` for it. Equalise it in `dns/domains/vmd1.homelab.js` if that matters (it also changes Cloudflare).
+- **Failure modes**: the primary down (or the database): secondaries keep answering from their zone files and retry; nothing public breaks, edits just stop propagating. A secondary that cannot reach the Service (e.g. flannel over a stalled `tailscale0`) keeps what it has.
+
+## ts.int (tailnet names)
+
+`<name>.dev.ts.int.vmd1.homelab` is a tailnet device (any physical device or server) and `<name>.srv.ts.int.vmd1.homelab` a service (databases, APIs; `k8s-api` is the kubectl proxy's Tailscale Service address). They resolve **publicly** (to `100.x` addresses, unroutable without the tailnet): `ts.int.vmd1.homelab` is delegated to ns1-ns4 in [dns/domains/vmd1.homelab.js](../../../../dns/domains/vmd1.homelab.js) and rendered from `tsInt` in [dns/shadow/config.json](../../../../dns/shadow/config.json) (infrastructure only: personal devices are not published). Edit `tsInt`, run `node dns/shadow/render.js`, commit. The legacy nodes serve the zone as a master file and the secondaries by AXFR, so the delegation works during the roll-out.
+
+## LAN names (`<name>.dev.lan.int.vmd1.homelab`, tailnet only)
+
+`lan-dns.yaml`: a CoreDNS pinned to uk-home that rewrites `<name>.dev.lan.int.vmd1.homelab` to `<name>.lan` and forwards to the uk-home router (`XXX.XXX.XXX.XXX`, which owns the `.lan` names), then rewrites the answer back. It is published on the tailnet as `lan-dns` by the Tailscale operator (Service `lan-dns`, tag `tag:k8s-operator`) and is **not** in public DNS. Manual steps, after merge:
+
+1. Find its tailnet IP (`tailscale status | grep lan-dns`, or `kubectl -n powerdns get svc lan-dns`).
+2. Tailscale split DNS entry `lan.int.vmd1.homelab` -> that IP (admin console, DNS).
+3. ACL: members need `tag:k8s-operator:53` (not in `tailscale/policy.hujson`; left for review). LAN addresses (`XXX.XXX.XXX.XXX/16`) only answer if the uk-home subnet router advertises them (it advertises no routes today).
+
+Check: `dig <host>.dev.lan.int.vmd1.homelab @<lan-dns tailnet ip>` returns what `dig <host>.lan @XXX.XXX.XXX.XXX` returns.
 
 ## Shadow zones (tailnet split DNS)
 

@@ -17,6 +17,14 @@ spec:
       value: "true"
 
   managed:
+    roles:
+      # PowerDNS primary (edge/powerdns/primary): owns the `pdns` database declared in database-pdns.yaml. The password
+      # is the same random value as `powerdns-db` in the powerdns namespace (both SOPS secrets).
+      - name: pdns
+        ensure: present
+        login: true
+        passwordSecret:
+          name: pdns-db-credentials
     services:
       additional:
         - selectorType: rw
