@@ -322,7 +322,10 @@ def bridge_resources(name, info, data, cfg):
     deploy = {"apiVersion": "apps/v1", "kind": "Deployment", "metadata": {"name": bn, "namespace": ns, "labels": labels},
               "spec": {"replicas": 1, "strategy": {"type": "Recreate"},
                        "selector": {"matchLabels": {"app.kubernetes.io/instance": bn}},
-                       "template": {"metadata": {"labels": labels},
+                       # The bridge reads its Secret once, as environment: a hash of it in the pod template rolls the pod when the keys change
+                       # (a rotation), otherwise it would keep the old ones and the agent's new keys would never match.
+                       "template": {"metadata": {"labels": labels, "annotations": {
+                           "tunnel.vmd1.homelab/config-hash": hashlib.sha256(json.dumps(secret["stringData"], sort_keys=True).encode()).hexdigest()[:16]}},
                                     "spec": {"automountServiceAccountToken": False, "enableServiceLinks": False,
                                              "securityContext": {"seccompProfile": {"type": "RuntimeDefault"}},
                                              # Never the small ingress nodes, and never the control-plane node (hades-01 is memory-starved and

@@ -396,3 +396,15 @@ def test_bridge_pod_avoids_ingress_and_control_plane_nodes_and_pull_policy_is_op
     cfg = c.Config({"BRIDGE_PULL_POLICY": "IfNotPresent"})
     body = dict(c.bridge_resources("srv", c.bridge_info("srv", 0, cfg), {"WG_AGENT": c.wg_private(), "WG_BRIDGE": c.wg_private()}, cfg))["deployments"]
     assert body["spec"]["template"]["spec"]["containers"][0]["imagePullPolicy"] == "IfNotPresent"
+
+
+def test_bridge_pod_rolls_when_its_keys_change_and_not_otherwise():
+    k = FakeKube([bridged("srv")])
+    reconcile_bridge(k)
+    ann = lambda: k.bridge_objs[("deployments", "bridge-srv")]["spec"]["template"]["metadata"]["annotations"]["tunnel.vmd1.homelab/config-hash"]  # noqa: E731
+    first = ann()
+    c.reconcile_once(k, "ns", CFG, NOW, bridge_cache={})
+    assert ann() == first  # same keys, same hash: no rollout
+    k.agents["srv"]["spec"]["rotationToken"] = "now"
+    c.reconcile_once(k, "ns", CFG, NOW, bridge_cache={})
+    assert ann() != first  # rotated keys: the Deployment's pod template changes, so the pod restarts
