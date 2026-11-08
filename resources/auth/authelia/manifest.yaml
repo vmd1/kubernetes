@@ -258,14 +258,14 @@ data:
             claims_policy: default
             authorization_policy: sftpgo_users
             consent_mode: implicit
-            require_pkce: true
-            pkce_challenge_method: S256
+            # SFTPGo's OIDC login sends no code_challenge, so PKCE cannot be required for this client.
+            require_pkce: false
             redirect_uris:
               - "https://files.vmd1.homelab/web/oidc/redirect"
             scopes: [openid, profile, email, groups]
             response_types: [code]
             grant_types: [authorization_code]
-            token_endpoint_auth_method: client_secret_basic
+            token_endpoint_auth_method: client_secret_post
           - client_id: jellyfin
             client_name: "Jellyfin"
             client_secret: "$pbkdf2-sha512$310000$s5CGBdo4Ea1pjfT/YiOq0Q$8FRfy8t.NIcJbhzIa1FOzPgHak3Dam4NwTtuZCpLMmlx8kY434WH7wY15U26bjg37963X5klBY7yPZuZRRMYZg"
