@@ -72,6 +72,7 @@ class Config:
         self.bridge_slots = int(e.get("BRIDGE_SLOTS", "16"))
         self.bridge_port_base = int(e.get("BRIDGE_PORT_BASE", "31820"))
         self.bridge_wg_port = 51820
+        self.bridge_mtu = int(e.get("BRIDGE_MTU", "1100"))  # both ends; > ~1170 does not fit the 1230-byte pod MTU and the link stalls
         self.bridge_pull_policy = e.get("BRIDGE_PULL_POLICY", "")  # empty: Kubernetes' default (Always for :latest)
         self.bridge_endpoint_hosts = [h.strip() for h in e.get(
             "BRIDGE_ENDPOINT_HOSTS", "coordination.vmd1.homelab,coordination.vmd1.homelab,coordination.vmd1.homelab").split(",") if h.strip()]
@@ -318,7 +319,7 @@ def bridge_resources(name, info, data, cfg):
     secret = {"apiVersion": "v1", "kind": "Secret", "type": "Opaque", "metadata": {"name": bn, "namespace": ns, "labels": labels},
               "stringData": {"WG_PRIVATE_KEY": data["WG_BRIDGE"], "WG_PEER_PUBKEY": wg_public(data["WG_AGENT"]),
                              "WG_ADDRESS": f"{info['address']}/30", "WG_PEER_IP": info["agentAddress"],
-                             "WG_LISTEN_PORT": str(cfg.bridge_wg_port), "TS_HOSTNAME": f"{name}-bridge"}}
+                             "WG_LISTEN_PORT": str(cfg.bridge_wg_port), "WG_MTU": str(cfg.bridge_mtu), "TS_HOSTNAME": f"{name}-bridge"}}
     deploy = {"apiVersion": "apps/v1", "kind": "Deployment", "metadata": {"name": bn, "namespace": ns, "labels": labels},
               "spec": {"replicas": 1, "strategy": {"type": "Recreate"},
                        "selector": {"matchLabels": {"app.kubernetes.io/instance": bn}},
@@ -374,7 +375,7 @@ def sync_bridges(kube, cfg, desired, cache, now):
 def agent_env_bridge(name, data, info, cfg):
     return {"WG_PRIVATE_KEY": data["WG_AGENT"], "WG_PEER_PUBKEY": wg_public(data["WG_BRIDGE"]),
             "WG_ADDRESS": f"{info['agentAddress']}/30", "WG_PEER_IP": info["address"], "WG_BRIDGE_NAME": f"{name}-bridge",
-            "WG_ENDPOINTS": ",".join(f"{h}:{info['nodePort']}" for h in cfg.bridge_endpoint_hosts),
+            "WG_MTU": str(cfg.bridge_mtu), "WG_ENDPOINTS": ",".join(f"{h}:{info['nodePort']}" for h in cfg.bridge_endpoint_hosts),
             "WG_TUNNEL_TARGET": f"{info['host']}:{cfg.bridge_wg_port}"}
 
 

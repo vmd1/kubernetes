@@ -91,7 +91,10 @@ spec:
             - {name: BRIDGE_IMAGE, value: "ghcr.io/vmd1/tunnel-bridge:latest"}
             - {name: BRIDGE_PORT_BASE, value: "31820"}
             - {name: BRIDGE_SLOTS, value: "16"}
+            # Edge domains first, vmd1.homelab (uk-home, see dns/domains/vmd1.homelab.js) last: move it first once the router forwards the same UDP range to a lab node.
             - {name: BRIDGE_ENDPOINT_HOSTS, value: "coordination.vmd1.homelab,coordination.vmd1.homelab,coordination.vmd1.homelab"}
+            # WireGuard MTU on both ends: full-size packets (> ~1170) do not fit the 1230-byte pod MTU and are silently dropped.
+            - {name: BRIDGE_MTU, value: "1100"}
             # What the fallback pathway's health check connects to FROM the gateway pod: the cluster DNS service (TCP).
             - {name: TUNNEL_CANARY, value: "XXX.XXX.XXX.XXX:53"}
           livenessProbe:
