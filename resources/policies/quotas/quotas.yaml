@@ -276,7 +276,7 @@ spec:
   hard:
     pods: "10"
     persistentvolumeclaims: "5"
-    requests.storage: "10Gi"
+    requests.storage: "80Gi"
 ---
 apiVersion: v1
 kind: ResourceQuota

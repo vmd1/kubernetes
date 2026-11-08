@@ -10,6 +10,22 @@ spec:
     requests:
       storage: 2Gi
 ---
+# Scratch space for uploads: SFTPGo writes every upload to a temporary "pipe file" in the user's home directory
+# (/srv/sftpgo/data/<user>) before sending it to S3, and keeps all of it until the upload ends, so this must hold the
+# largest file uploaded at once (15 GB expected). Longhorn thin-provisions it; it grows to the high-water mark
+# until trimmed.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: sftpgo-scratch
+  namespace: sftpgo
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: longhorn-single-replica
+  resources:
+    requests:
+      storage: 60Gi
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -107,6 +123,7 @@ spec:
           volumeMounts:
             - {name: data, mountPath: /var/lib/sftpgo, subPath: var}
             - {name: data, mountPath: /srv/sftpgo, subPath: srv}
+            - {name: scratch, mountPath: /srv/sftpgo/data}
             - {name: init, mountPath: /etc/sftpgo-init, readOnly: true}
             - {name: tmp, mountPath: /tmp}
       volumes:
@@ -115,6 +132,9 @@ spec:
         - name: data
           persistentVolumeClaim:
             claimName: sftpgo-pvc
+        - name: scratch
+          persistentVolumeClaim:
+            claimName: sftpgo-scratch
         - name: init
           secret:
             secretName: sftpgo-secrets
