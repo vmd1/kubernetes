@@ -159,6 +159,9 @@ spec:
       # Header and HTTP/2 limits (defaults: 1 MiB headers, 250 streams per connection)
       - "--entrypoints.websecure.http.maxHeaderBytes=65536"
       - "--entrypoints.websecure.http2.maxConcurrentStreams=100"
+      # Traefik v3 cuts any request still being read after 60 s (default readTimeout), which killed every large upload to
+      # files.vmd1.homelab (SFTPGo sends a file as one request: 2 GB takes minutes). 2 h covers 15 GB at 30 Mbps (about 70 min) and still bounds a stalled client.
+      - "--entrypoints.websecure.transport.respondingTimeouts.readTimeout=2h"
       - "--serverstransport.forwardingtimeouts.dialtimeout=15s"
       - "--serverstransport.forwardingtimeouts.responseheadertimeout=15s"
       - "--serverstransport.forwardingtimeouts.idleconntimeout=90s"
