@@ -8,3 +8,9 @@ resources:
   - apiserver-proxyclass.yaml
   - apiserver-proxygroup.yaml
   - secrets.sops.yaml
+  - tailnet-inventory.yaml
+
+configMapGenerator:
+  - name: tailnet-inventory-code
+    namespace: tailscale
+    files: [tailnet_inventory.py=inventory/tailnet_inventory.py]

@@ -9,7 +9,6 @@ a ConfigMap (no image to build); it reads the nodes through the Kubernetes API w
 Writes go through the same API the loader uses; content changes are gated by a hash in zone metadata
 X-INGRESS-HASH, so the SOA serial (soa-edit-api) only moves when the node set does.
 """
-import hashlib
 import json
 import os
 import ssl
@@ -17,7 +16,8 @@ import sys
 import time
 import urllib.request
 
-import loader  # same directory: api(), set_metadata(), get_metadata()
+import loader  # same directory: API helpers
+import zonesync
 
 ZONE = "ingress.vmd1.homelab."
 HASH_KIND = "X-INGRESS-HASH"
@@ -77,34 +77,12 @@ def build_rrsets(nodes):
         add(f"{zone}.{ZONE}", "LUA", ifurlup([[n["ip"] for n in members]]))
         for n in members:
             add(f"{n['name']}.{zone}.{ZONE}", "A", n["ip"])
-    digest = hashlib.sha256(json.dumps(rr, sort_keys=True).encode()).hexdigest()
-    return rr, digest
+    return rr, zonesync.digest(rr)
 
 
 def sync(nodes):
-    rrsets, digest = build_rrsets(nodes)
-    try:
-        existing = loader.api("GET", loader.zone_path(ZONE))
-    except RuntimeError as e:
-        if "HTTP 404" not in str(e) and "Could not find domain" not in str(e):
-            raise
-        existing = None
-    if existing is None:
-        soa = {"name": ZONE, "type": "SOA", "ttl": TTL, "records": [{"content": f"{NAMESERVERS[0]} {SOA_RNAME} 1 {SOA_TIMERS}", "disabled": False}]}
-        loader.api("POST", f"/api/v1/servers/{loader.SERVER}/zones", {"name": ZONE, "kind": "Master", "nameservers": [], "rrsets": [soa] + rrsets})
-        loader.set_metadata(ZONE, HASH_KIND, [digest])
-        loader.log(f"{ZONE}: created with {len(rrsets) + 1} rrsets")
-        return True
-    if loader.get_metadata(ZONE, HASH_KIND) == [digest]:
-        return False
-    want = {(r["name"], r["type"]) for r in rrsets}
-    patch = [dict(r, changetype="REPLACE") for r in rrsets]
-    patch += [{"name": r["name"], "type": r["type"], "changetype": "DELETE"}
-              for r in existing.get("rrsets", []) if r["type"] != "SOA" and (r["name"], r["type"]) not in want]
-    loader.api("PATCH", loader.zone_path(ZONE), {"rrsets": patch})
-    loader.set_metadata(ZONE, HASH_KIND, [digest])
-    loader.log(f"{ZONE}: updated ({len(patch)} rrset operations)")
-    return True
+    rrsets, _ = build_rrsets(nodes)
+    return zonesync.put_zone(ZONE, rrsets, HASH_KIND, f"{NAMESERVERS[0]} {SOA_RNAME} 1 {SOA_TIMERS}")
 
 
 def main():

@@ -1,0 +1,86 @@
+# Publishes the tailnet's devices and Tailscale Services to powerdns/tailnet-inventory (inventory/tailnet_inventory.py),
+# which the ts.int sync (edge/powerdns/primary) turns into <device>.dev.ts.int.vmd1.homelab / <service>.srv.ts.int.vmd1.homelab.
+#
+# It uses the Tailscale operator's own OAuth client (secret operator-oauth, mounted read-only): no second credential to
+# create or rotate. That client can write devices and keys, so this pod is deliberately tiny: it only ever calls the
+# two list endpoints, has no PowerDNS credential, and its ServiceAccount may touch one ConfigMap in powerdns.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: tailnet-inventory
+  namespace: tailscale
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: tailnet-inventory
+  namespace: powerdns
+rules:
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["create"]
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    resourceNames: ["tailnet-inventory"]
+    verbs: ["get", "update"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: tailnet-inventory
+  namespace: powerdns
+subjects:
+  - kind: ServiceAccount
+    name: tailnet-inventory
+    namespace: tailscale
+roleRef:
+  kind: Role
+  name: tailnet-inventory
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tailnet-inventory
+  namespace: tailscale
+  labels:
+    app: tailnet-inventory
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: tailnet-inventory
+  template:
+    metadata:
+      labels:
+        app: tailnet-inventory
+    spec:
+      serviceAccountName: tailnet-inventory
+      nodeSelector:
+        node-role.kubernetes.io/control-plane: "true"
+      containers:
+        - name: inventory
+          image: python:3.13-alpine@sha256:7984cf56ceaddebe4fefeb75d64000b9f45d8b77b11a09b24524da6cdc3af0c8
+          command: [python3, -u, /app/tailnet_inventory.py]
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65534
+            runAsGroup: 65534
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+            seccompProfile: {type: RuntimeDefault}
+          env:
+            - {name: PYTHONDONTWRITEBYTECODE, value: "1"}
+            - {name: INTERVAL, value: "60"}
+          volumeMounts:
+            - {name: code, mountPath: /app, readOnly: true}
+            - {name: oauth, mountPath: /oauth, readOnly: true}
+          resources:
+            requests: {cpu: 5m, memory: 16Mi}
+            limits: {cpu: 50m, memory: 64Mi}
+      volumes:
+        - name: code
+          configMap: {name: tailnet-inventory-code}
+        - name: oauth
+          secret: {secretName: operator-oauth}

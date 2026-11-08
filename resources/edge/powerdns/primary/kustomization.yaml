@@ -4,6 +4,7 @@ kind: Kustomization
 resources:
   - primary.yaml
   - ingress-sync.yaml
+  - tsint-sync.yaml
   - db.sops.yaml
 
 # The loader's code gets a hashed name (the parent kustomization turns hashing off for the zones), so a code change
@@ -14,3 +15,5 @@ configMapGenerator:
     files:
       - loader.py=loader/loader.py
       - ingress_sync.py=loader/ingress_sync.py
+      - tsint_sync.py=loader/tsint_sync.py
+      - zonesync.py=loader/zonesync.py

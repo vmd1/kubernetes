@@ -22,12 +22,11 @@ configMapGenerator:
       - shadow-zones/vmd1.homelab.zone
       - shadow-zones/vmd1.homelab.zone
       - shadow-zones/ts.ingress.vmd1.homelab.zone
-      - shadow-zones/ts.int.vmd1.homelab.zone
       - shadow-zones/vmd1.homelab.rrsets.json
       - shadow-zones/vmd1.homelab.rrsets.json
       - shadow-zones/vmd1.homelab.rrsets.json
       - shadow-zones/vmd1.homelab.rrsets.json
       - shadow-zones/ts.ingress.vmd1.homelab.rrsets.json
-      - shadow-zones/ts.int.vmd1.homelab.rrsets.json
+      - shadow-zones/ts.int.vmd1.homelab.static.json
 generatorOptions:
   disableNameSuffixHash: true

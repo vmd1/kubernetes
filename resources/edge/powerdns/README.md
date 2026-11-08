@@ -45,7 +45,15 @@ One writer, many readers. The **primary** (`primary/`, Deployment `powerdns-prim
 
 ## ts.int (tailnet names)
 
-`<name>.dev.ts.int.vmd1.homelab` is a tailnet device (any physical device or server) and `<name>.srv.ts.int.vmd1.homelab` a service (databases, APIs; `k8s-api` is the kubectl proxy's Tailscale Service address). They resolve **publicly** (to `100.x` addresses, unroutable without the tailnet): `ts.int.vmd1.homelab` is delegated to ns1-ns4 in [dns/domains/vmd1.homelab.js](../../../../dns/domains/vmd1.homelab.js) and rendered from `tsInt` in [dns/shadow/config.json](../../../../dns/shadow/config.json) (infrastructure only: personal devices are not published). Edit `tsInt`, run `node dns/shadow/render.js`, commit. The legacy nodes serve the zone as a master file and the secondaries by AXFR, so the delegation works during the roll-out.
+`<name>.dev.ts.int.vmd1.homelab` is a tailnet device (any physical device or server: servers, laptops, phones, TVs) and `<name>.srv.ts.int.vmd1.homelab` a service (`k8s-api` is the kubectl proxy's Tailscale Service address, `lan-dns` the LAN resolver). They resolve **publicly** (to `100.x` addresses, unroutable without the tailnet): `ts.int.vmd1.homelab` is delegated to ns1-ns4 in [dns/domains/vmd1.homelab.js](../../../../dns/domains/vmd1.homelab.js).
+
+**Nothing is edited by hand.** `powerdns-tsint-sync` ([primary/tsint-sync.yaml](primary/tsint-sync.yaml), [loader/tsint_sync.py](primary/loader/tsint_sync.py)) rebuilds the zone every 30 s from three sources; for one name the first wins:
+
+1. **The cluster:** every node's InternalIP (its tailnet address) as `<node>.dev`, every Tailscale-class Service's published address as `<service>.srv` (so `lan-dns.srv` appears by itself).
+2. **The tailnet inventory:** every device and every Tailscale Service from the Tailscale API (`<MagicDNS name>.dev`, `<svc>.srv`), published as ConfigMap `powerdns/tailnet-inventory` by the `tailnet-inventory` controller in the `tailscale` namespace ([vpn/tailscale/tailnet-inventory.yaml](../../vpn/tailscale/tailnet-inventory.yaml)). It reuses the Tailscale operator's OAuth client (`operator-oauth`), so there is no second key; the PowerDNS key stays in this namespace and the OAuth client in that one, and only the ConfigMap crosses. The operator's proxy pods (`tag:k8s-operator`, `tag:k8s-apiserver`) are not listed as devices.
+3. **Static extras** in `tsInt` in [dns/shadow/config.json](../../../../dns/shadow/config.json): only what neither knows (the subnet router, which is a `tag:k8s-operator` device).
+
+A device's name is its MagicDNS name, so renaming it in the admin console renames its record (the phone is `samsung-sm-s711b` until it is renamed, e.g. to `s23-fe`); a new device appears within about two minutes (inventory every 60 s, then the sync). The inventory is never published empty: if the Tailscale API fails, the last list stays. Check: `dig <device>.dev.ts.int.vmd1.homelab`.
 
 ## LAN names (`<name>.dev.lan.int.vmd1.homelab`, tailnet only)
 

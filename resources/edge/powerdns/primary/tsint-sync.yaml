@@ -1,0 +1,85 @@
+# Keeps ts.int.vmd1.homelab equal to the tailnet (loader/tsint_sync.py): every node's tailnet address as <node>.dev, every
+# Tailscale-class Service as <name>.srv, every device and Tailscale Service from the tailnet inventory (ConfigMap
+# tailnet-inventory, published by vpn/tailscale/tailnet-inventory.yaml from the Tailscale API), plus the few static
+# extras from dns/shadow/config.json (tsInt). This pod holds no Tailscale credential: it reads the Kubernetes API and
+# that ConfigMap. Reuses the operator's ServiceAccount (it may list nodes) and adds read access to Services below.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: powerdns-tsint-sync
+rules:
+  - apiGroups: [""]
+    resources: ["services"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: powerdns-tsint-sync
+subjects:
+  - kind: ServiceAccount
+    name: powerdns-operator
+    namespace: powerdns
+roleRef:
+  kind: ClusterRole
+  name: powerdns-tsint-sync
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: powerdns-tsint-sync
+  namespace: powerdns
+  labels:
+    app: powerdns-tsint-sync
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: powerdns-tsint-sync
+  template:
+    metadata:
+      labels:
+        app: powerdns-tsint-sync
+    spec:
+      serviceAccountName: powerdns-operator
+      nodeSelector:
+        node-role.kubernetes.io/control-plane: "true"
+      containers:
+        - name: sync
+          image: python:3.13-alpine@sha256:7984cf56ceaddebe4fefeb75d64000b9f45d8b77b11a09b24524da6cdc3af0c8
+          command: [python3, -u, /app/tsint_sync.py]
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65534
+            runAsGroup: 65534
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+            seccompProfile: {type: RuntimeDefault}
+          env:
+            - {name: PYTHONDONTWRITEBYTECODE, value: "1"}
+            - {name: API_URL, value: "http://powerdns-primary.powerdns.svc:8081"}
+            - {name: INTERVAL, value: "30"}
+            - {name: STATIC_FILE, value: /static/ts.int.vmd1.homelab.static.json}
+            - {name: INVENTORY_FILE, value: /inventory/inventory.json}
+            - name: API_KEY
+              valueFrom: {secretKeyRef: {name: powerdns-secrets, key: PDNS_API_KEY}}
+          volumeMounts:
+            - {name: code, mountPath: /app, readOnly: true}
+            - {name: static, mountPath: /static, readOnly: true}
+            - {name: inventory, mountPath: /inventory, readOnly: true}
+          resources:
+            requests: {cpu: 5m, memory: 16Mi}
+            limits: {cpu: 50m, memory: 64Mi}
+      volumes:
+        - name: code
+          configMap: {name: powerdns-loader-code}
+        - name: static
+          configMap:
+            name: powerdns-shadow-zones
+            items: [{key: ts.int.vmd1.homelab.static.json, path: ts.int.vmd1.homelab.static.json}]
+        - name: inventory
+          configMap:
+            name: tailnet-inventory
+            optional: true   # empty until the tailnet-inventory controller has published it
