@@ -57,7 +57,7 @@ Beyond the standard lldap groups, these groups gate access in other apps (create
 | `Domain: <domain>` | oauth2-proxy forward-auth per domain (see [oauth2-proxy](../../auth/oauth2-proxy/README.md)) |
 | `grafana-admin`, `grafana-editor`, `grafana-viewer` | Grafana role mapping and access (see [monitoring](../../observability/monitoring/README.md)) |
 | `registry-admin`, `registry-pull` | Registry push/pull (see [registry](../../platform/registry/README.md)) |
-| `nextcloud_users`, `nextcloud_admins`, `jellyfin`, `jellyfin_admin`, `homeassistant_user`, `homeassistant_admin`, `family`, `qecomp-*`, `synapse-users` | Per-app Authelia authorization policies |
+| `sftpgo_users`, `sftpgo_admins`, `jellyfin`, `jellyfin_admin`, `homeassistant_user`, `homeassistant_admin`, `family`, `qecomp-*`, `synapse-users` | Per-app Authelia authorization policies |
 
 Service accounts: `authelia` (Authelia's bind user), `registry` (docker-auth's read-only bind user), and `k3s-registry-pull` (pull-only registry account for the nodes and image-pull secrets).
 

@@ -31,7 +31,7 @@ Authelia is the cluster-wide OpenID Connect 1.0 provider, served at `identity.vm
 - **Authorization policies**: each oauth2-proxy client has its own policy (`domain_<slug>`) that allows only members of the matching lldap group `Domain: <domain>` (`two_factor`, deny everyone else), so access to one domain never implies another. Every other client has its own policy named `<app>_users` that allows only members of specific lldap groups (see the table below); Grafana requires `two_factor`, the rest `one_factor`. Vaultwarden uses the built-in `one_factor` policy (any lldap user). Tighten or loosen per client in `identity_providers.oidc.authorization_policies`.
 - **Claims policy**: the `default` claims policy puts `email`, `email_verified`, `preferred_username`, `groups` and `name` into the ID token, which oauth2-proxy reads for headers.
 - **`enableServiceLinks: false`**: the Service is named `authelia`, so Kubernetes would otherwise inject `AUTHELIA_*` variables that collide with Authelia's env-based config and crash-loop the pod (same issue as the qecomp instance).
-- **Token endpoint auth method matters**: Authelia rejects a client that authenticates with a method other than the one registered (`invalid_client`, "Client authentication failed"). Nextcloud, BookOrbit, Jellyfin and Home Assistant use `client_secret_post`; the others use `client_secret_basic`. If a new app fails at the token exchange, read the Authelia log: it names the method the app actually used.
+- **Token endpoint auth method matters**: Authelia rejects a client that authenticates with a method other than the one registered (`invalid_client`, "Client authentication failed"). BookOrbit, Jellyfin and Home Assistant use `client_secret_post` (SFTPGo uses `client_secret_basic`); the others use `client_secret_basic`. If a new app fails at the token exchange, read the Authelia log: it names the method the app actually used.
 - **Config changes need a restart**: the ConfigMap is mounted as a file, so after Flux applies a change run `kubectl -n authelia rollout restart deploy/authelia`.
 - **Image pinned** to `authelia/authelia:4.39.28`.
 
@@ -55,7 +55,7 @@ Authelia is the cluster-wide OpenID Connect 1.0 provider, served at `identity.vm
 ## Configs & Credentials
 
 - **ConfigMap `authelia-config`**: the full `configuration.yml`, including client definitions with pbkdf2 hashed secrets (hashes are not sensitive).
-- **Secret `authelia-secrets`**: `jwt_secret`, `session_secret`, `storage_encryption_key`, `oidc_hmac_secret`, `oidc_issuer_private_key.pem` (RSA 4096), `postgres_password`, `ldap_password`, `smtp_username`, `smtp_password`, and `<app>_oidc_client_secret` for `vaultwarden`, `nextcloud`, `jellyfin`, `bookorbit` and `home_assistant` (plaintext handoff for configuring each app; Authelia itself only stores the pbkdf2 hash in the ConfigMap). Grafana's plaintext secret lives in the monitoring Secret `grafana-db-secret` (`oidc_client_secret`).
+- **Secret `authelia-secrets`**: `jwt_secret`, `session_secret`, `storage_encryption_key`, `oidc_hmac_secret`, `oidc_issuer_private_key.pem` (RSA 4096), `postgres_password`, `ldap_password`, `smtp_username`, `smtp_password`, and `<app>_oidc_client_secret` for `vaultwarden`, `sftpgo`, `jellyfin`, `bookorbit` and `home_assistant` (plaintext handoff for configuring each app; Authelia itself only stores the pbkdf2 hash in the ConfigMap). Grafana's plaintext secret lives in the monitoring Secret `grafana-db-secret` (`oidc_client_secret`).
 
 ## Custom Theme
 
@@ -78,14 +78,14 @@ The login UI is restyled to match vmd1.homelab (black background, frosted-glass 
 | `qecomp` | `https://tmtools.vmd1.homelab/auth/callback` (and the `http://` variant QEComp currently sends) | `qecomp_users` (lldap `qecomp-*` groups incl. `qecomp-omnipotent`, `one_factor`) |
 | `vaultwarden` | `https://vault.vmd1.homelab/identity/connect/oidc-signin` | `one_factor` |
 | `grafana` | `https://grafana.vmd1.homelab/login/generic_oauth` | `grafana_users` (lldap `grafana-admin`, `grafana-editor`, `grafana-viewer`; `two_factor`) |
-| `nextcloud` | `https://cloud.vmd1.homelab/apps/user_oidc/code` | `nextcloud_users` (lldap `nextcloud_users`, `nextcloud_admins`) |
+| `sftpgo` | `https://files.vmd1.homelab/web/oidc/redirect` | `sftpgo_users` (lldap `sftpgo_users`, `sftpgo_admins`) |
 | `jellyfin` | `https://jellyfin.vmd1.homelab/sso/OID/redirect/authelia` | `jellyfin_users` (lldap `jellyfin`, `jellyfin_admin`) |
 | `bookorbit` | `https://read.vmd1.homelab/oauth2-callback` and `bookorbit://oauth2-callback` | `bookorbit_users` (lldap `family`) |
 | `homelable` | `https://lab.vmd1.homelab/api/v1/auth/oidc/callback` | `homelable_users` (lldap `admin`) |
 | `home-assistant` | `https://home.vmd1.homelab/auth/oidc/callback` | `home_assistant_users` (lldap `homeassistant_user`, `homeassistant_admin`) |
 | `continuwuity` | `https://matrix.vmd1.homelab/_continuwuity/oidc/complete` | `continuwuity_users` (lldap `synapse-users`). **Not in use yet**: Matrix has not been switched to OIDC. |
 
-Each app is wired up differently; see its own README (Grafana, Vaultwarden, QEComp and BookOrbit through manifests or in-app settings; Nextcloud, Jellyfin and Home Assistant through settings stored in the app, not in this repo).
+Each app is wired up differently; see its own README (Grafana, Vaultwarden, QEComp and BookOrbit through manifests or in-app settings; SFTPGo (environment in its manifest), Jellyfin and Home Assistant through settings stored in the app, not in this repo).
 
 Authelia matches redirect URIs exactly (no wildcards), which is why oauth2-proxy uses one fixed `secure.<domain>` callback host per domain.
 

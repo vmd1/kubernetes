@@ -7,6 +7,10 @@
 # uses RemoteAddr, which the entrypoints' forwardedHeaders.trustedIPs never rewrite), so it cannot be spoofed with
 # X-Forwarded-For or CF-Connecting-IP.
 #
+# Exempt: files.vmd1.homelab (SFTPGo, resources/personal/sftpgo) is deliberately DNS-only and goes straight to uk-home:
+# Cloudflare's free plan caps a request body at 100 MB, which would break large uploads. The sftpgo IngressRoute lets only its
+# public paths through and sends the rest to the tailnet-only middleware.
+#
 # Exempt: /health. PowerDNS (edge/powerdns, geoip-zones LUA records) probes https://vmd1.homelab/health
 # on every ingress IP with ifurlup() from the nodes' own public addresses; blocking it marks every origin down.
 #
@@ -28,7 +32,7 @@ spec:
     - websecure
   routes:
     - match: >-
-        HostRegexp(`^(.+\.)?vmd1\.dev$`) && !Path(`/health`) && !(
+        HostRegexp(`^(.+\.)?vmd1\.dev$`) && !Host(`files.vmd1.homelab`) && !Path(`/health`) && !(
         ClientIP(`XXX.XXX.XXX.XXX/20`) || ClientIP(`XXX.XXX.XXX.XXX/22`) || ClientIP(`XXX.XXX.XXX.XXX/22`) ||
         ClientIP(`XXX.XXX.XXX.XXX/22`) || ClientIP(`XXX.XXX.XXX.XXX/18`) || ClientIP(`XXX.XXX.XXX.XXX/18`) ||
         ClientIP(`XXX.XXX.XXX.XXX/20`) || ClientIP(`XXX.XXX.XXX.XXX/20`) || ClientIP(`XXX.XXX.XXX.XXX/22`) ||

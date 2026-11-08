@@ -325,21 +325,6 @@ metadata:
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: nextcloud
-  labels:
-    policy.vmd1.homelab/allow-privilege-escalation: "true"
-    policy.vmd1.homelab/allow-root: "true"
-    policy.vmd1.homelab/allow-writable-rootfs: "true"
-    policy.vmd1.homelab/allow-capabilities: "MKNOD.SYS_ADMIN.SYS_CHROOT"
-    pod-security.kubernetes.io/audit: "restricted"
-    pod-security.kubernetes.io/warn: "restricted"
-    vmd1.homelab/tier: "app"
-  annotations:
-    kustomize.toolkit.fluxcd.io/prune: disabled
----
-apiVersion: v1
-kind: Namespace
-metadata:
   name: ntfy
   labels:
     policy.vmd1.homelab/allow-root: "true"
@@ -504,6 +489,18 @@ metadata:
     policy.vmd1.homelab/allow-writable-rootfs: "true"
     pod-security.kubernetes.io/audit: "restricted"
     pod-security.kubernetes.io/enforce: "baseline"
+    pod-security.kubernetes.io/warn: "restricted"
+    vmd1.homelab/tier: "app"
+  annotations:
+    kustomize.toolkit.fluxcd.io/prune: disabled
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: sftpgo
+  labels:
+    pod-security.kubernetes.io/audit: "restricted"
+    pod-security.kubernetes.io/enforce: "restricted"
     pod-security.kubernetes.io/warn: "restricted"
     vmd1.homelab/tier: "app"
   annotations:

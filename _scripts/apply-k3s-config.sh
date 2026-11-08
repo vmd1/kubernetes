@@ -19,6 +19,8 @@ src="$(cd "$(dirname "$0")/../resources/k3s-config" && pwd)"
 files=(
   "config.yaml.d/10-audit-logging.yaml:/etc/rancher/k3s/config.yaml.d/10-audit-logging.yaml"
   "audit-policy.yaml:/etc/rancher/k3s/audit-policy.yaml"
+  "config.yaml.d/30-leader-election.yaml:/etc/rancher/k3s/config.yaml.d/30-leader-election.yaml"
+  "k3s.service.d/20-memory-protect.conf:/etc/systemd/system/k3s.service.d/20-memory-protect.conf"
 )
 $with_encryption && files+=("config.yaml.d/20-secrets-encryption.yaml:/etc/rancher/k3s/config.yaml.d/20-secrets-encryption.yaml")
 

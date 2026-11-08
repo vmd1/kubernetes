@@ -1,0 +1,25 @@
+# k3s server drop-in (control plane only): leader-election timeouts that survive a node stall.
+# Installed as /etc/rancher/k3s/config.yaml.d/30-leader-election.yaml by _scripts/apply-k3s-config.sh.
+#
+# Why: k3s runs the controller-manager, cloud-controller-manager and scheduler inside the k3s process. Each one
+# renews a Lease against the local API server (defaults: 15 s lease, 10 s renew deadline, and the cloud
+# controller manager's renew request has a 5 s timeout). When hades-01 swaps hard, one failed renewal makes the
+# component log "leaderelection lost" and exit(1), which takes the whole k3s process down: API server, etcd and
+# kubelet restart, every probe on the node fails, and the churn adds more load. Observed: 25 k3s restarts, last at
+# 2026-11-08 15:09:53 UTC ("Failed to update lease ... context deadline exceeded", "leaderelection lost").
+# A longer renew deadline lets a stall of tens of seconds pass without losing the lease. There is a single
+# control-plane node, so there is no standby that a slower failover would delay.
+#
+# The `-arg` flags with a `+` suffix append to the arrays already set in /etc/rancher/k3s/config.yaml.
+kube-controller-manager-arg+:
+  - leader-elect-lease-duration=60s
+  - leader-elect-renew-deadline=45s
+  - leader-elect-retry-period=10s
+kube-scheduler-arg+:
+  - leader-elect-lease-duration=60s
+  - leader-elect-renew-deadline=45s
+  - leader-elect-retry-period=10s
+kube-cloud-controller-manager-arg+:
+  - leader-elect-lease-duration=60s
+  - leader-elect-renew-deadline=45s
+  - leader-elect-retry-period=10s

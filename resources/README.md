@@ -27,7 +27,7 @@ This directory contains all the Kubernetes manifests that Flux reconciles into t
 | [observability/](observability/README.md) | `./resources/observability` | Loki, Prometheus, Grafana, kube-state-metrics, Uptime Kuma, ntfy, Headlamp, Homelable. |
 | [home/](home/README.md) | `./resources/home` | Home Assistant, Mosquitto, UniFi. |
 | [media/](media/README.md) | `./resources/media` | Jellyfin, BookOrbit, Cinepro. |
-| [personal/](personal/README.md) | `./resources/personal` | Nextcloud, Obsidian, Vaultwarden, Matrix. |
+| [personal/](personal/README.md) | `./resources/personal` | SFTPGo, Obsidian, Vaultwarden, Matrix. |
 | [projects/](projects/README.md) | `./resources/projects` | QEComp, Gossip. |
 | [edge/](edge/README.md) | `./resources/edge` | DaemonSets on the ingress nodes: PowerDNS, GeoIP updater, edge-sites, error pages, podflow, node-exporter, promtail. |
 
