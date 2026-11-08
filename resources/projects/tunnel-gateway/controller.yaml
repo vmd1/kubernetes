@@ -91,7 +91,8 @@ spec:
             - {name: BRIDGE_IMAGE, value: "ghcr.io/vmd1/tunnel-bridge:latest"}
             - {name: BRIDGE_PORT_BASE, value: "31820"}
             - {name: BRIDGE_SLOTS, value: "16"}
-            # Edge domains first, vmd1.homelab (uk-home, see dns/domains/vmd1.homelab.js) last: move it first once the router forwards the same UDP range to a lab node.
+            # vmd1.homelab resolves to the uk-home WAN IP (dns/domains/vmd1.homelab.js) and the router forwards UDP 31820-31835 to a lab node, so direct UDP
+            # enters at the lab first (measured about twice the throughput of going through an edge node); the edge domains are the fallback.
             - {name: BRIDGE_ENDPOINT_HOSTS, value: "coordination.vmd1.homelab,coordination.vmd1.homelab,coordination.vmd1.homelab"}
             # WireGuard MTU on both ends: full-size packets (> ~1170) do not fit the 1230-byte pod MTU and are silently dropped.
             - {name: BRIDGE_MTU, value: "1100"}

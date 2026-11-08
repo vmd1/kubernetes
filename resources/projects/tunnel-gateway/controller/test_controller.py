@@ -334,7 +334,7 @@ def test_bridge_agent_gets_wireguard_env_status_restriction_and_three_objects():
     reconcile_bridge(k)
     d = creds(k, "srv")
     assert d["WG_ADDRESS"] == "XXX.XXX.XXX.XXX/30" and d["WG_PEER_IP"] == "XXX.XXX.XXX.XXX" and d["WG_BRIDGE_NAME"] == "srv-bridge"
-    assert d["WG_ENDPOINTS"] == "coordination.vmd1.homelab:31820,coordination.vmd1.homelab:31820,coordination.vmd1.homelab:31820"  # edge first, uk-home last
+    assert d["WG_ENDPOINTS"] == "coordination.vmd1.homelab:31820,coordination.vmd1.homelab:31820,coordination.vmd1.homelab:31820"  # uk-home first, edge as fallback
     assert d["WG_MTU"] == "1100"
     assert d["WG_TUNNEL_TARGET"] == "bridge-srv.tunnel-bridge.svc.cluster.local:51820"
     assert d["WG_PRIVATE_KEY"] == d["ID_WG_AGENT"] and c.wg_public(d["ID_WG_BRIDGE"]) == d["WG_PEER_PUBKEY"]
