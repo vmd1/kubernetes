@@ -72,6 +72,7 @@ class Config:
         self.bridge_slots = int(e.get("BRIDGE_SLOTS", "16"))
         self.bridge_port_base = int(e.get("BRIDGE_PORT_BASE", "31820"))
         self.bridge_wg_port = 51820
+        self.bridge_pull_policy = e.get("BRIDGE_PULL_POLICY", "")  # empty: Kubernetes' default (Always for :latest)
         self.bridge_endpoint_hosts = [h.strip() for h in e.get(
             "BRIDGE_ENDPOINT_HOSTS", "coordination.vmd1.homelab,coordination.vmd1.homelab,coordination.vmd1.homelab").split(",") if h.strip()]
         self.pod_prefix = e.get("GATEWAY_POD_PREFIX", "tunnel-gateway")
@@ -324,11 +325,14 @@ def bridge_resources(name, info, data, cfg):
                        "template": {"metadata": {"labels": labels},
                                     "spec": {"automountServiceAccountToken": False, "enableServiceLinks": False,
                                              "securityContext": {"seccompProfile": {"type": "RuntimeDefault"}},
-                                             # Small edge nodes only carry ingress: the bridge belongs on the lab nodes.
+                                             # Never the small ingress nodes, and never the control-plane node (hades-01 is memory-starved and
+                                             # a bridge pod there would make the cluster's control plane worse): the lab workers only.
                                              "affinity": {"nodeAffinity": {"requiredDuringSchedulingIgnoredDuringExecution": {"nodeSelectorTerms": [
-                                                 {"matchExpressions": [{"key": "node-role.kubernetes.io/ingress", "operator": "DoesNotExist"}]}]}}},
+                                                 {"matchExpressions": [{"key": "node-role.kubernetes.io/ingress", "operator": "DoesNotExist"},
+                                                                       {"key": "node-role.kubernetes.io/control-plane", "operator": "DoesNotExist"}]}]}}},
                                              "containers": [{
                                                  "name": "bridge", "image": cfg.bridge_image,
+                                                 **({"imagePullPolicy": cfg.bridge_pull_policy} if cfg.bridge_pull_policy else {}),
                                                  "securityContext": {"privileged": True},
                                                  "envFrom": [{"secretRef": {"name": bn}}],
                                                  "env": [{"name": "TS_AUTHKEY", "valueFrom": {"secretKeyRef": {"name": "bridge-authkey", "key": "TS_AUTHKEY"}}}],

@@ -383,3 +383,16 @@ def test_bridge_trouble_never_stops_credentials_or_restrictions():
     k = Broken([bridged("srv")])
     reconcile_bridge(k)
     assert "name: srv" in restrictions(k) and "agent-srv" in k.secrets
+
+
+def test_bridge_pod_avoids_ingress_and_control_plane_nodes_and_pull_policy_is_optional():
+    k = FakeKube([bridged("srv")])
+    reconcile_bridge(k)
+    spec = k.bridge_objs[("deployments", "bridge-srv")]["spec"]["template"]["spec"]
+    exprs = spec["affinity"]["nodeAffinity"]["requiredDuringSchedulingIgnoredDuringExecution"]["nodeSelectorTerms"][0]["matchExpressions"]
+    assert {(e["key"], e["operator"]) for e in exprs} == {("node-role.kubernetes.io/ingress", "DoesNotExist"),
+                                                         ("node-role.kubernetes.io/control-plane", "DoesNotExist")}
+    assert "imagePullPolicy" not in spec["containers"][0]
+    cfg = c.Config({"BRIDGE_PULL_POLICY": "IfNotPresent"})
+    body = dict(c.bridge_resources("srv", c.bridge_info("srv", 0, cfg), {"WG_AGENT": c.wg_private(), "WG_BRIDGE": c.wg_private()}, cfg))["deployments"]
+    assert body["spec"]["template"]["spec"]["containers"][0]["imagePullPolicy"] == "IfNotPresent"
