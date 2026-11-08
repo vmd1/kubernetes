@@ -102,12 +102,16 @@ spec:
               memory: 384Mi
           securityContext:
             allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
             capabilities: {drop: [ALL]}
           volumeMounts:
             - {name: data, mountPath: /var/lib/sftpgo, subPath: var}
             - {name: data, mountPath: /srv/sftpgo, subPath: srv}
             - {name: init, mountPath: /etc/sftpgo-init, readOnly: true}
+            - {name: tmp, mountPath: /tmp}
       volumes:
+        - name: tmp
+          emptyDir: {}
         - name: data
           persistentVolumeClaim:
             claimName: sftpgo-pvc
