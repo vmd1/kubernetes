@@ -2,6 +2,7 @@
 """Keeps ts.int.vmd1.homelab equal to what the cluster knows about the tailnet (no Tailscale API key involved):
 
   <node>.dev.ts.int.vmd1.homelab     every Kubernetes node: its InternalIP is the node's tailnet address (XXX.XXX.XXX.XXX/10)
+  <name>.lab.ts.int.vmd1.homelab     the devices tagged tag:k3s (from the inventory below); they are under .dev as well
   <name>.srv.ts.int.vmd1.homelab     every Service of loadBalancerClass tailscale: its published tailnet address; <name> is
                                  the Service's tailscale.com/hostname annotation, else its name
   tailnet inventory              /inventory/inventory.json (ConfigMap powerdns/tailnet-inventory, published by the
@@ -33,6 +34,7 @@ SOA_TIMERS = os.environ.get("SOA_TIMERS", "30 30 1209600 60")  # keep equal to S
 STATIC = os.environ.get("STATIC_FILE", "/static/ts.int.vmd1.homelab.static.json")
 INVENTORY = os.environ.get("INVENTORY_FILE", "/inventory/inventory.json")
 TTL = 300
+GROUPS = ("dev", "lab", "srv")
 INTERVAL = int(os.environ.get("INTERVAL", "30"))
 K8S = "https://kubernetes.default.svc"
 SA = "/var/run/secrets/kubernetes.io/serviceaccount"
@@ -81,37 +83,37 @@ def from_services(services):
 
 
 def load_names(path):
-    """A {"dev": {...}, "srv": {...}} JSON file -> (dev, srv); a missing file is empty."""
+    """A {"dev": {...}, "lab": {...}, "srv": {...}} JSON file -> the same dict with every group present; a missing file is empty."""
     try:
         with open(path) as f:
             doc = json.load(f)
     except FileNotFoundError:
-        return {}, {}
-    return doc.get("dev", {}), doc.get("srv", {})
+        doc = {}
+    return {g: doc.get(g, {}) for g in GROUPS}
 
 
 def load_static(path=None):
     return load_names(path or STATIC)
 
 
-def build_rrsets(dev, srv):
-    """Pure: {name: ip} maps -> rrsets (without SOA), stable order."""
+def build_rrsets(groups):
+    """Pure: {"dev": {name: ip}, "lab": {...}, "srv": {...}} -> rrsets (without SOA), stable order."""
     rr = [{"name": ZONE, "type": "NS", "ttl": TTL, "records": [{"content": n, "disabled": False} for n in NAMESERVERS]}]
-    for group, names in (("dev", dev), ("srv", srv)):
+    for group in GROUPS:
+        names = groups.get(group, {})
         for name in sorted(names):
             rr.append({"name": f"{name}.{group}.{ZONE}", "type": "A", "ttl": TTL, "records": [{"content": names[name], "disabled": False}]})
     return rr
 
 
-def desired(nodes, services, static, inventory=({}, {})):
-    sdev, ssrv = static
-    idev, isrv = inventory
-    dev = {**sdev, **idev, **from_nodes(nodes)}
-    srv = {**ssrv, **isrv, **from_services(services)}
-    return build_rrsets(dev, srv)
+def desired(nodes, services, static, inventory=None):
+    """Per group: static, then the inventory, then the cluster (a later source wins for one name)."""
+    inventory = inventory or {g: {} for g in GROUPS}
+    cluster = {"dev": from_nodes(nodes), "lab": {}, "srv": from_services(services)}
+    return build_rrsets({g: {**static.get(g, {}), **inventory.get(g, {}), **cluster[g]} for g in GROUPS})
 
 
-def sync(nodes, services, static, inventory=({}, {})):
+def sync(nodes, services, static, inventory=None):
     return zonesync.put_zone(ZONE, desired(nodes, services, static, inventory), HASH_KIND, f"{NAMESERVERS[0]} {SOA_RNAME} 1 {SOA_TIMERS}")
 
 

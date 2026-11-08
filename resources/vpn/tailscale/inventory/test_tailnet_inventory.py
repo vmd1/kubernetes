@@ -14,6 +14,11 @@ class BuildTest(unittest.TestCase):
                        {"name": "Admin’s MacBook.tail.ts.net", "addresses": ["XXX.XXX.XXX.XXX"]}], [])
         self.assertEqual(inv["dev"], {"hades-01": "XXX.XXX.XXX.XXX", "km-laptop": "XXX.XXX.XXX.XXX", "admin-s-macbook": "XXX.XXX.XXX.XXX"})
 
+    def test_lab_is_the_k3s_tagged_devices(self):
+        inv = t.build([dev("hades-01", "XXX.XXX.XXX.XXX", ["tag:k3s"]), dev("km-laptop", "XXX.XXX.XXX.XXX"), dev("srv1", "XXX.XXX.XXX.XXX", ["tag:servers"])], [])
+        self.assertEqual(inv["lab"], {"hades-01": "XXX.XXX.XXX.XXX"})
+        self.assertIn("hades-01", inv["dev"])   # still under dev as well
+
     def test_services_drop_the_svc_prefix_and_take_the_ipv4(self):
         inv = t.build([dev("a", "XXX.XXX.XXX.XXX")], [{"name": "svc:k8s-api", "addrs": ["fd7a::1f3a", "XXX.XXX.XXX.XXX"]}])
         self.assertEqual(inv["srv"], {"k8s-api": "XXX.XXX.XXX.XXX"})

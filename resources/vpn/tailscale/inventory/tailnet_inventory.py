@@ -7,6 +7,7 @@ Runs in the tailscale namespace because the operator's OAuth client (secret oper
 thing that crosses: {"dev": {"<name>": "<tailnet ip>"}, "srv": {"<name>": "<tailnet ip>"}} (JSON).
 
   dev  every device except the operator's proxy pods (tag:k8s-operator, tag:k8s-apiserver), named by its MagicDNS label
+  lab  the devices among those that carry one of LAB_TAGS (default tag:k3s): the cluster nodes, as <name>.lab
   srv  every Tailscale Service (svc:<name>), its IPv4 address
 """
 import json
@@ -24,6 +25,7 @@ OAUTH_DIR = os.environ.get("OAUTH_DIR", "/oauth")
 TARGET_NS = os.environ.get("TARGET_NAMESPACE", "powerdns")
 TARGET_CM = os.environ.get("TARGET_CONFIGMAP", "tailnet-inventory")
 INTERVAL = int(os.environ.get("INTERVAL", "60"))
+LAB_TAGS = set(os.environ.get("LAB_TAGS", "tag:k3s").split(","))
 SKIP_TAGS = set(os.environ.get("SKIP_TAGS", "tag:k8s-operator,tag:k8s-apiserver").split(","))
 K8S = "https://kubernetes.default.svc"
 SA = "/var/run/secrets/kubernetes.io/serviceaccount"
@@ -60,7 +62,7 @@ def ipv4(addrs):
 
 
 def build(devices, vip_services):
-    dev, srv = {}, {}
+    dev, srv, lab = {}, {}, {}
     for d in devices:
         if SKIP_TAGS & set(d.get("tags") or []):
             continue
@@ -73,12 +75,14 @@ def build(devices, vip_services):
             n += 1
             name = f"{base}-{n}"
         dev[name] = ip
+        if LAB_TAGS & set(d.get("tags") or []):
+            lab[name] = ip
     for s in vip_services:
         ip = ipv4(s.get("addrs"))
         name = label(s.get("name", "").removeprefix("svc:"))
         if ip and name:
             srv[name] = ip
-    return {"dev": dict(sorted(dev.items())), "srv": dict(sorted(srv.items()))}
+    return {"dev": dict(sorted(dev.items())), "lab": dict(sorted(lab.items())), "srv": dict(sorted(srv.items()))}
 
 
 def k8s(method, path, body=None):
@@ -100,13 +104,13 @@ def publish(inv):
         if e.code != 404:
             raise
         k8s("POST", path, {"apiVersion": "v1", "kind": "ConfigMap", "metadata": {"name": TARGET_CM, "namespace": TARGET_NS}, "data": {"inventory.json": text}})
-        log(f"created {TARGET_NS}/{TARGET_CM}: {len(inv['dev'])} devices, {len(inv['srv'])} services")
+        log(f"created {TARGET_NS}/{TARGET_CM}: {len(inv['dev'])} devices ({len(inv['lab'])} lab), {len(inv['srv'])} services")
         return True
     if (cm.get("data") or {}).get("inventory.json") == text:
         return False
     cm["data"] = {"inventory.json": text}
     k8s("PUT", f"{path}/{TARGET_CM}", cm)
-    log(f"updated {TARGET_NS}/{TARGET_CM}: {len(inv['dev'])} devices, {len(inv['srv'])} services")
+    log(f"updated {TARGET_NS}/{TARGET_CM}: {len(inv['dev'])} devices ({len(inv['lab'])} lab), {len(inv['srv'])} services")
     return True
 
 
