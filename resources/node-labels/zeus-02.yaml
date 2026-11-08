@@ -5,6 +5,7 @@ metadata:
   annotations:
     kustomize.toolkit.fluxcd.io/prune: disabled
   labels:
+    dns.vmd1.homelab/mode: "secondary"   # PowerDNS secondary of the uk-home primary; see edge/powerdns/secondary.yaml
     node-role.kubernetes.io/dns: "true"
     node-role.kubernetes.io/ingress: "true"
     node-type: "ingress"
