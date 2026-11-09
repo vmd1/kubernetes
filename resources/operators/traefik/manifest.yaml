@@ -148,6 +148,8 @@ spec:
       - "--accesslog=true"
       - "--accesslog.format=json"
       - "--providers.kubernetescrd.allowCrossNamespace=true"
+      # ExternalName Services: the Tailscale operator egress Service for r-tmtools (projects/qecomp) is one.
+      - "--providers.kubernetescrd.allowExternalNameServices=true"
       # Replace Traefik-generated 429/502/503/504 with the branded pages (Middleware error-pages, edge/error-pages).
       # The middleware must exist before this rolls out: merge the infrastructure change first.
       # Order matters: geo-country first, so every route (and the error pages) sees a trustworthy CF-IPCountry.
