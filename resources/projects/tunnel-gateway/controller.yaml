@@ -78,6 +78,8 @@ spec:
         - name: controller
           image: python:3.13-alpine@sha256:7984cf56ceaddebe4fefeb75d64000b9f45d8b77b11a09b24524da6cdc3af0c8
           command: [python3, -u, /code/controller.py]
+          ports:
+            - {name: enroll, containerPort: 8080}
           env:
             - {name: PYTHONDONTWRITEBYTECODE, value: "1"}
             # Gateway replicas and their hostnames, each under three domains for failover (DNS: dns/domains/*.js, ingressroute.yaml).
@@ -87,6 +89,9 @@ spec:
             - {name: VIA_URL, value: "wss://coordination.vmd1.homelab,wss://coordination.vmd1.homelab,wss://coordination.vmd1.homelab,wss://cf-coordination.vmd1.homelab"}
             # Lab bridges (spec.bridge): pods in tunnel-bridge, direct UDP on NodePort BRIDGE_PORT_BASE + slot (oci/firewall/tunnel-bridge.yaml
             # opens the same BRIDGE_SLOTS ports on the ingress nodes), endpoints on the coordination.<domain> names (not Cloudflare: no UDP).
+            # Enrollment (POST /enroll on the coordination names, ingressroute.yaml): a 3-use token for the whole agent.env. The shared bits
+            # (TS_AUTHKEY, CANARY) are in Secret tunnel-enroll-common, created by hand (kubectl), never committed.
+            - {name: ENROLL_PORT, value: "8080"}
             - {name: BRIDGE_NAMESPACE, value: "tunnel-bridge"}
             - {name: BRIDGE_IMAGE, value: "ghcr.io/vmd1/tunnel-bridge:latest"}
             - {name: BRIDGE_PORT_BASE, value: "31820"}
@@ -119,3 +124,14 @@ spec:
           configMap: {name: tunnel-gateway-code}
         - name: tmp
           emptyDir: {sizeLimit: 8Mi}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tunnel-enroll
+  namespace: tunnel-gateway
+spec:
+  selector:
+    app.kubernetes.io/name: tunnel-controller
+  ports:
+    - {name: http, port: 8080, targetPort: enroll}

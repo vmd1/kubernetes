@@ -14,6 +14,7 @@ connected: lastSeen / connectionType, read from the gateway pods' wstunnel logs)
 """
 import base64
 import hashlib
+import hmac
 import json
 import logging
 import os
@@ -26,6 +27,7 @@ import threading
 import time
 import urllib.error
 import urllib.request
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from datetime import datetime, timedelta, timezone
 
 GROUP = "tunnel.vmd1.homelab"
@@ -76,6 +78,10 @@ class Config:
         self.bridge_pull_policy = e.get("BRIDGE_PULL_POLICY", "")  # empty: Kubernetes' default (Always for :latest)
         self.bridge_endpoint_hosts = [h.strip() for h in e.get(
             "BRIDGE_ENDPOINT_HOSTS", "coordination.vmd1.homelab,coordination.vmd1.homelab,coordination.vmd1.homelab").split(",") if h.strip()]
+        # Enrollment: an agent trades a short-lived 3-use token (Secret enroll-<name>, created by tunnel-agent/scripts/make-provision.sh,
+        # only its hash is stored) for its whole agent.env, at https://coordination.<domain>/enroll (ingressroute.yaml).
+        self.enroll_port = int(e.get("ENROLL_PORT", "8080"))
+        self.enroll_common = e.get("ENROLL_COMMON_SECRET", "tunnel-enroll-common")  # keys TS_AUTHKEY and CANARY, same for every agent
         self.pod_prefix = e.get("GATEWAY_POD_PREFIX", "tunnel-gateway")
         self.seen_resolution = int(e.get("LAST_SEEN_RESOLUTION", "300"))
 
@@ -744,6 +750,117 @@ def sync_restrictions(kube, ns, cfg, text):
     log.info("restrictions updated (%d agents)", text.count("-client\n"))
 
 
+# ---------------------------------------------------------------- enrollment
+
+ENROLL_PREFIX = "enroll-"
+DENIED = (403, "denied\n")
+
+
+def token_hash(token):
+    return hashlib.sha256(token.encode()).hexdigest()
+
+
+def enroll(kube, ns, cfg, name, token, now=None):
+    """Trade an enrollment token for the agent's environment: (http status, body). Every token works `uses` times, then never
+    again, and expires; only a hash is stored. All failures look the same from outside (the reason is only logged)."""
+    now = now or datetime.now(timezone.utc)
+    if not isinstance(name, str) or not isinstance(token, str) or not NAME_RE.match(name) or not (16 <= len(token) <= 200):
+        return 400, "bad request\n"
+    for _ in range(5):  # another request may take the same token's last use first: re-read and retry
+        sec = kube.get_secret(ns, ENROLL_PREFIX + name)
+        if sec is None:
+            log.warning("enroll %s: no token issued", name)
+            return DENIED
+        d = {k: base64.b64decode(v).decode() for k, v in (sec.get("data") or {}).items()}
+        try:
+            uses, expires = int(d.get("uses", "0")), parse_iso(d["expires"])
+        except (KeyError, ValueError):
+            expires = None
+        if expires is None:
+            log.warning("enroll %s: malformed token record", name)
+            return DENIED
+        if not hmac.compare_digest(token_hash(token).encode(), d.get("hash", "").encode()):
+            log.warning("enroll %s: wrong token", name)
+            return DENIED
+        if uses <= 0 or now >= expires:
+            log.warning("enroll %s: token %s", name, "used up" if uses <= 0 else "expired")
+            return DENIED
+        agent = next((a for a in kube.list_agents(ns) if a["metadata"]["name"] == name), None)
+        if agent is None or (agent.get("spec") or {}).get("suspended"):
+            log.warning("enroll %s: agent %s", name, "missing" if agent is None else "suspended")
+            return DENIED
+        asec, common = kube.get_secret(ns, f"agent-{name}"), kube.get_secret(ns, cfg.enroll_common)
+        if asec is None or common is None:
+            log.warning("enroll %s: credentials are not ready yet", name)
+            return 503, "not ready\n"
+        try:
+            agent_env_text = base64.b64decode(asec["data"]["agent.env"]).decode()
+            cdata = {k: base64.b64decode(v).decode().strip() for k, v in (common.get("data") or {}).items()}
+        except (KeyError, ValueError):
+            return 503, "not ready\n"
+        body = {"apiVersion": "v1", "kind": "Secret", "type": "Opaque",
+                "metadata": {"name": ENROLL_PREFIX + name, "namespace": ns, "resourceVersion": sec["metadata"]["resourceVersion"],
+                             "labels": {"app.kubernetes.io/name": "tunnel-gateway", "tunnel.vmd1.homelab/agent": name}},
+                "stringData": {**d, "uses": str(uses - 1), "last-used": iso(now)}}
+        try:
+            kube.put_secret(ns, body, exists=True)  # consumed BEFORE the answer leaves, so a crash cannot hand out a free use
+        except urllib.error.HTTPError as e:
+            if e.code == 409:
+                continue
+            raise
+        common_env = "".join(f"{k}={cdata[k]}\n" for k in ("CANARY", "TS_AUTHKEY") if cdata.get(k))
+        log.info("enroll %s: credentials issued, %d use(s) left", name, uses - 1)
+        return 200, common_env + agent_env_text
+    return 503, "busy\n"
+
+
+def enroll_handler(kube, ns, cfg):
+    class H(BaseHTTPRequestHandler):
+        server_version = "enroll"
+        protocol_version = "HTTP/1.1"
+
+        def log_message(self, *args):  # never log request lines
+            pass
+
+        def _send(self, code, text):
+            data = text.encode()
+            self.send_response(code)
+            self.send_header("Content-Type", "text/plain; charset=utf-8")
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("Content-Length", str(len(data)))
+            self.send_header("Connection", "close")
+            self.end_headers()
+            self.wfile.write(data)
+
+        def do_POST(self):
+            try:
+                n = int(self.headers.get("Content-Length", "0"))
+                if self.path.rstrip("/") != "/enroll" or not 0 < n <= 1024:
+                    return self._send(404 if self.path.rstrip("/") != "/enroll" else 400, "no\n")
+                req = json.loads(self.rfile.read(n))
+                code, text = enroll(kube, ns, cfg, req.get("name"), req.get("token"))
+            except (ValueError, AttributeError):
+                code, text = 400, "bad request\n"
+            except Exception:  # noqa: BLE001 - never leak details to a client
+                log.exception("enroll failed")
+                code, text = 500, "error\n"
+            if code != 200:
+                time.sleep(0.5)  # slows guessing; the tokens are 128-bit anyway
+            self._send(code, text)
+
+        def do_GET(self):
+            self._send(404, "no\n")
+    return H
+
+
+def serve_enroll(kube, ns, cfg):
+    srv = ThreadingHTTPServer(("XXX.XXX.XXX.XXX", cfg.enroll_port), enroll_handler(kube, ns, cfg))
+    threading.Thread(target=srv.serve_forever, name="enroll", daemon=True).start()
+    log.info("enrollment endpoint on :%d", cfg.enroll_port)
+    return srv
+
+
+
 def main():
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s", stream=sys.stdout)
     ns = os.environ.get("NAMESPACE")
@@ -754,6 +871,7 @@ def main():
     stop = threading.Event()
     for sig in (signal.SIGTERM, signal.SIGINT):
         signal.signal(sig, lambda *_: stop.set())
+    serve_enroll(kube, ns, cfg)
     log.info("watching %s/%s in %s every %ds (%d gateways)", PLURAL, VERSION, ns, cfg.poll, cfg.gateways)
     while not stop.is_set():
         try:

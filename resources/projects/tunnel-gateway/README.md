@@ -70,3 +70,12 @@ tunnel-agent/scripts/ssh-agent.sh test ubuntu          # ssh into it through the
 
 - **vmd1.homelab is the uk-home leg**: `coordination[-0|-1].vmd1.homelab` are CNAMEs to `uk-home.ingress.vmd1.homelab` (the home WAN IP), the other two domains stay on the edge nodes and are the fallback when home is unreachable. Home Traefik (`traefik-uk-home-lb`) serves the same IngressRoute.
 - **Cloudflare name**: `cf-coordination.vmd1.homelab` is the only proxied name (DNS `CF_PROXY_ON`). It is routed to the any-replica (via) service only, never the per-replica reverse-tunnel routes, because Cloudflare cuts a request with no response headers after ~100s.
+
+## Enrollment (`POST /enroll`)
+
+Instead of copying an agent's credentials around, an operator hands a server a **3-use token** (`tunnel-agent/scripts/make-provision.sh`, which stores
+only the token's SHA-256 in `Secret enroll-<name>` with `uses: 3` and an expiry). The controller serves `POST /enroll` (`{name, token}`) on port 8080;
+`ingressroute.yaml` routes `Path(/enroll)` on the `coordination[.cf-]` names to it (priority above the wstunnel route, rate limited). A valid token returns
+`CANARY`, `TS_AUTHKEY` (from `Secret tunnel-enroll-common`, created by hand with `set-enroll-common.sh`, never committed) and the agent's `agent.env`
+(`Secret agent-<name>`); the use is deducted before the answer is sent (optimistic `resourceVersion` write, so concurrent requests cannot share a use).
+A wrong, expired, used-up or suspended-agent request gets the same `403 denied`; only the reason is logged, never the token.

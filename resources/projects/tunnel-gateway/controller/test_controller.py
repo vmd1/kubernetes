@@ -409,3 +409,91 @@ def test_bridge_pod_rolls_when_its_keys_change_and_not_otherwise():
     k.agents["srv"]["spec"]["rotationToken"] = "now"
     c.reconcile_once(k, "ns", CFG, NOW, bridge_cache={})
     assert ann() != first  # rotated keys: the Deployment's pod template changes, so the pod restarts
+
+
+# ---------------------------------------------------------------- enrollment
+
+TOKEN = "tok-" + "a" * 32
+
+
+def enroll_kube(uses=3, expires="2026-11-12T12:00:00Z", token=TOKEN, suspended=False):
+    kube = FakeKube([agent("srv", {"suspended": True} if suspended else {})])
+    c.reconcile_once(kube, "tunnel-gateway", CFG, now=NOW, bridge_cache={})
+    kube.writes.clear()
+    kube.put_secret("tunnel-gateway", {"metadata": {"name": "enroll-srv"}, "stringData": {
+        "hash": c.token_hash(token), "uses": str(uses), "expires": expires}}, exists=False)
+    kube.put_secret("tunnel-gateway", {"metadata": {"name": "tunnel-enroll-common"},
+                                       "stringData": {"TS_AUTHKEY": "tskey-xyz", "CANARY": "XXX.XXX.XXX.XXX:443"}}, exists=False)
+    return kube
+
+
+def test_enroll_returns_the_whole_environment_and_allows_exactly_three_uses():
+    kube = enroll_kube()
+    for left in (2, 1, 0):
+        code, body = c.enroll(kube, "tunnel-gateway", CFG, "srv", TOKEN, NOW)
+        assert code == 200
+        assert "CANARY=XXX.XXX.XXX.XXX:443\n" in body and "TS_AUTHKEY=tskey-xyz\n" in body
+        assert "TUNNEL_VIA_SECRET=" in body and "TUNNEL_SECRET=" in body and "TUNNEL_URL=" in body
+        assert base64.b64decode(kube.secrets["enroll-srv"]["data"]["uses"]).decode() == str(left)
+    assert c.enroll(kube, "tunnel-gateway", CFG, "srv", TOKEN, NOW) == c.DENIED  # the fourth is refused
+
+
+def test_enroll_refuses_wrong_token_expired_suspended_unknown_and_malformed_requests():
+    kube = enroll_kube()
+    assert c.enroll(kube, "tunnel-gateway", CFG, "srv", "tok-" + "b" * 32, NOW) == c.DENIED
+    assert c.enroll(kube, "tunnel-gateway", CFG, "other", TOKEN, NOW) == c.DENIED  # no token issued for it
+    assert c.enroll(kube, "tunnel-gateway", CFG, "srv", TOKEN, NOW + timedelta(days=8)) == c.DENIED  # expired
+    assert c.enroll(kube, "tunnel-gateway", CFG, "srv", "short", NOW)[0] == 400
+    assert c.enroll(kube, "tunnel-gateway", CFG, "Bad Name", TOKEN, NOW)[0] == 400
+    assert c.enroll(kube, "tunnel-gateway", CFG, None, TOKEN, NOW)[0] == 400
+    assert c.enroll(enroll_kube(suspended=True), "tunnel-gateway", CFG, "srv", TOKEN, NOW) == c.DENIED
+    # nothing above used up a use
+    assert base64.b64decode(kube.secrets["enroll-srv"]["data"]["uses"]).decode() == "3"
+
+
+def test_enroll_does_not_hand_out_credentials_when_the_common_secret_is_missing_and_keeps_the_use():
+    kube = enroll_kube()
+    del kube.secrets["tunnel-enroll-common"]
+    assert c.enroll(kube, "tunnel-gateway", CFG, "srv", TOKEN, NOW)[0] == 503
+    assert base64.b64decode(kube.secrets["enroll-srv"]["data"]["uses"]).decode() == "3"
+
+
+def test_enroll_retries_when_another_request_takes_the_record_first():
+    import urllib.error
+    kube = enroll_kube()
+    real = kube.put_secret
+    state = {"n": 0}
+
+    def conflict_once(ns, body, exists):
+        if body["metadata"]["name"] == "enroll-srv" and state["n"] == 0:
+            state["n"] = 1
+            raise urllib.error.HTTPError("u", 409, "conflict", {}, None)
+        real(ns, body, exists)
+    kube.put_secret = conflict_once
+    assert c.enroll(kube, "tunnel-gateway", CFG, "srv", TOKEN, NOW)[0] == 200
+    assert base64.b64decode(kube.secrets["enroll-srv"]["data"]["uses"]).decode() == "2"  # one use, not two
+
+
+def test_enroll_http_endpoint_round_trip():
+    import json as _json
+    import threading
+    import urllib.error
+    import urllib.request
+    kube = enroll_kube()
+    cfg = c.Config({"ENROLL_PORT": "0"})
+    srv = c.ThreadingHTTPServer(("XXX.XXX.XXX.XXX", 0), c.enroll_handler(kube, "tunnel-gateway", cfg))
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    url = f"http://XXX.XXX.XXX.XXX:{srv.server_address[1]}/enroll"
+    try:
+        def post(name, token):
+            req = urllib.request.Request(url, _json.dumps({"name": name, "token": token}).encode(), {"Content-Type": "application/json"})
+            return urllib.request.urlopen(req, timeout=10)
+        r = post("srv", TOKEN)
+        assert r.status == 200 and "TS_AUTHKEY=tskey-xyz" in r.read().decode() and r.headers["Cache-Control"] == "no-store"
+        try:
+            post("srv", "tok-" + "z" * 32)
+            raise AssertionError("expected 403")
+        except urllib.error.HTTPError as e:
+            assert e.code == 403 and e.read() == b"denied\n"
+    finally:
+        srv.shutdown()
