@@ -52,7 +52,7 @@ spec:
         topology.kubernetes.io/zone: uk-home
       containers:
         - name: coredns
-          image: coredns/coredns:1.12.1@sha256:e8c262566636e6bc340ece6473b0eed193cad045384401529721ddbe6463d31c
+          image: coredns/coredns:1.15.0@sha256:0a9d8c8ddf34347eb59aad9a8784f0710de88d6d112726d11d271f9bc6daca26
           args: [-conf, /etc/coredns/Corefile]
           securityContext:
             runAsNonRoot: true
