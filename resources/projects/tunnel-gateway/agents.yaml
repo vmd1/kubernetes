@@ -7,3 +7,13 @@ metadata:
   name: test
   namespace: tunnel-gateway
 spec: {}
+---
+# qecomp-server: bridge: true gives it a lab bridge (a Tailscale device in the lab that forwards every port to it over WireGuard), which
+# is what the `wireguard` pathways connect to. Drop it for a plain agent.
+apiVersion: tunnel.vmd1.homelab/v1alpha1
+kind: TunnelAgent
+metadata:
+  name: qecomp-server
+  namespace: tunnel-gateway
+spec:
+  bridge: true
