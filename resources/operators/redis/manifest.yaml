@@ -26,7 +26,7 @@ spec:
     failureThreshold: 3
   redisExporter:
     enabled: true
-    image: oliver006/redis_exporter:v1.95.0@sha256:afb21407aba3df1b4010899f155fc6b1ba2026c97b725d72aca4019d772e7b6b
+    image: oliver006/redis_exporter:v1.97.0@sha256:f5f903fbe77571d455ede0453b084d6840bc62fc105efac001034421cab83b99
   kubernetesConfig:
     image: quay.io/opstree/redis:v7.0.12@sha256:22061f566331bbe3dc7c42cfe79fbf5e1ed318e5ee63648ec6ebd79f0ebe4fbe
     imagePullPolicy: IfNotPresent
@@ -69,7 +69,7 @@ spec:
     failureThreshold: 3
   redisExporter:
     enabled: true
-    image: oliver006/redis_exporter:v1.95.0@sha256:afb21407aba3df1b4010899f155fc6b1ba2026c97b725d72aca4019d772e7b6b
+    image: oliver006/redis_exporter:v1.97.0@sha256:f5f903fbe77571d455ede0453b084d6840bc62fc105efac001034421cab83b99
   redisSentinelConfig:
     redisReplicationName: redis
   kubernetesConfig:
