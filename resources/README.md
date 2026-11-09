@@ -24,10 +24,10 @@ This directory contains all the Kubernetes manifests that Flux reconciles into t
 | [proxy/](proxy/README.md) | `./resources/proxy` | Traefik Middlewares, TLS options, uk-home LB, dashboard and guard routes; cf-ddns. |
 | [auth/](auth/README.md) | `./resources/auth` | lldap, Authelia, oauth2-proxy. |
 | [platform/](platform/README.md) | `./resources/platform` | Private registry; Longhorn UI and backup target. |
-| [observability/](observability/README.md) | `./resources/observability` | Loki, Prometheus, Grafana, kube-state-metrics, Uptime Kuma, ntfy, Headlamp, Homelable. |
+| [observability/](observability/README.md) | `./resources/observability` | Loki, Prometheus, Grafana, kube-state-metrics, Uptime Kuma, ntfy, Headlamp. |
 | [home/](home/README.md) | `./resources/home` | Home Assistant, Mosquitto, UniFi. |
 | [media/](media/README.md) | `./resources/media` | Jellyfin, BookOrbit, Cinepro. |
-| [personal/](personal/README.md) | `./resources/personal` | SFTPGo, Obsidian, Vaultwarden, Matrix. |
+| [personal/](personal/README.md) | `./resources/personal` | SFTPGo, Vaultwarden, Matrix. |
 | [projects/](projects/README.md) | `./resources/projects` | QEComp, Gossip. |
 | [edge/](edge/README.md) | `./resources/edge` | DaemonSets on the ingress nodes: PowerDNS, GeoIP updater, edge-sites, error pages, podflow, node-exporter, promtail. |
 

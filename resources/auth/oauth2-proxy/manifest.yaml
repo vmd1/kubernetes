@@ -6,7 +6,7 @@ metadata:
   labels:
     app: oauth2-proxy-kmnet-uk
 spec:
-  replicas: 2
+  replicas: 1
   strategy:
     type: RollingUpdate
     rollingUpdate:
@@ -145,7 +145,7 @@ metadata:
   labels:
     app: oauth2-proxy-vmd1-dev
 spec:
-  replicas: 2
+  replicas: 1
   strategy:
     type: RollingUpdate
     rollingUpdate:
@@ -284,7 +284,7 @@ metadata:
   labels:
     app: oauth2-proxy-010356-xyz
 spec:
-  replicas: 2
+  replicas: 1
   strategy:
     type: RollingUpdate
     rollingUpdate:
@@ -423,7 +423,7 @@ metadata:
   labels:
     app: oauth2-proxy-848226-xyz
 spec:
-  replicas: 2
+  replicas: 1
   strategy:
     type: RollingUpdate
     rollingUpdate:

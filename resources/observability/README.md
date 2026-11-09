@@ -10,7 +10,6 @@ Metrics, logs, uptime, alerts and cluster views. The node agents (node-exporter,
 | [uptime-kuma/](uptime-kuma/README.md) | Self-hosted uptime and latency monitoring. |
 | [ntfy/](ntfy/README.md) | HTTP pub-sub push notification service with SMTP ingress. |
 | [headlamp/](headlamp/README.md) | Kubernetes web UI dashboard with cluster-admin service account access. |
-| [homelable/](homelable/README.md) | Homelab diagram app with live status monitoring and read-only Kubernetes import (`lab.vmd1.homelab`), signing in through Authelia (OIDC). |
 
 ## Related
 

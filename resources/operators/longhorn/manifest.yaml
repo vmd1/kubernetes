@@ -12,6 +12,8 @@ spec:
     global:
       nodeSelector:
         storage.vmd1.homelab/longhorn-client: "true"
+    longhornUI:
+      replicas: 1
     csi:
       attacherReplicaCount: 2
       provisionerReplicaCount: 2

@@ -113,12 +113,6 @@ data:
               - policy: one_factor
                 subject:
                   - ["group:family"]
-          homelable_users:
-            default_policy: deny
-            rules:
-              - policy: one_factor
-                subject:
-                  - ["group:admin"]
           home_assistant_users:
             default_policy: deny
             rules:
@@ -297,21 +291,6 @@ data:
             response_types: [code]
             grant_types: [authorization_code]
             token_endpoint_auth_method: client_secret_post
-          - client_id: homelable
-            client_name: "Homelable"
-            client_secret: "$pbkdf2-sha512$310000$v/EWRM5VA6DKRfuMRTZbKA$6GaJL4RBRPZRgwXuZf.W.toMloPPLmfjo6qFRgkoo3pCcOFb7mzjAUiBP6uHbJIy0haZZ9QsXSRgbNFk0oKCOA"
-            public: false
-            claims_policy: default
-            authorization_policy: homelable_users
-            consent_mode: implicit
-            require_pkce: true
-            pkce_challenge_method: S256
-            redirect_uris:
-              - "https://lab.vmd1.homelab/api/v1/auth/oidc/callback"
-            scopes: [openid, profile, email, groups]
-            response_types: [code]
-            grant_types: [authorization_code]
-            token_endpoint_auth_method: client_secret_basic
           - client_id: home-assistant
             client_name: "Home Assistant"
             client_secret: "$pbkdf2-sha512$310000$Jx7hjGiz9tYA2/Xz6HHulg$ct7rFHVVL8EaMOMwtr751l/bhc4ZKvnuUwLATUVe2k.hjqbPDEB4e6IQCS0P0v2t//Ry8CiECLNqJ3F6LWOyTw"

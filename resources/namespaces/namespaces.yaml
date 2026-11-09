@@ -201,20 +201,6 @@ metadata:
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: homelable
-  labels:
-    policy.vmd1.homelab/allow-root: "true"
-    policy.vmd1.homelab/allow-writable-rootfs: "true"
-    policy.vmd1.homelab/allow-capabilities: "NET_RAW"
-    pod-security.kubernetes.io/audit: "restricted"
-    pod-security.kubernetes.io/warn: "restricted"
-    vmd1.homelab/tier: "app"
-  annotations:
-    kustomize.toolkit.fluxcd.io/prune: disabled
----
-apiVersion: v1
-kind: Namespace
-metadata:
   name: kube-node-lease
   labels:
     pod-security.kubernetes.io/audit: "restricted"

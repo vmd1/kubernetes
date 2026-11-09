@@ -2,37 +2,4 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
 resources:
-  - ingressroute.yaml
-  - manifest.yaml
-  - secrets.sops.yaml
-
-components:
-  - ../../policies/components/netpol-baseline
-
-patches:
-  # Components carry no namespace; the app port and scrape port replace the closed placeholder (port 1).
-  - target: {kind: NetworkPolicy}
-    patch: |-
-      - {op: add, path: /metadata/namespace, value: obsidian}
-  - target: {kind: NetworkPolicy, name: allow-ingress-traefik}
-    patch: |-
-      - {op: replace, path: /spec/ingress/0/ports/0/port, value: 5984}
-  - target: {kind: NetworkPolicy, name: allow-ingress-monitoring}
-    patch: |-
-      - {op: replace, path: /spec/ingress/0/ports/0/port, value: 5984}
-  # Admission hardening (policies/admission): app label, seccomp, no privilege escalation, runAsNonRoot where the image already runs as a fixed uid
-  - target: {kind: Deployment, name: obsidian-sync}
-    patch: |-
-      apiVersion: apps/v1
-      kind: Deployment
-      metadata: {name: obsidian-sync}
-      spec:
-        template:
-          metadata:
-            labels: {app.kubernetes.io/name: obsidian-sync}
-          spec:
-            securityContext: {seccompProfile: {type: RuntimeDefault}}
-            containers:
-              - {name: couchdb, securityContext: {allowPrivilegeEscalation: false}}
-            initContainers:
-              - {name: init-config, securityContext: {allowPrivilegeEscalation: false}}
+  - pvc.yaml

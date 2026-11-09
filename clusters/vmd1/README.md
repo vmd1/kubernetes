@@ -26,10 +26,10 @@ Four foundation layers run in order; everything else is a purpose group that dep
 | [proxy.yaml](proxy.yaml) | `./resources/proxy` | `operators` | Traefik Middlewares, TLS options, uk-home LB, dashboard and guard routes; cf-ddns |
 | [auth.yaml](auth.yaml) | `./resources/auth` | `operators` | lldap, Authelia, oauth2-proxy |
 | [platform.yaml](platform.yaml) | `./resources/platform` | `operators` | Private registry; Longhorn UI and backup target |
-| [observability.yaml](observability.yaml) | `./resources/observability` | `operators` | Loki, Prometheus, Grafana, kube-state-metrics, Uptime Kuma, ntfy, Headlamp, Homelable |
+| [observability.yaml](observability.yaml) | `./resources/observability` | `operators` | Loki, Prometheus, Grafana, kube-state-metrics, Uptime Kuma, ntfy, Headlamp |
 | [home.yaml](home.yaml) | `./resources/home` | `operators` | Home Assistant, Mosquitto, UniFi |
 | [media.yaml](media.yaml) | `./resources/media` | `operators` | Jellyfin, BookOrbit, Cinepro |
-| [personal.yaml](personal.yaml) | `./resources/personal` | `operators` | SFTPGo, Obsidian, Vaultwarden, Matrix |
+| [personal.yaml](personal.yaml) | `./resources/personal` | `operators` | SFTPGo, Vaultwarden, Matrix |
 | [projects.yaml](projects.yaml) | `./resources/projects` | `operators` | QEComp, Gossip |
 | [edge.yaml](edge.yaml) | `./resources/edge` | `operators` | DaemonSets on the ingress nodes (PowerDNS, GeoIP updater, edge-sites, error pages, podflow, node-exporter, promtail) |
 | [flux-system/](flux-system/README.md) | `./clusters/vmd1/flux-system` | — | Flux's own components and sync, applied by the `flux-system` Kustomization itself |

@@ -7,7 +7,7 @@ Files, notes, passwords and chat. Applied by the `personal` Flux Kustomization (
 | Folder | Description |
 | :--- | :--- |
 | [sftpgo/](sftpgo/README.md) | Shared-folder links on Backblaze B2 (`files.vmd1.homelab`): view, upload and download with one link. |
-| [obsidian/](obsidian/README.md) | CouchDB backend for Obsidian Self-Hosted LiveSync. |
+| [obsidian/](obsidian/README.md) | Removed server; only the retained `obsidian-pvc` volume remains. |
 | [vaultwarden/](vaultwarden/README.md) | Lightweight Bitwarden-compatible password vault (PostgreSQL + Authelia SSO). |
 | [matrix/](matrix/README.md) | Self-hosted Matrix stack: `continuwuity` homeserver, FluffyChat web client, and mautrix bridges. |
 
