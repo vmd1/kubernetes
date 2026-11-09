@@ -15,6 +15,7 @@ configMapGenerator:
     files:
       - controller.py=controller/controller.py
       - sync.py=controller/sync.py
+      - provision.template.sh=controller/provision.template.sh
 
 components:
   - ../../policies/components/netpol-baseline

@@ -79,3 +79,8 @@ only the token's SHA-256 in `Secret enroll-<name>` with `uses: 3` and an expiry)
 `CANARY`, `TS_AUTHKEY` (from `Secret tunnel-enroll-common`, created by hand with `set-enroll-common.sh`, never committed) and the agent's `agent.env`
 (`Secret agent-<name>`); the use is deducted before the answer is sent (optimistic `resourceVersion` write, so concurrent requests cannot share a use).
 A wrong, expired, used-up or suspended-agent request gets the same `403 denied`; only the reason is logged, never the token.
+
+`GET /setup/<key>` serves the provisioning script for a valid key (`curl -fsSL https://coordination.vmd1.homelab/setup/<key> | sudo sh`): the controller renders
+`controller/provision.template.sh` (shipped in the `tunnel-gateway-code` ConfigMap) with the key, the agent's name, the enroll URLs and the shared settings
+from `Secret tunnel-enroll-common` (`SSH_PUBKEY`, `ADMIN_USER`, `REGISTRY_*`; never the Tailscale key, which only `/enroll` returns). It does not use a use, and a
+bad, expired, used-up or suspended-agent key gets the same `403 denied`. The script is a small POSIX stub that unpacks the bash script, so `| sh` works on dash.

@@ -497,3 +497,89 @@ def test_enroll_http_endpoint_round_trip():
             assert e.code == 403 and e.read() == b"denied\n"
     finally:
         srv.shutdown()
+
+
+# ---------------------------------------------------------------- /setup/<key>
+
+SETUP_TOKEN = "srv." + "b" * 48
+TEMPLATE = os.path.join(os.path.dirname(__file__), "provision.template.sh")
+
+
+def setup_kube(**kw):
+    kube = enroll_kube(token=SETUP_TOKEN, **kw)
+    kube.put_secret("tunnel-gateway", {"metadata": {"name": "tunnel-enroll-common"}, "stringData": {
+        "TS_AUTHKEY": "tskey-xyz", "CANARY": "XXX.XXX.XXX.XXX:443", "SSH_PUBKEY": "ssh-ed25519 AAAAC3Nz test-key",
+        "ADMIN_USER": "admin", "REGISTRY_USER": "agent-pull", "REGISTRY_PASSWORD": "pw123"}}, exists=True)
+    return kube
+
+
+def setup_cfg():
+    return c.Config({"SETUP_TEMPLATE": TEMPLATE})
+
+
+def test_setup_renders_the_script_for_a_valid_key_without_using_a_use():
+    kube = setup_kube()
+    code, body = c.render_setup(kube, "tunnel-gateway", setup_cfg(), SETUP_TOKEN, now=NOW)
+    assert code == 200 and body.startswith("#!/bin/sh\n") and "exec bash" in body
+    for want in ("ENROLL_NAME='srv'", f"ENROLL_TOKEN='{SETUP_TOKEN}'", "ADMIN_USER=${ADMIN_USER:-admin}", "TS_HOSTNAME=${TS_HOSTNAME:-srv}",
+                 "REGISTRY_USER='agent-pull'", "REGISTRY_PASSWORD='pw123'", "ssh-ed25519 AAAAC3Nz test-key",
+                 "https://coordination.vmd1.homelab https://coordination.vmd1.homelab https://coordination.vmd1.homelab https://cf-coordination.vmd1.homelab"):
+        assert want in body, want
+    assert "@@" not in body and "tskey" not in body  # the Tailscale key is only ever sent by /enroll
+    assert base64.b64decode(kube.secrets["enroll-srv"]["data"]["uses"]).decode() == "3"  # serving the script spends nothing
+
+
+def test_setup_script_is_valid_shell_and_the_stub_unpacks_to_the_same_bash_script():
+    import subprocess
+    code, body = c.render_setup(setup_kube(), "tunnel-gateway", setup_cfg(), SETUP_TOKEN, host="my-box", now=NOW)
+    assert "TS_HOSTNAME=${TS_HOSTNAME:-my-box}" in body
+    assert subprocess.run(["sh", "-n"], input=body.encode()).returncode == 0
+    inner = body.split("<<'__VMD1_SETUP__'\n", 1)[1].split("\n__VMD1_SETUP__\n", 1)[0]
+    assert subprocess.run(["bash", "-n"], input=inner.encode()).returncode == 0
+    assert inner.startswith("#!/usr/bin/env bash")
+
+
+def test_setup_refuses_bad_expired_used_up_suspended_and_malformed_requests():
+    cfg = setup_cfg()
+    assert c.render_setup(setup_kube(), "tunnel-gateway", cfg, "srv." + "c" * 48, now=NOW) == c.DENIED
+    assert c.render_setup(setup_kube(), "tunnel-gateway", cfg, SETUP_TOKEN, now=NOW + timedelta(days=8)) == c.DENIED
+    assert c.render_setup(setup_kube(uses=0), "tunnel-gateway", cfg, SETUP_TOKEN, now=NOW) == c.DENIED
+    assert c.render_setup(setup_kube(suspended=True), "tunnel-gateway", cfg, SETUP_TOKEN, now=NOW) == c.DENIED
+    assert c.render_setup(setup_kube(), "tunnel-gateway", cfg, "nodothere" + "d" * 30, now=NOW)[0] == 400
+    assert c.render_setup(setup_kube(), "tunnel-gateway", cfg, SETUP_TOKEN, host="bad host;rm", now=NOW)[0] == 400
+    # a key for another agent's name does not unlock this agent
+    assert c.render_setup(setup_kube(), "tunnel-gateway", cfg, "other." + "b" * 48, now=NOW) == c.DENIED
+
+
+def test_setup_is_not_ready_without_an_ssh_key_or_when_a_value_would_break_the_quoting():
+    kube = setup_kube()
+    kube.put_secret("tunnel-gateway", {"metadata": {"name": "tunnel-enroll-common"}, "stringData": {"TS_AUTHKEY": "k"}}, exists=True)
+    assert c.render_setup(kube, "tunnel-gateway", setup_cfg(), SETUP_TOKEN, now=NOW)[0] == 503
+    kube = setup_kube()
+    kube.put_secret("tunnel-gateway", {"metadata": {"name": "tunnel-enroll-common"}, "stringData": {
+        "SSH_PUBKEY": "ssh-ed25519 AAAA x", "REGISTRY_PASSWORD": "pa'ss"}}, exists=True)
+    assert c.render_setup(kube, "tunnel-gateway", setup_cfg(), SETUP_TOKEN, now=NOW)[0] == 503
+
+
+def test_setup_http_endpoint_serves_the_script_and_enroll_still_works_with_the_same_key():
+    import json as _json
+    import threading
+    import urllib.error
+    import urllib.request
+    kube = setup_kube()
+    srv = c.ThreadingHTTPServer(("XXX.XXX.XXX.XXX", 0), c.enroll_handler(kube, "tunnel-gateway", setup_cfg()))
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    base = f"http://XXX.XXX.XXX.XXX:{srv.server_address[1]}"
+    try:
+        r = urllib.request.urlopen(f"{base}/setup/{SETUP_TOKEN}?host=lab-box", timeout=10)
+        assert r.status == 200 and r.headers["Content-Type"].startswith("text/x-shellscript") and r.headers["Cache-Control"] == "no-store"
+        assert "TS_HOSTNAME=${TS_HOSTNAME:-lab-box}" in r.read().decode()
+        try:
+            urllib.request.urlopen(f"{base}/setup/srv.{'z' * 48}", timeout=10)
+            raise AssertionError("expected 403")
+        except urllib.error.HTTPError as e:
+            assert e.code == 403
+        req = urllib.request.Request(f"{base}/enroll", _json.dumps({"name": "srv", "token": SETUP_TOKEN}).encode(), {"Content-Type": "application/json"})
+        assert "TS_AUTHKEY=tskey-xyz" in urllib.request.urlopen(req, timeout=10).read().decode()
+    finally:
+        srv.shutdown()

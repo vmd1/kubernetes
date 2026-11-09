@@ -26,6 +26,7 @@ import sys
 import threading
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from datetime import datetime, timedelta, timezone
@@ -81,7 +82,8 @@ class Config:
         # Enrollment: an agent trades a short-lived 3-use token (Secret enroll-<name>, created by tunnel-agent/scripts/make-provision.sh,
         # only its hash is stored) for its whole agent.env, at https://coordination.<domain>/enroll (ingressroute.yaml).
         self.enroll_port = int(e.get("ENROLL_PORT", "8080"))
-        self.enroll_common = e.get("ENROLL_COMMON_SECRET", "tunnel-enroll-common")  # keys TS_AUTHKEY and CANARY, same for every agent
+        self.enroll_common = e.get("ENROLL_COMMON_SECRET", "tunnel-enroll-common")  # TS_AUTHKEY, CANARY (and for /setup: SSH_PUBKEY, ADMIN_USER, REGISTRY_*), same for every agent
+        self.setup_template = e.get("SETUP_TEMPLATE", "/code/provision.template.sh")
         self.pod_prefix = e.get("GATEWAY_POD_PREFIX", "tunnel-gateway")
         self.seen_resolution = int(e.get("LAST_SEEN_RESOLUTION", "300"))
 
@@ -760,42 +762,66 @@ def token_hash(token):
     return hashlib.sha256(token.encode()).hexdigest()
 
 
+def token_name(token):
+    """Tokens made by make-provision.sh are <agent-name>.<random>, so a setup URL needs nothing but the key."""
+    name, dot, rest = token.rpartition(".")
+    return name if dot and rest else None
+
+
+def _validate(kube, ns, name, token, now):
+    """The enrollment record if `token` is good for `name` right now: (secret, fields, uses) or a (status, body) refusal."""
+    if not isinstance(name, str) or not isinstance(token, str) or not NAME_RE.match(name) or not (16 <= len(token) <= 200):
+        return 400, "bad request\n"
+    sec = kube.get_secret(ns, ENROLL_PREFIX + name)
+    if sec is None:
+        log.warning("enroll %s: no token issued", name)
+        return DENIED
+    d = {k: base64.b64decode(v).decode() for k, v in (sec.get("data") or {}).items()}
+    try:
+        uses, expires = int(d.get("uses", "0")), parse_iso(d["expires"])
+    except (KeyError, ValueError):
+        expires = None
+    if expires is None:
+        log.warning("enroll %s: malformed token record", name)
+        return DENIED
+    if not hmac.compare_digest(token_hash(token).encode(), d.get("hash", "").encode()):
+        log.warning("enroll %s: wrong token", name)
+        return DENIED
+    if uses <= 0 or now >= expires:
+        log.warning("enroll %s: token %s", name, "used up" if uses <= 0 else "expired")
+        return DENIED
+    agent = next((a for a in kube.list_agents(ns) if a["metadata"]["name"] == name), None)
+    if agent is None or (agent.get("spec") or {}).get("suspended"):
+        log.warning("enroll %s: agent %s", name, "missing" if agent is None else "suspended")
+        return DENIED
+    return sec, d, uses
+
+
+def _common(kube, ns, cfg):
+    sec = kube.get_secret(ns, cfg.enroll_common)
+    if sec is None:
+        return None
+    try:
+        return {k: base64.b64decode(v).decode().strip() for k, v in (sec.get("data") or {}).items()}
+    except ValueError:
+        return None
+
+
 def enroll(kube, ns, cfg, name, token, now=None):
     """Trade an enrollment token for the agent's environment: (http status, body). Every token works `uses` times, then never
     again, and expires; only a hash is stored. All failures look the same from outside (the reason is only logged)."""
     now = now or datetime.now(timezone.utc)
-    if not isinstance(name, str) or not isinstance(token, str) or not NAME_RE.match(name) or not (16 <= len(token) <= 200):
-        return 400, "bad request\n"
     for _ in range(5):  # another request may take the same token's last use first: re-read and retry
-        sec = kube.get_secret(ns, ENROLL_PREFIX + name)
-        if sec is None:
-            log.warning("enroll %s: no token issued", name)
-            return DENIED
-        d = {k: base64.b64decode(v).decode() for k, v in (sec.get("data") or {}).items()}
-        try:
-            uses, expires = int(d.get("uses", "0")), parse_iso(d["expires"])
-        except (KeyError, ValueError):
-            expires = None
-        if expires is None:
-            log.warning("enroll %s: malformed token record", name)
-            return DENIED
-        if not hmac.compare_digest(token_hash(token).encode(), d.get("hash", "").encode()):
-            log.warning("enroll %s: wrong token", name)
-            return DENIED
-        if uses <= 0 or now >= expires:
-            log.warning("enroll %s: token %s", name, "used up" if uses <= 0 else "expired")
-            return DENIED
-        agent = next((a for a in kube.list_agents(ns) if a["metadata"]["name"] == name), None)
-        if agent is None or (agent.get("spec") or {}).get("suspended"):
-            log.warning("enroll %s: agent %s", name, "missing" if agent is None else "suspended")
-            return DENIED
-        asec, common = kube.get_secret(ns, f"agent-{name}"), kube.get_secret(ns, cfg.enroll_common)
-        if asec is None or common is None:
+        v = _validate(kube, ns, name, token, now)
+        if len(v) == 2:
+            return v
+        sec, d, uses = v
+        asec, cdata = kube.get_secret(ns, f"agent-{name}"), _common(kube, ns, cfg)
+        if asec is None or cdata is None:
             log.warning("enroll %s: credentials are not ready yet", name)
             return 503, "not ready\n"
         try:
             agent_env_text = base64.b64decode(asec["data"]["agent.env"]).decode()
-            cdata = {k: base64.b64decode(v).decode().strip() for k, v in (common.get("data") or {}).items()}
         except (KeyError, ValueError):
             return 503, "not ready\n"
         body = {"apiVersion": "v1", "kind": "Secret", "type": "Opaque",
@@ -814,6 +840,57 @@ def enroll(kube, ns, cfg, name, token, now=None):
     return 503, "busy\n"
 
 
+HOST_RE = re.compile(r"^[A-Za-z0-9]([A-Za-z0-9.-]{0,60}[A-Za-z0-9])?$")
+SETUP_STUB = """#!/bin/sh
+# vmd1 server setup for %(name)s. Run as root:  curl -fsSL <this url> | sudo sh
+set -e
+f=$(mktemp /tmp/vmd1-setup.XXXXXX) || exit 1
+cat > "$f" <<'__VMD1_SETUP__'
+%(script)s
+__VMD1_SETUP__
+chmod 700 "$f"
+exec bash "$f" "$@"
+"""
+
+
+def render_setup(kube, ns, cfg, token, host=None, now=None):
+    """The provisioning script for the agent that `token` belongs to: (http status, body). Serving it does not use up a use (the
+    enrollment does); it is only ever shown to a holder of a currently valid token. It is a POSIX stub that unpacks the real bash
+    script, so `| sh` works on dash systems."""
+    now = now or datetime.now(timezone.utc)
+    name = token_name(token) if isinstance(token, str) else None
+    if name is None or (host is not None and not HOST_RE.match(host)):
+        return 400, "bad request\n"
+    v = _validate(kube, ns, name, token, now)
+    if len(v) == 2:
+        return v
+    cdata = _common(kube, ns, cfg)
+    try:
+        with open(cfg.setup_template) as f:
+            tpl = f.read()
+    except OSError:
+        cdata = None
+    if not cdata or not cdata.get("SSH_PUBKEY"):
+        log.warning("setup %s: the common secret has no SSH_PUBKEY (or the template is missing)", name)
+        return 503, "not ready\n"
+    urls = " ".join("https://" + urllib.parse.urlparse(u).hostname for u in cfg.via_url.split(",") if u.strip())
+    vals = {"TS_HOSTNAME": host or name, "ADMIN_USER": cdata.get("ADMIN_USER", "admin"), "SSH_PUBKEY": cdata["SSH_PUBKEY"],
+            "ENROLL_NAME": name, "ENROLL_TOKEN": token, "ENROLL_URLS": urls,
+            "AGENT_IMAGE": cdata.get("AGENT_IMAGE", "ghcr.io/vmd1/tunnel-agent:latest"),
+            "REGISTRY_HOST": cdata.get("REGISTRY_HOST", "registry.vmd1.homelab"),
+            "REGISTRY_IMAGE": cdata.get("REGISTRY_IMAGE", "registry.vmd1.homelab/tunnel-agent:latest"),
+            "REGISTRY_USER": cdata.get("REGISTRY_USER", ""), "REGISTRY_PASSWORD": cdata.get("REGISTRY_PASSWORD", "")}
+    for k, val in vals.items():
+        if "'" in val or "\n" in val:  # values land inside single quotes in the script
+            log.warning("setup %s: %s contains a quote or newline", name, k)
+            return 503, "not ready\n"
+        tpl = tpl.replace(f"@@{k}@@", val)
+    if "@@" in tpl or "__VMD1_SETUP__" in tpl:
+        return 503, "not ready\n"
+    log.info("setup %s: script served", name)
+    return 200, SETUP_STUB % {"name": name, "script": tpl.rstrip("\n")}
+
+
 def enroll_handler(kube, ns, cfg):
     class H(BaseHTTPRequestHandler):
         server_version = "enroll"
@@ -822,10 +899,10 @@ def enroll_handler(kube, ns, cfg):
         def log_message(self, *args):  # never log request lines
             pass
 
-        def _send(self, code, text):
+        def _send(self, code, text, ctype="text/plain; charset=utf-8"):
             data = text.encode()
             self.send_response(code)
-            self.send_header("Content-Type", "text/plain; charset=utf-8")
+            self.send_header("Content-Type", ctype)
             self.send_header("Cache-Control", "no-store")
             self.send_header("Content-Length", str(len(data)))
             self.send_header("Connection", "close")
@@ -849,7 +926,18 @@ def enroll_handler(kube, ns, cfg):
             self._send(code, text)
 
         def do_GET(self):
-            self._send(404, "no\n")
+            u = urllib.parse.urlparse(self.path)
+            if not u.path.startswith("/setup/"):
+                return self._send(404, "no\n")
+            try:
+                host = (urllib.parse.parse_qs(u.query).get("host") or [None])[0]
+                code, text = render_setup(kube, ns, cfg, urllib.parse.unquote(u.path[len("/setup/"):]), host)
+            except Exception:  # noqa: BLE001 - never leak details to a client
+                log.exception("setup failed")
+                code, text = 500, "error\n"
+            if code != 200:
+                time.sleep(0.5)
+            self._send(code, text, "text/x-shellscript; charset=utf-8" if code == 200 else "text/plain; charset=utf-8")
     return H
 
 
