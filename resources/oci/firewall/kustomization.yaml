@@ -3,6 +3,7 @@ kind: Kustomization
 
 resources:
   - dns.yaml
+  - host.yaml
   - tailscale-wireguard.yaml
   - tunnel-bridge.yaml
   - web.yaml

@@ -1,0 +1,69 @@
+# Host counterparts of the OCI rules (Phase 2.F of docs/edge-node-roadmap.md). noded builds the node's nftables input chain
+# (default drop) from objects with type Host plus its built-in baseline (53 tcp+udp, 80, 443, 41641/udp). Everything the OCI
+# security lists open for the ingress nodes must be repeated here, or the host firewall blocks it. Keep this file in step
+# with web.yaml, dns.yaml, tailscale-wireguard.yaml and tunnel-bridge.yaml.
+apiVersion: network.vmd1.homelab/v1alpha1
+kind: FirewallRule
+metadata:
+  name: web-host
+spec:
+  type: Host
+  description: HTTP/HTTPS ingress (Traefik), host side of web
+  nodeSelector:
+    node-role.kubernetes.io/ingress: "true"
+  ports:
+    - {port: 80, protocol: TCP}
+    - {port: 443, protocol: TCP}
+---
+apiVersion: network.vmd1.homelab/v1alpha1
+kind: FirewallRule
+metadata:
+  name: dns-host
+spec:
+  type: Host
+  description: DNS (PowerDNS), host side of dns
+  nodeSelector:
+    node-role.kubernetes.io/ingress: "true"
+  ports:
+    - {port: 53, protocol: TCP}
+    - {port: 53, protocol: UDP}
+---
+apiVersion: network.vmd1.homelab/v1alpha1
+kind: FirewallRule
+metadata:
+  name: tailscale-wireguard-host
+spec:
+  type: Host
+  description: Tailscale WireGuard direct connections, host side of tailscale-wireguard
+  nodeSelector:
+    node-role.kubernetes.io/ingress: "true"
+  ports:
+    - {port: 41641, protocol: UDP}
+    - {port: 41642, protocol: UDP}
+---
+apiVersion: network.vmd1.homelab/v1alpha1
+kind: FirewallRule
+metadata:
+  name: tunnel-bridge-host
+spec:
+  type: Host
+  description: Tunnel lab bridges (WireGuard, direct UDP), host side of tunnel-bridge
+  nodeSelector:
+    node-role.kubernetes.io/ingress: "true"
+  ports:
+    - {port: 31820, protocol: UDP}
+    - {port: 31821, protocol: UDP}
+    - {port: 31822, protocol: UDP}
+    - {port: 31823, protocol: UDP}
+    - {port: 31824, protocol: UDP}
+    - {port: 31825, protocol: UDP}
+    - {port: 31826, protocol: UDP}
+    - {port: 31827, protocol: UDP}
+    - {port: 31828, protocol: UDP}
+    - {port: 31829, protocol: UDP}
+    - {port: 31830, protocol: UDP}
+    - {port: 31831, protocol: UDP}
+    - {port: 31832, protocol: UDP}
+    - {port: 31833, protocol: UDP}
+    - {port: 31834, protocol: UDP}
+    - {port: 31835, protocol: UDP}

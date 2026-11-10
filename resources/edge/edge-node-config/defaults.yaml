@@ -1,0 +1,8 @@
+# Baseline for every image node: nothing set, so the image defaults apply. Add fields here (or a more specific object with a
+# nodeSelector) to change nodes; start with mode: try on one node via a selector, see docs/runbooks.
+apiVersion: edge.vmd1.homelab/v1alpha1
+kind: EdgeNodeConfig
+metadata:
+  name: defaults
+spec:
+  mode: auto

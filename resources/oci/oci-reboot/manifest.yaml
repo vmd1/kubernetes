@@ -11,7 +11,10 @@ metadata:
 rules:
   - apiGroups: [""]
     resources: ["nodes"]
-    verbs: ["get", "list", "watch"]
+    verbs: ["get", "list", "watch", "patch"]   # patch: clear the hard-reset-requested annotation after acting on it
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["create"]                          # record the outcome of a hard-reset request
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding

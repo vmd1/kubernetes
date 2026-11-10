@@ -1,0 +1,73 @@
+# EdgeNodeConfig: declarative settings for the image nodes (noded pulls these with the node's own credentials).
+# The schema is the allowlist: unknown fields are pruned by the API server and the agent only reads the fields below. Bootstrap items (server, token, node name,
+# taints, node-role labels, flannel interface) are deliberately not here. Mirrors internal/config/spec.go in edge-node-image.
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: edgenodeconfigs.edge.vmd1.homelab
+spec:
+  group: edge.vmd1.homelab
+  scope: Cluster
+  names:
+    plural: edgenodeconfigs
+    singular: edgenodeconfig
+    kind: EdgeNodeConfig
+    shortNames:
+      - enc
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      additionalPrinterColumns:
+        - name: Mode
+          type: string
+          jsonPath: .spec.mode
+        - name: Age
+          type: date
+          jsonPath: .metadata.creationTimestamp
+      schema:
+        openAPIV3Schema:
+          type: object
+          required: [spec]
+          properties:
+            spec:
+              type: object
+              properties:
+                nodeSelector:
+                  type: object
+                  additionalProperties: {type: string}
+                  description: Node labels that must all match; empty selects every node. The most specific object (most keys) wins per field.
+                mode:
+                  type: string
+                  enum: [auto, staged, try]
+                  description: auto applies now and reverts if the node is unhealthy; staged applies on the next boot; try applies and reverts unless the node is healthy within tryTimeoutSeconds.
+                tryTimeoutSeconds:
+                  type: integer
+                  minimum: 0
+                  maximum: 3600
+                kubelet:
+                  type: object
+                  properties:
+                    systemReserved: {type: object, additionalProperties: {type: string}}
+                    kubeReserved: {type: object, additionalProperties: {type: string}}
+                    evictionHard: {type: object, additionalProperties: {type: string}}
+                    maxPods: {type: integer, minimum: 10, maximum: 250}
+                    imageGCHighThresholdPercent: {type: integer, minimum: 1, maximum: 100}
+                    imageGCLowThresholdPercent: {type: integer, minimum: 1, maximum: 100}
+                nodeLabels:
+                  type: object
+                  additionalProperties: {type: string}
+                disableNetworkPolicy: {type: boolean}
+                k3sLogLevel: {type: integer, minimum: 0, maximum: 9}
+                sysctls:
+                  type: object
+                  additionalProperties: {type: string}
+                moduleLockdown: {type: boolean}
+                apiRoles:
+                  type: string
+                  enum: [audit, enforce]
+                  description: audit (default) logs the caller role of every noded call; enforce denies calls above the caller role (needs the vmd1.homelab/cap/noded grant in the Tailscale ACL).
+                timeServers:
+                  type: array
+                  maxItems: 4
+                  items: {type: string}
