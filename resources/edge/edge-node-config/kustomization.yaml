@@ -4,4 +4,3 @@ kind: Kustomization
 resources:
   - rbac.yaml
   - defaults.yaml
-  - apiroles-canary.yaml

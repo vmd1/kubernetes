@@ -1,8 +1,13 @@
-# Baseline for every image node: nothing set, so the image defaults apply. Add fields here (or a more specific object with a
-# nodeSelector) to change nodes; start with mode: try on one node via a selector, see docs/runbooks.
+# Baseline for every image node. Add fields here (or a more specific object with a nodeSelector) to change nodes; start with
+# mode: try on one node via a selector, see docs/runbooks.
+#
+# apiRoles: enforce (2026-11-10): noded denies calls above the caller's role. Roles come from the vmd1.homelab/cap/noded grant in
+# tailscale/policy.hujson (group:admin has role admin on tag:k3s tcp 7777). To go back to audit in an emergency: nodectl config <node>
+# set (override, operator role), or this field.
 apiVersion: edge.vmd1.homelab/v1alpha1
 kind: EdgeNodeConfig
 metadata:
   name: defaults
 spec:
   mode: auto
+  apiRoles: enforce
