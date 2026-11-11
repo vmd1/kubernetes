@@ -12,6 +12,7 @@ Lldap is a simplified, lightweight LDAP server designed for user management. It 
 
 - **Highly Available Architecture**: Configured with `replicas: 2` to distribute requests across nodes, ensuring robust identity resolution even if one instance fails.
 - **External SQL Database**: Rather than storing users in a local SQLite file, Lldap stores its data in the cluster's CloudNativePG PostgreSQL database cluster.
+- **Probes and no gosu**: readiness and liveness are TCP checks on the LDAP port, so a wedged pod leaves the Service and is restarted (on 2026-11-11 a pod that never opened a listener took half of Authelia's binds). The container runs `/app/lldap` directly as uid 1000 (restricted securityContext, config from env only) instead of the image entrypoint, because the entrypoint's `gosu` spins under the default containerd AppArmor profile on hades-02 (see `hades02_apparmor` in [docs/host-config.md](../../../../docs/host-config.md)).
 - **LDAPS Support**: Deploys native SSL/TLS encryption for LDAP queries (using static certificates mounted via `lldap-certs` Secret) to protect credentials over transit.
 
 ## Dependencies

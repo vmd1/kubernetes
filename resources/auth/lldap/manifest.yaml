@@ -21,6 +21,13 @@ spec:
         app: lldap
     spec:
       automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
       nodeSelector:
         topology.kubernetes.io/zone: uk-home
       topologySpreadConstraints:
@@ -56,6 +63,16 @@ spec:
       containers:
         - name: lldap
           image: lldap/lldap:latest@sha256:bb6e509b4a44e8e9985acfd95d83a85e252ed81879254d9751b9926e3ac26c62
+          # Run the binary directly instead of the image entrypoint: the entrypoint
+          # drops privileges with gosu, which spins forever under the default
+          # containerd AppArmor profile on hades-02 (Ubuntu 26.04, kernel 7.0).
+          # See docs/host-config.md. Config comes entirely from the env below.
+          command: ["/app/lldap"]
+          args: ["run", "--config-file", "/data/lldap_config.toml"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
           ports:
             - name: ldap
               containerPort: 3890
@@ -67,10 +84,6 @@ spec:
               containerPort: 17170
               protocol: TCP
           env:
-            - name: UID
-              value: "1000"
-            - name: GID
-              value: "1000"
             - name: TZ
               value: "Europe/London"
             - name: LLDAP_JWT_SECRET
@@ -96,6 +109,17 @@ spec:
               value: "/certs/cert.pem"
             - name: LLDAP_LDAPS_OPTIONS__KEY_FILE
               value: "/certs/key.pem"
+          readinessProbe:
+            tcpSocket:
+              port: ldap
+            periodSeconds: 10
+            failureThreshold: 3
+          livenessProbe:
+            tcpSocket:
+              port: ldap
+            initialDelaySeconds: 30
+            periodSeconds: 20
+            failureThreshold: 3
           resources:
             requests:
               cpu: 10m
