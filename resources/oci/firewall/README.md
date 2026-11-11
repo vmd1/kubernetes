@@ -14,7 +14,7 @@
 | File | Ports | Purpose |
 | :--- | :--- | :--- |
 | [web.yaml](web.yaml) | `80/tcp`, `443/tcp` | HTTP/HTTPS ingress |
-| [dns.yaml](dns.yaml) | `53/tcp`, `53/udp` | DNS |
+| [dns.yaml](dns.yaml) | `53/tcp`, `53/udp`, `853/tcp` | DNS and DNS over TLS |
 | [tailscale-wireguard.yaml](tailscale-wireguard.yaml) | `41641/udp`, `41642/udp` | Tailscale WireGuard |
 | [tunnel-bridge.yaml](tunnel-bridge.yaml) | `31820-31835/udp` | Direct WireGuard endpoints of the tunnel lab bridges (one NodePort per slot) |
 
@@ -31,7 +31,7 @@ Fields: `type` (`OCI`|`Host`), `ports: [{port, protocol: TCP|UDP}]`, `sources: [
 
 ## Migration from OCIPortRule
 
-The five old objects (`dns-port`, `dns-port-udp`, `dot-port`, `tailscale-wireguard`, `web-ports`) became three: the tcp/udp pair was merged into `dns`, `web-ports` became `web`, and `dot-port` (853, the DoT entrypoint no longer exists) was dropped. Flux prunes the old objects. The controller still reconciles any leftover `OCIPortRule` as an implicit `FirewallRule` and marks it with a `Deprecated` condition. Once none is left, delete the CRD by hand (see [../../crds/oci-port-controller/README.md](../../crds/oci-port-controller/README.md)).
+The five old objects (`dns-port`, `dns-port-udp`, `dot-port`, `tailscale-wireguard`, `web-ports`) became three: the tcp/udp pair was merged into `dns`, `web-ports` became `web`, and `dot-port` (853) was dropped, then 853/tcp was added back to `dns` when the `dns-dot` route went live on the Traefik `dot` entrypoint. Flux prunes the old objects. The controller still reconciles any leftover `OCIPortRule` as an implicit `FirewallRule` and marks it with a `Deprecated` condition. Once none is left, delete the CRD by hand (see [../../crds/oci-port-controller/README.md](../../crds/oci-port-controller/README.md)).
 
 ## Related
 

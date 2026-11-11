@@ -21,12 +21,13 @@ metadata:
   name: dns-host
 spec:
   type: Host
-  description: DNS (PowerDNS), host side of dns
+  description: DNS (PowerDNS) and DNS over TLS, host side of dns
   nodeSelector:
     node-role.kubernetes.io/ingress: "true"
   ports:
     - {port: 53, protocol: TCP}
     - {port: 53, protocol: UDP}
+    - {port: 853, protocol: TCP}
 ---
 apiVersion: network.vmd1.homelab/v1alpha1
 kind: FirewallRule

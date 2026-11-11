@@ -4,7 +4,7 @@ metadata:
   name: dns
 spec:
   type: OCI
-  description: DNS (PowerDNS on the ingress nodes)
+  description: DNS (PowerDNS on the ingress nodes) and DNS over TLS (dnsdist)
   nodeSelector:
     node-role.kubernetes.io/ingress: "true"
   ports:
@@ -12,3 +12,5 @@ spec:
       protocol: TCP
     - port: 53
       protocol: UDP
+    - port: 853
+      protocol: TCP
