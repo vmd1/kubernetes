@@ -11,6 +11,11 @@
 # Cloudflare's free plan caps a request body at 100 MB, which would break large uploads. The sftpgo IngressRoute lets only its
 # public paths through and sends the rest to the tailnet-only middleware.
 #
+# Exempt: dns.vmd1.homelab and <profile>.dns.vmd1.homelab (the public DoH resolver, resources/edge/dns-resolver) are
+# deliberately DNS-only (dns/domains/vmd1.homelab.js: CF_PROXY_OFF, Cloudflare cannot carry DoT and the wildcard picks the blocklists)
+# so DoH clients reach the ingress directly; without this exemption every DoH request from outside Cloudflare/the tailnet got
+# the 404 page. The dns-doh IngressRoute only serves /dns-query (rate-limited); every other path on these hosts is still a 404.
+#
 # Exempt: /health. PowerDNS (edge/powerdns, geoip-zones LUA records) probes https://vmd1.homelab/health
 # on every ingress IP with ifurlup() from the nodes' own public addresses; blocking it marks every origin down.
 #
@@ -32,7 +37,7 @@ spec:
     - websecure
   routes:
     - match: >-
-        HostRegexp(`^(.+\.)?vmd1\.dev$`) && !Host(`files.vmd1.homelab`) && !Path(`/health`) && !(
+        HostRegexp(`^(.+\.)?vmd1\.dev$`) && !Host(`files.vmd1.homelab`) && !Host(`dns.vmd1.homelab`) && !HostRegexp(`^[a-z0-9-]+\.dns\.vmd1\.dev$`) && !Path(`/health`) && !(
         ClientIP(`XXX.XXX.XXX.XXX/20`) || ClientIP(`XXX.XXX.XXX.XXX/22`) || ClientIP(`XXX.XXX.XXX.XXX/22`) ||
         ClientIP(`XXX.XXX.XXX.XXX/22`) || ClientIP(`XXX.XXX.XXX.XXX/18`) || ClientIP(`XXX.XXX.XXX.XXX/18`) ||
         ClientIP(`XXX.XXX.XXX.XXX/20`) || ClientIP(`XXX.XXX.XXX.XXX/20`) || ClientIP(`XXX.XXX.XXX.XXX/22`) ||
