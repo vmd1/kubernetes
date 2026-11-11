@@ -12,5 +12,6 @@ resources:
   - trace.yaml
   - geo-country.yaml
   - cloudflare-only.yaml
+  - qerobotics-region.yaml
   - tailnet-only.yaml
   - ns-hosts-drop.yaml
