@@ -21,6 +21,9 @@ files=(
   "audit-policy.yaml:/etc/rancher/k3s/audit-policy.yaml"
   "config.yaml.d/30-leader-election.yaml:/etc/rancher/k3s/config.yaml.d/30-leader-election.yaml"
   "k3s.service.d/20-memory-protect.conf:/etc/systemd/system/k3s.service.d/20-memory-protect.conf"
+  "k3s.service.d/30-go-memory.conf:/etc/systemd/system/k3s.service.d/30-go-memory.conf"
+  "config.yaml.d/40-node-allocatable.yaml:/etc/rancher/k3s/config.yaml.d/40-node-allocatable.yaml"
+  "sysctl.d/99-zzz-vmd1-vm.conf:/etc/sysctl.d/99-zzz-vmd1-vm.conf"
 )
 $with_encryption && files+=("config.yaml.d/20-secrets-encryption.yaml:/etc/rancher/k3s/config.yaml.d/20-secrets-encryption.yaml")
 

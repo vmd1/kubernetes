@@ -32,3 +32,21 @@ A sentinel container restart is costly. The opstree sentinel entrypoint appends 
 
 Enrolled in the NetworkPolicy baseline (docs/cluster-hardening-plan.md, Appendix F): baseline, api-server, db-client. Ingress 8081, metrics 8080. Same-namespace traffic is allowed; everything else is denied by default.
 
+
+## Reconcile loop and sentinel resets (2026-11-12)
+
+redis-operator v0.25.0 was the largest single caller of the API server by count: 10,427 of 42,602 requests in 35 minutes (24 %, about 5 per second) during the hades-01 stall, and still 2.9 per second afterwards (about 24 % of a quiet 11.8 per second). Almost all of it is `get`/`update` of the sentinel StatefulSet and its four Services, `list pods`, and a `get poddisruptionbudgets` that 404s. That is only a few percent of a core on the control plane, so it is not why hades-01 is slow. The functional problem is worse than the load.
+
+**Two bugs in v0.25.0 (both fixed in v0.27.0)**
+
+1. Every successful sentinel reconcile (about every 10 s) ends in `SENTINEL RESET myMaster` on all three sentinels. A reset wipes a sentinel's list of replicas and peers, which it relearns only at its next 10 s `INFO`. The sentinels therefore never hold a stable topology: on 2026-11-12 all three reported `slaves=0` while redis-2 reported two online replicas, and `sentinel replicas myMaster` was empty. A sentinel with no known replica cannot promote one, so automatic failover is effectively not working. v0.27.0: "only reset sentinels that hold stale topology entries" (#1931).
+2. `SentinelMonitor` asks `SENTINEL MASTER`; if that call errors (a read timeout is enough) it assumes the master is unmonitored and sends `SENTINEL MONITOR`, which fails with `Duplicate master name`; the reconcile requeues, with `Conn has unread data` beside it. While hades-01 was swapping, 24 of these errors were logged in 30 minutes and the loop stopped by itself once load fell. The function is unchanged in v0.27.0, but v0.27.0 also "keeps reconciling the sentinel group while replication pods are unreachable" (#1932) and stops persisting `/etc/redis` for sentinels (#1934), which is the root of the `Duplicate master name` crash-loop described under Probes.
+
+**Fix: upgrade the chart 0.25.0 to 0.27.0** (appVersion v0.27.0; `operator.yaml` in this directory). Not applied yet. It is a change to a live HA Redis, so do it in a window, in this order:
+
+1. `helm upgrade` does not update CRDs, and 0.27.0 changes `Redis`, `RedisCluster` and `RedisReplication` (RedisReplication grows by about 1,600 lines of schema, roughly doubling its apiserver footprint). Apply the chart's `crds/crds.yaml` for v0.27.0 server-side first: `kubectl apply --server-side --force-conflicts -f https://raw.githubusercontent.com/OT-CONTAINER-KIT/redis-operator/v0.27.0/charts/redis-operator/crds/crds.yaml`.
+2. Bump `version: 0.25.0` to `0.27.0` in `operator.yaml` and merge; the k3s helm-controller rolls the operator. Watch `kubectl -n redis get pods -w`: if the new operator changes the generated StatefulSet template it will roll redis and sentinel pods one at a time (redis-0 runs under qemu on hades-01; see docs/host-config.md before touching `qemu-user-static`).
+3. Verify: `Duplicate master name` and `Conn has unread data` stop appearing; `redis-cli -p 26379 sentinel replicas myMaster` on each sentinel lists two replicas; `sentinel master myMaster` shows `num-slaves 2` and `num-other-sentinels 2`; the operator's request rate in the audit log falls.
+4. Test a failover once (`kubectl -n redis delete pod redis-2`, with redis-haproxy and the `redis-master` Service watched) before relying on it.
+
+Until then, `kubectl -n redis delete pod <sentinel>` rebuilds a sentinel's state; see Probes.

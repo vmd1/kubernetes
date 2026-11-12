@@ -1,0 +1,25 @@
+# k3s server drop-in (control plane only): tell the kubelet that k3s and the OS own part of the node's RAM.
+# Installed as /etc/rancher/k3s/config.yaml.d/40-node-allocatable.yaml by _scripts/apply-k3s-config.sh.
+#
+# Why: on hades-01 Node.status.allocatable.memory equals capacity (8145608Ki both), i.e. the scheduler and the
+# kubelet believe all 7.8 GiB are available to pods. But the k3s server process (apiserver + etcd + controllers +
+# kubelet + kube-router, 1.2 GB resident and 0.6 GB swapped out in the 2026-11-12 profile) and the kernel
+# (slab 0.45 GB, page tables, tailscaled) need about 1.5 GiB of it once the unused CRDs are gone and the Go
+# heap is clamped (k3s is 1.2 GB resident today, so 1 GiB is a deliberate squeeze). Pods were therefore packed
+# into RAM that the control plane needed, which is what produced 1.1 TB of zram swap traffic in two days, eight kswapd threads at
+# about 0.45 core, and the stalls that ended in `leaderelection lost for k3s` (see ../README.md).
+#
+# What this does:
+#   - kube-reserved / system-reserved lower allocatable to about 6.0 GiB, so the scheduler stops placing pods on
+#     memory the control plane owns, and the kubelet caps the kubepods cgroup at allocatable: when pods outgrow
+#     it, the pressure and any OOM kill stay inside kubepods instead of reclaiming k3s's pages.
+#   - eviction-hard memory.available<300Mi lets the kubelet evict the largest over-request pod before the node
+#     thrashes. Setting eviction-hard replaces the kubelet defaults, so the other three are repeated unchanged.
+#
+# Rollout order matters (see ../README.md "Rolling this out"): allocatable only constrains NEW scheduling, but the
+# kubepods cgroup limit applies to running pods at the next kubelet start. Pods use about 4.8 GiB against a
+# 6.0 GiB limit, so this fits as is; rebalance to hades-02 first only if that working set has grown past ~5.5. The `+` suffix appends to the kubelet-arg array already set in /etc/rancher/k3s/config.yaml.
+kubelet-arg+:
+  - kube-reserved=cpu=500m,memory=1Gi
+  - system-reserved=cpu=250m,memory=512Mi
+  - eviction-hard=memory.available<300Mi,nodefs.available<10%,imagefs.available<15%,nodefs.inodesFree<5%
