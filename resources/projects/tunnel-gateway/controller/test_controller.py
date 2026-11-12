@@ -76,7 +76,7 @@ def test_new_agent_gets_credentials_env_port_gateway_and_restrictions():
     urls = d["TUNNEL_URL"].split(",")
     assert sorted(urls) == sorted(f"wss://coordination-{i}.{d}" for i in (0, 1) for d in ("vmd1.homelab", "vmd1.homelab", "vmd1.homelab"))
     assert k.agents["srv1"]["status"]["gateway"] == urls[0][len("wss://"):]
-    assert "TUNNEL_SECRET=" + d["ID_AGENT"] in d["agent.env"] and "TUNNEL_VIA_URL=wss://coordination.vmd1.homelab,wss://coordination.vmd1.homelab,wss://coordination.vmd1.homelab,wss://cf-coordination.vmd1.homelab" in d["agent.env"]
+    assert "TUNNEL_SECRET=" + d["ID_AGENT"] in d["agent.env"] and "TUNNEL_VIA_URL=wss://coordination.vmd1.homelab,wss://coordination.vmd1.homelab,wss://coordination.vmd1.homelab" in d["agent.env"]
     r = restrictions(k)
     assert d["ID_AGENT"] in r and d["ID_CLIENT"] in r and d["ID_VIA"] in r and f"port: [{port}]" in r
     assert k.agents["srv1"]["status"]["conditions"][0]["status"] == "True"
@@ -416,7 +416,7 @@ def test_bridge_pod_rolls_when_its_keys_change_and_not_otherwise():
 TOKEN = "tok-" + "a" * 32
 
 
-def enroll_kube(uses=3, expires="2026-11-12T12:00:00Z", token=TOKEN, suspended=False):
+def enroll_kube(uses=3, expires="2099-01-01T00:00:00Z", token=TOKEN, suspended=False):
     kube = FakeKube([agent("srv", {"suspended": True} if suspended else {})])
     c.reconcile_once(kube, "tunnel-gateway", CFG, now=NOW, bridge_cache={})
     kube.writes.clear()
@@ -439,7 +439,7 @@ def test_enroll_returns_the_whole_environment_and_allows_exactly_three_uses():
 
 
 def test_enroll_refuses_wrong_token_expired_suspended_unknown_and_malformed_requests():
-    kube = enroll_kube()
+    kube = enroll_kube(expires="2026-11-12T12:00:00Z")
     assert c.enroll(kube, "tunnel-gateway", CFG, "srv", "tok-" + "b" * 32, NOW) == c.DENIED
     assert c.enroll(kube, "tunnel-gateway", CFG, "other", TOKEN, NOW) == c.DENIED  # no token issued for it
     assert c.enroll(kube, "tunnel-gateway", CFG, "srv", TOKEN, NOW + timedelta(days=8)) == c.DENIED  # expired
@@ -523,7 +523,7 @@ def test_setup_renders_the_script_for_a_valid_key_without_using_a_use():
     assert code == 200 and body.startswith("#!/bin/sh\n") and "exec bash" in body
     for want in ("ENROLL_NAME='srv'", f"ENROLL_TOKEN='{SETUP_TOKEN}'", "ADMIN_USER=${ADMIN_USER:-admin}", "TS_HOSTNAME=${TS_HOSTNAME:-srv}",
                  "REGISTRY_USER='agent-pull'", "REGISTRY_PASSWORD='pw123'", "ssh-ed25519 AAAAC3Nz test-key",
-                 "https://coordination.vmd1.homelab https://coordination.vmd1.homelab https://coordination.vmd1.homelab https://cf-coordination.vmd1.homelab"):
+                 "https://coordination.vmd1.homelab https://coordination.vmd1.homelab https://coordination.vmd1.homelab"):
         assert want in body, want
     assert "@@" not in body and "tskey" not in body  # the Tailscale key is only ever sent by /enroll
     assert base64.b64decode(kube.secrets["enroll-srv"]["data"]["uses"]).decode() == "3"  # serving the script spends nothing
@@ -542,7 +542,7 @@ def test_setup_script_is_valid_shell_and_the_stub_unpacks_to_the_same_bash_scrip
 def test_setup_refuses_bad_expired_used_up_suspended_and_malformed_requests():
     cfg = setup_cfg()
     assert c.render_setup(setup_kube(), "tunnel-gateway", cfg, "srv." + "c" * 48, now=NOW) == c.DENIED
-    assert c.render_setup(setup_kube(), "tunnel-gateway", cfg, SETUP_TOKEN, now=NOW + timedelta(days=8)) == c.DENIED
+    assert c.render_setup(setup_kube(expires="2026-11-12T12:00:00Z"), "tunnel-gateway", cfg, SETUP_TOKEN, now=NOW + timedelta(days=8)) == c.DENIED
     assert c.render_setup(setup_kube(uses=0), "tunnel-gateway", cfg, SETUP_TOKEN, now=NOW) == c.DENIED
     assert c.render_setup(setup_kube(suspended=True), "tunnel-gateway", cfg, SETUP_TOKEN, now=NOW) == c.DENIED
     assert c.render_setup(setup_kube(), "tunnel-gateway", cfg, "nodothere" + "d" * 30, now=NOW)[0] == 400

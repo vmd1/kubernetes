@@ -86,7 +86,7 @@ spec:
             # Must match manifest.yaml replicas.
             - {name: GATEWAYS, value: "2"}
             - {name: GATEWAY_HOST, value: "coordination-{i}.vmd1.homelab,coordination-{i}.vmd1.homelab,coordination-{i}.vmd1.homelab"}
-            - {name: VIA_URL, value: "wss://coordination.vmd1.homelab,wss://coordination.vmd1.homelab,wss://coordination.vmd1.homelab,wss://cf-coordination.vmd1.homelab"}
+            - {name: VIA_URL, value: "wss://coordination.vmd1.homelab,wss://coordination.vmd1.homelab,wss://coordination.vmd1.homelab"}
             # Lab bridges (spec.bridge): pods in tunnel-bridge, direct UDP on NodePort BRIDGE_PORT_BASE + slot (oci/firewall/tunnel-bridge.yaml
             # opens the same BRIDGE_SLOTS ports on the ingress nodes), endpoints on the coordination.<domain> names (not Cloudflare: no UDP).
             # Enrollment (POST /enroll on the coordination names, ingressroute.yaml): a 3-use token for the whole agent.env. The shared bits
