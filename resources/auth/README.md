@@ -7,7 +7,7 @@ Identity: the lldap directory, the Authelia OIDC provider and the per-domain oau
 | Folder | Description |
 | :--- | :--- |
 | [lldap/](lldap/README.md) | Lightweight LDAP user directory backed by the CNPG PostgreSQL cluster. |
-| [authelia/](authelia/README.md) | Cluster-wide OIDC provider (`identity.vmd1.homelab`) backed by lldap, CNPG and Redis; native OIDC clients for Grafana, Nextcloud, Jellyfin, BookOrbit, Home Assistant, QEComp and Vaultwarden. |
+| [authelia/](authelia/README.md) | Cluster-wide OIDC provider (`identity.vmd1.homelab`) backed by lldap, CNPG and Redis; native OIDC clients for Grafana, SFTPGo, Jellyfin, BookOrbit, Home Assistant, continuwuity, QEComp and Vaultwarden (plus the four oauth2-proxy clients). |
 | [oauth2-proxy/](oauth2-proxy/README.md) | Per-domain Traefik ForwardAuth middlewares authenticating against Authelia. |
 
 ## Related
