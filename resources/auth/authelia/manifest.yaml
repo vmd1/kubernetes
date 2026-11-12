@@ -328,7 +328,7 @@ metadata:
   labels:
     app: authelia
 spec:
-  replicas: 2
+  replicas: 1
   strategy:
     type: RollingUpdate
     rollingUpdate:
@@ -359,19 +359,9 @@ spec:
                     operator: In
                     values:
                       - hades-02
-      # Hard spread: the two replicas must run on different nodes (hades-01 / hades-02).
-      # matchLabelKeys scopes the count to the current ReplicaSet so rolling updates can still surge;
-      # nodeTaintsPolicy: Honor ignores a NotReady node, so the survivor can still run both replicas.
-      topologySpreadConstraints:
-        - maxSkew: 1
-          topologyKey: kubernetes.io/hostname
-          whenUnsatisfiable: DoNotSchedule
-          nodeTaintsPolicy: Honor
-          labelSelector:
-            matchLabels:
-              app: authelia
-          matchLabelKeys:
-            - pod-template-hash
+      # One replica only (was two, spread over hades-01/hades-02): hades-01 is memory-starved and thrashing, and logins
+      # that landed on its replica stalled. The preferred affinity above keeps the pod on hades-02; if hades-02 is down
+      # it falls back to any uk-home node, and maxSurge 1 lets a rollout start the new pod before the old one stops.
       containers:
         - name: authelia
           image: authelia/authelia:4.39.28@sha256:bd97cff4fcbf715b5ff1f9ae286afbe6033afce385302520b0368122d43a6f54
