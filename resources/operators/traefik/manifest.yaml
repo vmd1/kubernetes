@@ -165,7 +165,8 @@ spec:
       # files.vmd1.homelab (SFTPGo sends a file as one request: 2 GB takes minutes). 2 h covers 15 GB at 30 Mbps (about 70 min) and still bounds a stalled client.
       - "--entrypoints.websecure.transport.respondingTimeouts.readTimeout=2h"
       - "--serverstransport.forwardingtimeouts.dialtimeout=15s"
-      - "--serverstransport.forwardingtimeouts.responseheadertimeout=15s"
+      # No responseheadertimeout (Traefik default: none). The old 15 s limit turned slow backends such as Grafana dashboard
+      # queries into 504s; a backend that really hangs is still bounded by the client and the readTimeout above.
       - "--serverstransport.forwardingtimeouts.idleconntimeout=90s"
 
     # Local (inline) plugin serving /.vmd1/trace, see proxy/traefik/trace.yaml
