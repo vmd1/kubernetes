@@ -78,7 +78,6 @@ The login UI is restyled to match vmd1.homelab (black background, frosted-glass 
 | `qecomp` | `https://tmtools.vmd1.homelab/auth/callback` (and the `http://` variant QEComp currently sends) | `qecomp_users` (lldap `qecomp-*` groups incl. `qecomp-omnipotent`, `one_factor`) |
 | `vaultwarden` | `https://vault.vmd1.homelab/identity/connect/oidc-signin` | `one_factor` |
 | `grafana` | `https://grafana.vmd1.homelab/login/generic_oauth` | `grafana_users` (lldap `grafana-admin`, `grafana-editor`, `grafana-viewer`; `two_factor`) |
-| `sftpgo` | `https://files.vmd1.homelab/web/oidc/redirect` | `sftpgo_users` (lldap `sftpgo_users`, `sftpgo_admins`) |
 | `jellyfin` | `https://jellyfin.vmd1.homelab/sso/OID/redirect/authelia` | `jellyfin_users` (lldap `jellyfin`, `jellyfin_admin`) |
 | `bookorbit` | `https://read.vmd1.homelab/oauth2-callback` and `bookorbit://oauth2-callback` | `bookorbit_users` (lldap `family`) |
 | `home-assistant` | `https://home.vmd1.homelab/auth/oidc/callback` | `home_assistant_users` (lldap `homeassistant_user`, `homeassistant_admin`) |
