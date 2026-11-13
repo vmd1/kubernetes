@@ -14,7 +14,10 @@
 #     memory the control plane owns, and the kubelet caps the kubepods cgroup at allocatable: when pods outgrow
 #     it, the pressure and any OOM kill stay inside kubepods instead of reclaiming k3s's pages.
 #   - eviction-hard memory.available<300Mi lets the kubelet evict the largest over-request pod before the node
-#     thrashes. Setting eviction-hard replaces the kubelet defaults, so the other three are repeated unchanged.
+#     thrashes. Setting eviction-hard replaces the whole default set. k3s's own defaults are nodefs/imagefs.available<5% with
+#     eviction-minimum-reclaim 10% (the kubelet's 10%/15% defaults do NOT apply on k3s), so the disk values must
+#     stay at 5%: at 10%/15% plus the 10% reclaim, a dip on this 250 GB disk (Longhorn replicas keep it at ~18%
+#     free) set DiskPressure on 2026-11-13 and it could never clear, rejecting every new pod on the node.
 #
 # Rollout order matters (see ../README.md "Rolling this out"): allocatable only constrains NEW scheduling, but the
 # kubepods cgroup limit applies to running pods at the next kubelet start. Pods use about 4.8 GiB against a
@@ -22,4 +25,4 @@
 kubelet-arg+:
   - kube-reserved=cpu=500m,memory=1Gi
   - system-reserved=cpu=250m,memory=512Mi
-  - eviction-hard=memory.available<300Mi,nodefs.available<10%,imagefs.available<15%,nodefs.inodesFree<5%
+  - eviction-hard=memory.available<300Mi,nodefs.available<5%,imagefs.available<5%,nodefs.inodesFree<5%
