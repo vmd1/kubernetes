@@ -48,7 +48,7 @@ QEComp is an OIDC-authenticated app (API + SPA served same-origin) with Redis-ba
 
 ## Constraints & Scheduling
 
-- **Instance Count**: QEComp scales via the replica count (see Leader-election HA above); node selector below.
+- **Instance Count**: scaled to **0** (taken down 2026-11-13; the event runs on qecomp-server). Config, database, bucket, secrets and the `r-tmtools`/`qerobotics` routes are kept. Bring it back by setting `replicas: 1` in [manifest.yaml](manifest.yaml). QEComp otherwise scales via the replica count (see Leader-election HA above); node selector below.
 - **Node Selectors**: `topology.kubernetes.io/zone: uk-home`.
 
 ## Configs & Credentials
