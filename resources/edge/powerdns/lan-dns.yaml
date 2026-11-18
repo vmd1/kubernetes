@@ -14,6 +14,11 @@ data:
     # dev.lan.int.vmd1.homelab is the group (like dev.ts.int); lan.int.vmd1.homelab is the zone the split DNS entry names
     lan.int.vmd1.homelab:5353 {
         errors
+        # Re-read this Corefile when the ConfigMap changes (the kubelet refreshes the mounted file within about a
+        # minute). The ConfigMap is not hashed into the pod template, so without this a config change (like the
+        # qerobotics.co.uk zone below) only takes effect after a pod restart, and a Flux rollout that races the
+        # ConfigMap update can leave a running pod on the old config.
+        reload
         health :8080
         ready :8181
         cache 30
