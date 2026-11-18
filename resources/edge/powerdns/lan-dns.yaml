@@ -25,6 +25,20 @@ data:
             force_tcp
         }
     }
+    # QE Comp 2026: the apex and every name below it answer with the tailnet address of qecomp-server-bridge, which
+    # forwards every port over WireGuard to the server, so tailnet clients reach the event stack by its real hostnames
+    # (tmtools., auth., s3., comp., mumble., ...). Not the server's LAN address (unreachable from the tailnet). AAAA
+    # and every other type get an empty NOERROR answer. The address is the device's tailnet IP (tailscale status).
+    qerobotics.co.uk:5353 {
+        errors
+        cache 30
+        template IN A {
+            answer "{{ .Name }} 60 IN A XXX.XXX.XXX.XXX"
+        }
+        template ANY ANY {
+            rcode NOERROR
+        }
+    }
     .:5353 {
         template ANY ANY {
             rcode REFUSED

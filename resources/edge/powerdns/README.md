@@ -65,6 +65,14 @@ A device's name is its MagicDNS name, so renaming it in the admin console rename
 
 Check: `dig <host>.dev.lan.int.vmd1.homelab @<lan-dns tailnet ip>` returns what `dig <host>.lan @XXX.XXX.XXX.XXX` returns.
 
+### QE Comp names (`qerobotics.co.uk`, tailnet only)
+
+The same CoreDNS also serves the zone `qerobotics.co.uk` (Corefile block in `lan-dns.yaml`): the apex and every name below it answer `A XXX.XXX.XXX.XXX`, the tailnet address of the `qecomp-server-bridge` device, which forwards every port over WireGuard to qecomp-server. A tailnet client therefore reaches the event stack by its real hostnames (`tmtools.`, `auth.`, `s3.`, `comp.`, `mumble.`, ...) without being on the venue LAN. AAAA and other record types get an empty NOERROR answer; names outside the two zones are REFUSED. The address is hardcoded: if the bridge device's tailnet IP changes (`tailscale status | grep qecomp-server-bridge`), update it in `lan-dns.yaml`.
+
+Manual step, after merge: Tailscale split DNS entry `qerobotics.co.uk` -> the `lan-dns` tailnet IP (admin console, DNS; `tailscale/split-dns.sh` does not manage this one). Clients without the entry keep resolving the public name (the Cloudflare/`dns-resolver` answers). The bridge device is `tag:agent`, so the existing grant only lets `group:admin` reach it on tcp 22, 80, 443 and 5000: other members resolve the name but get no connection, and Mumble (64738) is not covered.
+
+Check: `dig tmtools.qerobotics.co.uk @<lan-dns tailnet ip>` returns `XXX.XXX.XXX.XXX`; `curl -I https://tmtools.qerobotics.co.uk` from an admin device with the entry set reaches the server (the certificate is whatever the server serves).
+
 ## Shadow zones (tailnet split DNS)
 
 Goal: attach the `tailnet-only` middleware ([proxy/traefik](../../proxy/traefik/README.md)) to a route and the service is reachable only with Tailscale on, with no per-service DNS change.
